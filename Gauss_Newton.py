@@ -456,12 +456,11 @@ def rank(T):
     Tsize = np.linalg.norm(T)
     for r in range(1,R):
         maxit = 100
-        tol = 10**(-3)
         L = np.random.randn(r)
         X = np.random.randn(r*n)
         Y = np.random.randn(r*n)
         Z = np.random.randn(r*n)
-        [x,S,step_sizes,errors,xpath] = gauss_newton(T,L,X,Y,Z,r,n,maxit,tol)
+        [x,S,step_sizes,errors,xpath] = gauss_newton(T,L,X,Y,Z,r,n,maxit)
         rank_errors[r-1] = errors[-1]/Tsize
         if r > 1:
             #Verification of the stabilization condition.
@@ -473,11 +472,11 @@ def rank(T):
     print('R(T) =',r-1)
     print('|T-S|/|T| =',rank_errors[-2])
     plt.axhline(y=0, color='r', linestyle='--')
-    plt.plot(range(1,r+1),rank_errors)
-    plt.plot(r-1,rank_errors[-2],marker = 'o',color = 'k')
+    plt.plot(range(1,r+1),np.log10(rank_errors))
+    plt.plot(r-1,np.log10(rank_errors[-2]),marker = 'o',color = 'k')
     plt.title('Rank trials')
     plt.xlabel('r')
-    plt.ylabel('$\|T - S\|/|T|$')
+    plt.ylabel('$log10 \|T - S\|/|T|$')
     plt.show()
             
     return(r-1,rank_errors)
