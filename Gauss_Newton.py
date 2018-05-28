@@ -1,37 +1,9 @@
-
-# coding: utf-8
-
-# In[1]:
-
-
 import numpy as np
 import time
 import matplotlib.pyplot as plt
 import scipy.sparse.linalg as ssl
 from scipy import sparse
 from numba import jit, njit, prange
-
-
-# Consider the problem of approximating a tensor $T \in \mathbb{R}^{n+1} \otimes \mathbb{R}^{n+1} \otimes \mathbb{R}^{n+1}$ by a tensor of rank $r$ given by
-# $$S = \sum_{\ell=1}^r \Lambda_\ell \cdot X_{\ell} \otimes Y_{\ell} \otimes Z_{\ell},$$
-# where 
-# $$X_{\ell} = (1, X_{\ell_1}, \ldots, X_{\ell_n}),$$
-# $$Y_{\ell} = (1, Y_{\ell_1}, \ldots, Y_{\ell_n}),$$
-# $$Z_{\ell} = (1, Z_{\ell_1}, \ldots, Z_{\ell_n}).$$
-# 
-# We do this by minimizing the error function
-# $$\textbf{E}(\Lambda,X,Y,Z) = \frac{1}{2}\|T - S\|^2 = \frac{1}{2} \sum_{i,j,k=0}^n \left( T_{ijk} - \sum_{\ell=1}^r \Lambda_\ell \cdot X_{\ell_i} Y_{\ell_j} Z_{\ell_j} \right)^2 = \frac{1}{2} \sum_{i,j,k=0}^n res_{ijk}^2(\Lambda, X,Y,Z) = \frac{1}{2} \|\textbf{res}(\Lambda,X,Y,Z)\|^2,$$
-# where
-# $$\Lambda = (\Lambda_1, \ldots, \Lambda_r),$$
-# $$X = (X_1, \ldots, X_r),$$
-# $$Y = (Y_1, \ldots, Y_r),$$
-# $$Z = (Z_1, \ldots, Z_r),$$
-# and $\textbf{res} = (res_{000}, res_{001}, \ldots, res_{nnn})$ is the function of the residuals.
-# 
-# In the python function called *residuals* the program constructs $\textbf{res}(\Lambda,X,Y,Z)$ for a given $(\Lambda,X,Y,Z)$.
-
-# In[2]:
-
 
 @njit(nogil=True,parallel=True)
 def residuals(T,Lambda,X,Y,Z,r,n):
@@ -91,9 +63,6 @@ def residuals(T,Lambda,X,Y,Z,r,n):
     return res
 
 
-# In[3]:
-
-
 @njit(nogil=True,cache=True)
 
 def residuals_entries(T,Lambda,augX,augY,augZ,r,n,i,j,k):
@@ -106,11 +75,6 @@ def residuals_entries(T,Lambda,augX,augY,augZ,r,n,i,j,k):
     res_entry = T[i,j,k] - s
         
     return res_entry
-
-
-# In the python function *derivative_residuals* the program constructs the Jacobian matrix $D\textbf{res}$ of $\textbf{res}$ at $(\Lambda,X,Y,Z)$.
-
-# In[4]:
 
 
 @njit(nogil=True,parallel=True)
@@ -174,16 +138,10 @@ def derivative_residuals(Lambda,X,Y,Z,r,n):
                     #Partial derivative with respect to Z.
                     if k != 0:
                         data[s] = -Lambda[l]*augX[l*(n+1) + i]*augY[l*(n+1) + j]
-                        s = s+1
-    
+                        s = s+1    
     data = data[0:s]
     
     return data
-
-
-# The function *initialize* creates the arrays *data,row,col*, which are necessary for working with the sparse matrices $D\textbf{res}$. Since the sparse structure of these matrices is always the same, the arrays *row,col* only need to be initialized one time.
-
-# In[5]:
 
 
 @njit(nogil=True,cache=True)
@@ -241,18 +199,12 @@ def initialize(r,n):
                         row[s] = (n+1)**2*i + (n+1)*j + k
                         col[s] = r + 2*r*n + l*n + k-1
                         data[s] = 1
-                        s = s+1
-    
+                        s = s+1    
     row = row[0:s]
     col = col[0:s]
     data = data[0:s]
     
     return(data,row,col)
-
-
-# The python function *point2tens* constructs the tensor $S = \sum_{\ell=1}^r \Lambda_\ell \cdot X_\ell \otimes Y_\ell \otimes Z_\ell$ from a point $x = (\Lambda,X,Y,Z)$.
-
-# In[6]:
 
 
 @njit(nogil=True,parallel=True)
@@ -296,9 +248,6 @@ def point2tens(x,r,n):
     return S
 
 
-# In[7]:
-
-
 @njit(nogil=True,cache=True)
 def S_entries(Lambda,X,Y,Z,r,n,i,j,k):
     """Computation of each individual entry of S in the function point2tens."""
@@ -310,21 +259,6 @@ def S_entries(Lambda,X,Y,Z,r,n,i,j,k):
     S_entry = s
     
     return S_entry
-
-
-# For a given initial point $x^{(0)} = (\Lambda^{(0)},X^{(0)},Y^{(0)},Z^{(0)})$, the python function *gauss_newton* tries to minimize the residual function using the damped Gauss-Newton method. The user may choose the maximum number of iterations and the tolerance value to stop the iteration process. The parameter *tol* makes the iteration stops when $\|T-S\|/\|T\| < tol$ or $\|x^{(k+1)} - x^{(k)}\| < tol$. 
-# 
-# This function returns the approximating tensor $S$, the obtained error $\|T-S\|$, and the following additional information:
-# 
-# $\bullet$ The final point $x = (\Lambda,X,Y,Z) \in \mathbb{R}^{r+3rn}$ computed and used to construct the approximating tensor $S$.
-# 
-# $\bullet$ An array $[\|x^{(1)} - x^{(0)}\|, \|x^{(2)} - x^{(1)}\|, \ldots ]$ with the distance between the points in each iterarion.
-# 
-# $\bullet$ An array $[\|T-S^{(0)}\|, \|T-S^{(1)}\|, \ldots ]$ with the absolute errors in each iteration.
-# 
-# $\bullet$ An array $[x^{(0)}, x^{(1)}, \ldots]$ with the path of the points computed in each iteration.
-
-# In[8]:
 
 
 def gauss_newton(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
@@ -439,11 +373,6 @@ def gauss_newton(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     xpath = xpath[0:it+1,:]
 
     return(x,S,step_sizes,errors,xpath)
-
-
-# This function does the same thing as *gauss_newton*, but with the difference that it measures the computation times of several parts of the algorithm. 
-
-# In[9]:
 
 
 def gauss_newton_timing(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
@@ -582,19 +511,6 @@ def gauss_newton_timing(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     return(x,S,step_sizes,errors,xpath,sparse_time,gauss_newton_time,rest_time)
 
 
-# The python function *low_rank* tries to minimize the residual function calling several times the Gauss-Newton method. The user may choose the number of trials the program makes with the parameter *maxtrials*. Also, the user may choose the maximum number of iterations at each trials. Finally, the user may define the tolerance value to stop the iteration process. The parameter *tol* is passed to each Gauss_Newton trial, we also use this parameter to stop the program when $\|T-S\|/\|T\| < tol$ or the improvement of $\|T-S\|/\|T\|$ in some trial is less than *tol*. 
-# 
-# The first outputs of this function are essentially the best output of all functions *gauss_newton* computed. The program returns the arrays $(\Lambda,X,Y,Z)$, including the 0th entries (equal to 1). Look at the desciption of the function *x2CPD* for more details. The latter outputs are general information about all the trials. These informations are the following:
-# 
-# $\bullet$ The total time spent in each trial.
-# 
-# $\bullet$ The number of steps used in each trial.
-# 
-# $\bullet$ The relative error $\|T-S\|/\|T\|$ obtained in each trial.
-
-# In[10]:
-
-
 def low_rank(T,r,n,maxtrials=3,maxit=500,tol=10**(-3)):
     """
     This function searches for the best rank r approximation of T by making several
@@ -716,46 +632,6 @@ def low_rank(T,r,n,maxtrials=3,maxit=500,tol=10**(-3)):
     return(Lambda,X,Y,Z,S,error,step_sizes,errors,xpath,times,steps,rel_errors)
 
 
-# Given the point $x = (x_1, \ldots, x_{r+3rn})$, the function *x2CPD* breaks it in parts, in order to form the CPD of $S$. This program return the arrays
-# 
-# $$\Lambda = \left[
-# \begin{array}{c}
-#     \Lambda_1\\
-#     \vdots\\ 
-#     \Lambda_r
-# \end{array}
-# \right], \quad
-# X = \left[
-# \begin{array}{c}
-#     X_1\\
-#     \vdots\\ 
-#     X_r
-# \end{array}
-# \right], \quad
-# Y = \left[
-# \begin{array}{c}
-#     Y_1\\
-#     \vdots\\ 
-#     Y_r
-# \end{array}
-# \right], \quad
-# Z = \left[
-# \begin{array}{c}
-#     Z_1\\
-#     \vdots\\ 
-#     Z_r
-# \end{array}
-# \right]$$
-# so we have that 
-# $$S = \sum_{\ell=1}^r \Lambda_\ell \cdot X_\ell \otimes Y_\ell \otimes Z_\ell,$$ 
-# where
-# $$X_\ell = (1, X_{\ell_1}, \ldots, X_{\ell_n}),$$
-# $$Y_\ell = (1, Y_{\ell_1}, \ldots, Y_{\ell_n}),$$
-# $$Z_\ell = (1, Z_{\ell_1}, \ldots, Z_{\ell_n}).$$
-
-# In[11]:
-
-
 @njit(nogil=True,parallel=True)
 def x2CPD(x,r,n):
     """
@@ -799,13 +675,6 @@ def x2CPD(x,r,n):
         Z[l,:] = x[r + 2*r*n + l*n:r + 2*r*n + (l+1)*n]
         
     return(Lambda,X,Y,Z)
-
-
-# This function computes several approximations of $T$ for $r = 1 \ldots n^2$. We use these computations to determine the (most probable) rank of $T$. The function also returns an array *errors_per_rank* with the relative errors for the rank varying from $1$ to $r+1$, where $r$ is the computed rank of $T$. It is relevant to say that the value $r$ computed can also be the *border rank* of $T$, not the actual rank. 
-# 
-# The idea is that the minimum of $\|T-S\|$, for each rank $r$, stabilizes when $S$ has the same rank as $T$. This function also plots the graph of the errors so the user are able to visualize the moment when the error stabilizes.
-
-# In[12]:
 
 
 def rank(T):
