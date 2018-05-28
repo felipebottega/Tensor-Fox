@@ -64,7 +64,6 @@ def residuals(T,Lambda,X,Y,Z,r,n):
 
 
 @njit(nogil=True,cache=True)
-
 def residuals_entries(T,Lambda,augX,augY,augZ,r,n,i,j,k):
     """Computation of each individual residual in the function residuals."""
     
