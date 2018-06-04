@@ -323,6 +323,8 @@ def gauss_newton(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     atol = 10**(-5)
     btol = 10**(-3)
     old_residualnorm = 0
+    #This constant controls the maximum number of iterations of the function lsmr.
+    lsmr_maxiter = (2 + np.floor(1000/n**2))*max(min(r,n),10)
     
     #Gauss-Newton iterations starting at x.
     for it in range(0,maxit):  
@@ -337,7 +339,7 @@ def gauss_newton(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
         
         #Computation of the Gauss-Newton iteration formula to obtain the new point x.
         #The vector a is the solution of min_y |Ay - b|, with A = Dres(x) and b = -res(x). 
-        [y,istop,itn,residualnorm,auxnorm,Dres_norm,estimate_Dres_cond,ynorm] = ssl.lsmr(Dres,-res,u,atol,btol)
+        [y,istop,itn,residualnorm,auxnorm,Dres_norm,estimate_Dres_cond,ynorm] = ssl.lsmr(Dres,-res,u,atol,btol,maxiter=lsmr_maxiter)
         x = x + y
         
         #Computation of the respective tensor S associated to x and its error.
@@ -439,6 +441,8 @@ def gauss_newton_timing(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     atol = 10**(-5)
     btol = 10**(-3)
     old_residualnorm = 0
+    #This constant controls the maximum number of iterations of the function lsmr.
+    lsmr_maxiter = (2 + np.floor(1000/n**2))*max(min(r,n),10)
     
     sparse_time = np.zeros(maxit)
     gauss_newton_time = np.zeros(maxit)
@@ -466,7 +470,7 @@ def gauss_newton_timing(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
         start = time.time()
         #Computation of the Gauss-Newton iteration formula to obtain the new point x.
         #The vector a is the solution of min_y |Ay - b|, with A = Dr(x) and b = -res(x). 
-        [y,istop,itn,residualnorm,auxnorm,Dres_norm,estimate_Dres_cond,ynorm] = ssl.lsmr(Dres,-res,u,atol,btol)
+        [y,istop,itn,residualnorm,auxnorm,Dres_norm,estimate_Dres_cond,ynorm] = ssl.lsmr(Dres,-res,u,atol,btol,maxiter=lsmr_maxiter)
         x = x + y
         gauss_newton_time[it] = time.time() - start
         
