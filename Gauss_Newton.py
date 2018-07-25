@@ -30,7 +30,7 @@ def residuals(T,Lambda,X,Y,Z,r,n):
     Y: float 1-D ndarray with r*n entries
     Z: float 1-D ndarray with r*n entries
     r: int.
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int
         The dimension of the space minus 1.
     
@@ -93,7 +93,7 @@ def derivative_residuals(Lambda,X,Y,Z,r,n):
     Y: float 1-D array with r*n entries
     Z: float 1-D ndarray with r*n entries
     r: int. 
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int. 
         The dimension of the space minus 1.
     
@@ -156,7 +156,7 @@ def initialize(r,n):
     Inputs
     ------
     r: int
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int 
         The dimension of the space minus 1.
     
@@ -210,7 +210,7 @@ def initialize(r,n):
 def point2tens(x,r,n):
     """
     Let x = [Lambda,X,Y,Z], where X,Y,Z are described as in the function residual,
-    i.e., they are 1-D dnarrays with r*n entries each. This function complete these
+    i.e., they are 1-D ndarrays with r*n entries each. This function complete these
     ndarrays by putting the additional ones and then constructs the 3-D tensor S
     associated.
 
@@ -218,7 +218,7 @@ def point2tens(x,r,n):
     ------
     x: float 1-D ndarray with r+3*r*n entries
     r: int 
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int 
         The dimension of the space minus 1.
     
@@ -281,7 +281,7 @@ def gauss_newton(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     Y: float 1-D ndarray with r*n entries
     Z: float 1-D ndarray with r*n entries
     r: int 
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int 
         The dimension of the space minus 1.
     maxit: int
@@ -390,7 +390,7 @@ def gauss_newton_timing(T,Lambda,X,Y,Z,r,n,maxit=500,tol=10**(-3)):
     Y: float 1-D ndarray with r*n entries
     Z: float 1-D ndarray with r*n entries
     r: int 
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int 
         The dimension of the space minus 1.
     maxit: int
@@ -542,7 +542,7 @@ def low_rank(T,r,n,maxtrials=3,maxit=500,tol=10**(-3)):
     ------
     T: float 3-D ndarray
     r: int 
-        The rank of the desired approximating tensor.
+        The desired rank of the approximating tensor.
     n: int 
         The dimension of the space minus 1.
     maxtrials: int 
