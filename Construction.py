@@ -245,7 +245,7 @@ def smart_sample(S_trunc, r, R1, R2, R3):
     C2 = np.random.randint(high2, size=r)  
     C3 = np.random.randint(high3, size=r)
 
-    # Update arrays based of the choices made.
+    # Update arrays based on the choices made.
     for l in prange(0,r):
         X[:,l], Y[:,l], Z[:,l] = assign_values(S_trunc, X, Y, Z, r, R1, R2, R3, C1, C2, C3, arr1, arr2, arr3, l) 
           
@@ -283,7 +283,7 @@ def truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy):
     This function computes an adequate truncation for the central tensor S of the
     HOSVD of T.
     There are four possibilities: 
-        1) The user passes a list [r1, r2, r3]. 
+        1) The user passes a list [r1, r2, r3] with the truncation dimensions 
         2) No truncation (energy == 100)
         3) Truncation by energy (1 <= energy < 100)
         4) Truncation by relative error (0 < energy < 1)
