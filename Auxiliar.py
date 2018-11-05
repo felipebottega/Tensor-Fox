@@ -3,8 +3,6 @@ Auxiliar Module
  
  This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the user but most of them are just some piece of another (and more important) function. Below we list all funtions presented in this module.
  
- - cond
- 
  - consistency
  
  - line_search
@@ -26,51 +24,10 @@ Auxiliar Module
 import numpy as np
 import sys
 import scipy.io
-from scipy import sparse 
-from scipy.sparse.linalg import svds
 from numba import jit, njit, prange
 import TensorFox as tf
 import Construction as cnst
 import Conversion as cnv
-import Critical as crt
-
-
-def cond(T, r):
-    """
-    The condition number of T with respect to some rank r is defined as
-    k(T) = 1/sigma_min(Dres), where Dres is the derivative computed at
-    (Lambda,X,Y,Z), the CPD for T of rank r. "sigma_min" stands for the
-    least singular value of Dres. If this value is zero, we define
-    k(T) = infinity.
-    
-    Inputs
-    ------
-    T: float 3-D ndarray
-    r: int
-    """
-    
-    # Compute dimensions of T.
-    m, n, p = T.shape
-    
-    # Test consistency of dimensions and rank.
-    consistency(r, m, n, p) 
-    
-    # Initialize row and column indexes for sparse matrix creation.
-    Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref = tf.cpd(T,r)
-    res = np.zeros(m*n*p, dtype = np.float64)
-    data, row, col, datat_id, colt = cnst.residual_derivative_structure(r, m, n, p)
-    res = cnst.residual(res, T, Lambda, X, Y, Z, r, m, n, p)
-    data = cnst.residual_derivative(data, Lambda, X, Y, Z, r, m, n, p)
-    Dres = sparse.csr_matrix((data, (row, col)), shape=(m*n*p, r + r*(m+n+p)))
-    
-    U, S, Vt = svds(Dres, k=2, which='SM', maxiter = 1000)
-    
-    # In the case all values of S are nan, we assume Dres is singular.
-    if np.prod(np.isnan(S)) == 1:
-        return np.inf
-    else:
-        cond = 1/min(S[~np.isnan(S)])
-        return cond
 
 
 def consistency(r, m, n, p):
@@ -92,7 +49,8 @@ def consistency(r, m, n, p):
     return
 
 
-def line_search(T, T_aux, Lambda, X, Y, Z, x, y, r):
+@njit(nogil=True)
+def line_search(T, T_aux, Tsize, X, Y, Z, x, y, r):
     """
     We use a very simple line search after each Gauss-Newton iteration to try
     to improve the accuracy of the minimum just computed with the lsmr function.
@@ -128,18 +86,14 @@ def line_search(T, T_aux, Lambda, X, Y, Z, x, y, r):
     
     # Compute dimensions of T.
     m, n, p = T.shape
-    Tsize = np.linalg.norm(T)
             
     # Set initial conditions. 
-    Lambda, X, Y, Z = cnv.x2CPD(x + y, Lambda, X, Y, Z, r, m, n, p)
-    T_aux = cnv.CPD2tens(T_aux, Lambda, X, Y, Z, r)
-    best_error = np.linalg.norm(T - T_aux)
+    X, Y, Z = cnv.x2CPD(x + y, X, Y, Z, r, m, n, p)
+    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, r)
+    error = 1.0
     alpha = 1.0
+    best_error = np.sqrt(np.sum((T - T_aux)**2))
     best_alpha = 1.0
-    
-    # Declare arrays.
-    errors = np.zeros(100, dtype = np.float64)
-    alphas = np.zeros(100, dtype = np.float64)
     
     if best_error/Tsize > 1.0:
         low = 0.01
@@ -151,19 +105,18 @@ def line_search(T, T_aux, Lambda, X, Y, Z, x, y, r):
     # Test different size steps with line search to improve the new point.
     for i in range(0,100):
         alpha = low + (high - low)*i/100 
-        Lambda, X, Y, Z = cnv.x2CPD(x + alpha*y, Lambda, X, Y, Z, r, m, n, p)
-        T_aux = cnv.CPD2tens(T_aux, Lambda, X, Y, Z, r)
-        errors[i] = np.linalg.norm(T - T_aux)
-        alphas[i] = alpha    
+        X, Y, Z = cnv.x2CPD(x + alpha*y, X, Y, Z, r, m, n, p)
+        T_aux = cnv.CPD2tens(T_aux, X, Y, Z, r)
+        error = np.sqrt(np.sum((T - T_aux)**2))
         # Choose the step y associated with the smallest error.
-        if errors[i] < best_error:
-                best_error = errors[i]
-                best_alpha = alphas[i]
+        if error < best_error:
+            best_error = error
+            best_alpha = alpha
        
     return best_alpha
 
 
-@jit(nogil=True,cache=True)
+@jit(nogil=True)
 def multilin_mult(T, L, M, N, m, n, p):
     """
     This function computes (L,M,N)*T, the multilinear multiplication between
@@ -188,28 +141,28 @@ def multilin_mult(T, L, M, N, m, n, p):
     d1 = L.shape[0]
     d2 = M.shape[0]
     d3 = N.shape[0]
-    LT = np.zeros((d1,n,p), dtype = np.float64)
-    LMT = np.zeros((d1,d2,p), dtype = np.float64)
-    LMNT = np.zeros((d1,d2,d3), dtype = np.float64)
+    LT = np.zeros((d1, n, p), dtype = np.float64)
+    LMT = np.zeros((d1, d2, p), dtype = np.float64)
+    LMNT = np.zeros((d1, d2, d3), dtype = np.float64)
     
     # Compute unfoldings and update the new tensors accordingly
     T1 = cnv.unfold(T ,m, n, p, 1)
-    T1_new = np.dot(L,T1)
+    T1_new = np.dot(L, T1)
     for k in range(0,p):
         for j in range(0,n):
-            LT[:,j,k] = T1_new[:,k*n + j]
+            LT[:,j,k] = T1_new[:, k*n + j]
      
     T2 = cnv.unfold(LT, d1, n, p, 2)
-    T2_new = np.dot(M,T2)
+    T2_new = np.dot(M, T2)
     for k in range(0,p):
         for i in range(0,d1):
-            LMT[i,:,k] = T2_new[:,k*d1 + i]
+            LMT[i,:,k] = T2_new[:, k*d1 + i]
     
     T3 = cnv.unfold(LMT, d1, d2, p, 3)
-    T3_new = np.dot(N,T3)
+    T3_new = np.dot(N, T3)
     for j in range(0,d2):
         for i in range(0,d1):
-            LMNT[i,j,:] = T3_new[:,j*d1 + i]
+            LMNT[i,j,:] = T3_new[:, j*d1 + i]
             
     return LMNT
 
@@ -248,7 +201,7 @@ def multirank_approx(T, r1, r2, r3):
     return T_approx
 
 
-def refine(S, Lambda, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-4, display='none'):
+def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-4, display='none'):
     """
     After the cpd function computes a CPD for T using the truncated S, this function 
     puts the CPD Lambda, X, Y, Z in the same space of S (no truncation anymore) and try
@@ -287,18 +240,18 @@ def refine(S, Lambda, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol
     
     # Consider larger versions of X, Y, Z filled with zeros at the end. 
     # They are made to fit S in the computations.
-    X_aug = np.zeros((R1,r), np.float64)
-    Y_aug = np.zeros((R2,r), np.float64)
-    Z_aug = np.zeros((R3,r), np.float64)    
+    X_aug = np.zeros((R1, r), np.float64)
+    Y_aug = np.zeros((R2, r), np.float64)
+    Z_aug = np.zeros((R3, r), np.float64)    
     X_aug[0:R1_trunc,:] = X
     Y_aug[0:R2_trunc,:] = Y
     Z_aug[0:R3_trunc,:] = Z
                 
-    x, S_approx, step_sizes, errors = tf.dGN(S, Lambda, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, tol=tol, display=display)
+    x, S_approx, step_sizes, errors = tf.dGN(S, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, tol=tol, display=display)
     
-    Lambda, X, Y, Z = cnv.x2CPD(x, Lambda, X, Y, Z, r, R1, R2, R3)
+    X, Y, Z = cnv.x2CPD(x, X, Y, Z, r, R1, R2, R3)
        
-    return Lambda, X, Y, Z, step_sizes, errors
+    return X, Y, Z, step_sizes, errors
 
 
 def tens2matlab(T):
@@ -331,6 +284,7 @@ def tens2matlab(T):
     return
 
 
+@njit(nogil=True)
 def _sym_ortho(a, b):
     """
     Stable implementation of Givens rotation.
@@ -367,6 +321,7 @@ def _sym_ortho(a, b):
     return c, s, r
 
 
+@njit(nogil=True)
 def update_damp(damp, v, old_error, error, old_residualnorm, residualnorm):
     """Update rule of the damping parameter for the dGN function."""
  
@@ -381,16 +336,48 @@ def update_damp(damp, v, old_error, error, old_residualnorm, residualnorm):
     return damp, v
 
 
-def normalize(Lambda, X, Y, Z, r):
+def normalize(X, Y, Z, r):
     """ Normalize the columns of X, Y, Z and scale Lambda accordingly."""
+    Lambda = np.zeros(r, dtype = np.float64)
     
     for l in range(0,r):
         xn = np.linalg.norm(X[:,l])
         yn = np.linalg.norm(Y[:,l])
         zn = np.linalg.norm(Z[:,l])
-        Lambda[l] = xn*yn*zn*Lambda[l]
+        Lambda[l] = xn*yn*zn
         X[:,l] = X[:,l]/xn
         Y[:,l] = Y[:,l]/yn
         Z[:,l] = Z[:,l]/zn
         
     return Lambda, X, Y, Z
+
+
+@njit(nogil=True, parallel=True)
+def equalize(X, Y, Z, r):
+    """ After a Gauss-Newton iteration we have an approximated CPD with factors 
+    X_l ⊗ Y_l ⊗ Z_l. They may have very differen sizes and this can have effect
+    on the convergence rate. To improve this we try to equalize their sizes by 
+    introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l)
+    and |a*X_l| = |b*Y_l| = |c*Z_l|. Notice that we must have a*b*c = 1.
+    
+    To find good values for a, b, c, we can search for critical points of the function 
+    f(a,b,c) = (|a*X_l|-|b*Y_l|)^2 + (|a*X_l|-|c*Z_l|)^2 + (|b*Y_l|-|c*Z_l|)^2.
+    Using Lagrange multipliers we find the solution 
+        a = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|X_l|,
+        b = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Y_l|,
+        c = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Z_l|.
+    
+    We can see that this solution satisfy the conditions mentioned above.
+    """
+    
+    for l in prange(0, r):
+        X_nr = np.linalg.norm(X[:,l])
+        Y_nr = np.linalg.norm(Y[:,l])
+        Z_nr = np.linalg.norm(Z[:,l])
+        if (X_nr != 0) and (Y_nr != 0) and (Z_nr != 0) :
+            numerator = (X_nr*Y_nr*Z_nr)**(1/3)
+            X[:,l] = (numerator/X_nr)*X[:,l]
+            Y[:,l] = (numerator/Y_nr)*Y[:,l]
+            Z[:,l] = (numerator/Z_nr)*Z[:,l] 
+            
+    return X, Y, Z
