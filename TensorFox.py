@@ -356,7 +356,7 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     # old_residualnorm is the previous error (at each iteration) obtained in the LSMR function.
     old_residualnorm = 0.0
     # lsmr_maxiter is the maximum number of iterations of the LSMR function.
-    lsmr_maxiter = min(m*n*p, r+r*(m+n+p))
+    lsmr_maxiter = max( 10, min(m*n*p, r+r*(m+n+p))/10 )
     alpha = 1.0
         
     # INITIALIZE RELEVANT ARRAYS
@@ -1052,3 +1052,14 @@ def rank1_plot(Lambda, X, Y, Z, r):
     disp.rank1_plot(Lambda, X, Y, Z, r)
     
     return
+
+
+#PRELOAD PART#
+#This piece of code computes a single CPD for a small tensor. This is to preload all Numba functions.
+T_preload = np.zeros((2,2,2))
+for i in range(0,2):
+    for j in range(0,2):
+        for k in range(0,2):
+            T_preload[i,j,k] = i+j+k
+            
+cpd(T_preload, 2)
