@@ -77,10 +77,6 @@ def infotens(T):
     r, error_per_rank = tf.rank(T, display='none')
     print()
     
-    # Condition number of T with respect to the rank R.
-    condition_number = aux.cond(T,r) 
-    print('cond(T) =',condition_number,' (condition number with respect to the rank',r,')')
-    
     return
 
 
