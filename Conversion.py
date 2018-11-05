@@ -16,10 +16,11 @@ import numpy as np
 import sys
 import scipy.io
 from numba import jit, njit, prange
+import Auxiliar as aux
 
 
-@njit(nogil=True, cache=True)
-def x2CPD(x, Lambda, X, Y, Z, r, m, n, p):
+@njit(nogil=True)
+def x2CPD(x, X, Y, Z, r, m, n, p):
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to
     form the CPD of S. This program return the following arrays: 
@@ -45,16 +46,17 @@ def x2CPD(x, Lambda, X, Y, Z, r, m, n, p):
     Z: float 2-D ndarray of shape (p,r)
     """
     
-    Lambda = x[0:r]
-    X = x[r:r+r*m].reshape(r,m).transpose()
-    Y = x[r+r*m:r+r*(m+n)].reshape(r,n).transpose()
-    Z = x[r+r*(m+n):r+r*(m+n+p)].reshape(r,p).transpose()
+    X = x[0 : r*m].reshape(r,m).transpose()
+    Y = x[r*m : r*(m+n)].reshape(r,n).transpose()
+    Z = x[r*(m+n) : r*(m+n+p)].reshape(r,p).transpose()
+
+    X, Y, Z = aux.equalize(X, Y, Z, r)
         
-    return Lambda, X, Y, Z
+    return X, Y, Z
 
 
 @njit(nogil=True, parallel=True)
-def CPD2tens(T_aux, Lambda, X, Y, Z, r):
+def CPD2tens(T_aux, X, Y, Z, r):
     """
     Converts the arrays Lambda, X, Y, Z to tensor in coordinate format.
 
@@ -76,10 +78,8 @@ def CPD2tens(T_aux, Lambda, X, Y, Z, r):
     """
 
     # Obtain the dimensions of the tensor.
-    m = X.shape[0]
-    n = Y.shape[0]
-    p = Z.shape[0]
-    
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+       
     s = 0.0
     
     for i in prange(0,m):
@@ -87,7 +87,7 @@ def CPD2tens(T_aux, Lambda, X, Y, Z, r):
             for k in range(0,p):
                 s = 0.0
                 for l in range(0,r):
-                    s += Lambda[l]*X[i,l]*Y[j,l]*Z[k,l]
+                    s += X[i,l]*Y[j,l]*Z[k,l]
                 T_aux[i,j,k] = s
     return T_aux
 
@@ -111,41 +111,38 @@ def unfold(T, m, n, p, mode):
     # Test for consistency.
     if (mode != 1) and (mode != 2) and (mode != 3):
         sys.exit('Invalid mode value.')
-    
+ 
+    else:
+        return _unfold(T, m, n, p, mode)
+
+
+@njit(nogil=True, parallel=True)
+def _unfold(T, m, n, p, mode):    
     if mode == 1:
         # Construct mode-1 fibers.
-        fibers1 = []
-        for k in range(0,p):
+        T1 = np.zeros((m, n*p), dtype = np.float64)
+        for k in prange(0,p):
             for j in range(0,n):
-                fibers1.append(T[:,j,k].reshape(m,1))
+                T1[:, n*k + j] = T[:,j,k]
 
-        # Construct unfolding-1.
-        T1 = np.hstack(fibers1)
-    
         return T1
     
     if mode == 2:
         # Construct mode-2 fibers.
-        fibers2 = []
-        for k in range(0,p):
+        T2 = np.zeros((n, m*p), dtype = np.float64)
+        for k in prange(0,p):
             for i in range(0,m):
-                fibers2.append(T[i,:,k].reshape(n,1))
+                T2[:, m*k + i] = T[i,:,k]
 
-        # Construct unfolding-2.
-        T2 = np.hstack(fibers2)
-    
         return T2
     
     if mode == 3:
         # Construct mode-3 fibers.
-        fibers3 = []
-        for j in range(0,n):
+        T3 = np.zeros((p, m*n), dtype = np.float64)
+        for j in prange(0,n):
             for i in range(0,m):
-                fibers3.append(T[i,j,:].reshape(p,1))
+                T3[:, m*j + i] = T[i,j,:]
 
-        # Construct unfolding-3.
-        T3 = np.hstack(fibers3)
-    
         return T3
 
 
