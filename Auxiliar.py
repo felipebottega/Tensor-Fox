@@ -6,6 +6,10 @@ Auxiliar Module
  - consistency
  
  - line_search
+
+ - cpd_error
+
+ - bissection 
  
  - multilin_mult
  
@@ -18,6 +22,10 @@ Auxiliar Module
  - _sym_ortho
  
  - update_damp
+
+ - normalize
+
+ - equalize
 """ 
 
 
@@ -31,6 +39,8 @@ import Conversion as cnv
 
 
 def consistency(r, m, n, p):
+    """ This function checks some invalid cases before anything is done in the program. """
+
     # If some dimension is equal to 1, the user may just use classical SVD with numpy.
     # We won't consider these situations here. 
     if (m == 1) or (n == 1) or (p == 1):
@@ -50,70 +60,136 @@ def consistency(r, m, n, p):
 
 
 @njit(nogil=True)
-def line_search(T, T_aux, Tsize, X, Y, Z, x, y, r):
+def line_search(T, T_aux, X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r):
     """
     We use a very simple line search after each Gauss-Newton iteration to try
     to improve the accuracy of the minimum just computed with the lsmr function.
-    Since y is a descent direction for the error function, we test several points
-    x + alpha*y. Depending on the current relative error of the CPD, we can try 
-    two strategies:
-        1) test alpha varying between 0.01 and 1 when the error is bigger than 1
-        2) test alpha varying between 1.01 and 10 when the error is smaller than 1
-        
-    Basically, we try to shorten the step if the error is too big, and we try to 
-    stretch the step if the error is small. After several tests, we keep the best
-    result.
-    
-    This is a temporary function, for it is costly, so I want to improve the results
-    with a cheaper algorithm in the future.
+    Since y is a descent direction for the error function, the program search
+    for the optimal point using a bissection strategy.
+    x + alpha*y. 
     
     Inputs
     ------
-    T: float 3-D ndarray
-    x: float 1-D ndarray
-    y: float 1-D ndarray
+    T, T_aux: float 3-D ndarray
+    X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high: float 2-D ndarray
+    x, y: float 1-D ndarray
         y has the same shape as x. It is a small step in some direction. This step is
     computed with the lsmr function, and it is the principal part of the Gauss-Newton
     method.
-    r: int
+    m, n, p, r: int
     
     Outputs
     -------
     best_alpha: float
         best_alpha is a positive number such that x + alpha*y gives the best CPD in the
-    neighborhood of x + y.    
+    neighborhood of x + y. 
+    best_error: float
+        Is the absolute error |T - T_approx(alpha)|, where T_approx(alpha) is the tensor
+    obtained from x + alpha*y for the best alpha found.   
     """
     
-    # Compute dimensions of T.
-    m, n, p = T.shape
-            
-    # Set initial conditions. 
-    X, Y, Z = cnv.x2CPD(x + y, X, Y, Z, r, m, n, p)
-    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, r)
-    error = 1.0
-    alpha = 1.0
-    best_error = np.sqrt(np.sum((T - T_aux)**2))
+    # Initial values.
+    best_error = cpd_error(T, T_aux, x + y, X_high, Y_high, Z_high, m, n, p, r)
     best_alpha = 1.0
+    alpha_low = 0.01
+    alpha_high = 3.0
     
-    if best_error/Tsize > 1.0:
-        low = 0.01
-        high = 1
+    # Compute error for alpha = 0.01.
+    error_low = cpd_error(T, T_aux, x + alpha_low*y, X_low, Y_low, Z_low, m, n, p, r)
+        
+    if error_low < best_error:
+        cuts = 7
+        alpha_low = 0.01
+        alpha_high = best_alpha
+        error_high = best_error
+                
     else:
-        low = 1.01
-        high = 10.0
+        # Compute error for alpha = 3.
+        error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
+        alpha_low = best_alpha
+        error_low = best_error
+                
+        if best_error < error_high:
+            cuts = 7
+                                    
+        else:
+            # First make sure the errors associated with the points bewtween best_alpha and 3 are greater. 
+            cuts = 3
+            best_alpha, best_error, alpha_low, alpha_high, error_low, error_high = bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)
+            # If best_alpha = 3, then we should look for further values of alpha. We set alpha_low = 3 and alpha_high = 30.
+            if best_alpha == 3.0:
+                cuts = 6
+                alpha_low = alpha_high
+                error_low = error_high
+                alpha_high = 30.0
+                # Compute error for alpha = 3.
+                error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
+            # If best_alpha < 3, then we try to refine the value of alpha by looking more this interval.
+            else:
+                cuts = 4
+                                           
+    best_alpha, best_error, alpha_low, alpha_high, error_low, error_high = bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)  
+                
+    return best_alpha, best_error
+
+
+@njit(nogil=True)
+def cpd_error(T, T_aux, x, X_lh, Y_lh, Z_lh, m, n, p, r):
+    """ 
+    This function computes the error between the objective tensor T and the CPD
+    associated to x. The 'lh' index stands for 'low or high', because this function
+    computes the error in both cases.
+    """
     
-    # Test different size steps with line search to improve the new point.
-    for i in range(0,100):
-        alpha = low + (high - low)*i/100 
-        X, Y, Z = cnv.x2CPD(x + alpha*y, X, Y, Z, r, m, n, p)
-        T_aux = cnv.CPD2tens(T_aux, X, Y, Z, r)
-        error = np.sqrt(np.sum((T - T_aux)**2))
-        # Choose the step y associated with the smallest error.
-        if error < best_error:
-            best_error = error
-            best_alpha = alpha
-       
-    return best_alpha
+    X_lh, Y_lh, Z_lh = cnv.x2CPD(x, X_lh, Y_lh, Z_lh, m, n, p, r)
+    T_aux = cnv.CPD2tens(T_aux, X_lh, Y_lh, Z_lh, m, n, p, r)
+    error = np.sqrt(np.sum((T - T_aux)**2))
+    
+    return error
+
+
+@njit(nogil=True)
+def bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r):
+    """
+    This function tries to find the best alpha between alpha_low and alpha_high using the bissection method. 
+
+    Inputs
+    ------
+    alpha_low, alpha_high, error_low_ error_high: float
+        error_low is the error associated with x + alpha_low*y. The same goes for error_high.
+    cuts: int
+        Number of cuts to be used in this bissection. It can vary depending on alpha_low and alpha_high.
+    T, T_aux: float 3-D ndarray
+    X_low, Y_low, Z_low, X_high, Y_high, Z_high: float 2-D array
+        Matrices of the CPD associated with x + alpha*y, where 'alpha' is alpha_low or alpha_high.
+    x, y: float
+    m, n, p, r: int
+
+    Outputs
+    -------
+    best_alpha, best_error, alpha_low, alpha_high, error_low, error_high: float
+        best_alpha is in fact the best parameter alpha found, while best_error is the error associated
+    with this parameter. alpha_low is the last least value of alpha in the bissection method, while
+    alpha_high is the last greater value of alpha in the bissection method.  
+    """    
+
+    for i in range(0, cuts):
+        if error_low < error_high:
+            best_alpha = alpha_low
+            best_error = error_low
+            if i == cuts-1:
+                break  
+            alpha_high = (alpha_low + alpha_high)/2    
+            error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
+        else:
+            best_alpha = alpha_high
+            best_error = error_high
+            if i == cuts-1:
+                break  
+            alpha_low = (alpha_low + alpha_high)/2
+            error_low = cpd_error(T, T_aux, x + alpha_low*y, X_low, Y_low, Z_low, m, n, p, r)
+            
+    return best_alpha, best_error, alpha_low, alpha_high, error_low, error_high
 
 
 @jit(nogil=True)
@@ -130,6 +206,11 @@ def multilin_mult(T, L, M, N, m, n, p):
     N: float 2-D ndarray with p columns
     m, n, p: int
         The dimensions of T.
+
+    Outputs
+    -------
+    LMNT: float 3-D ndarray
+        LMNT is the result of the multilinear multiplication (L,M,N)*T.
     """
     
     # Test for consistency.
@@ -201,7 +282,7 @@ def multirank_approx(T, r1, r2, r3):
     return T_approx
 
 
-def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-4, display='none'):
+def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-6, display='none'):
     """
     After the cpd function computes a CPD for T using the truncated S, this function 
     puts the CPD Lambda, X, Y, Z in the same space of S (no truncation anymore) and try
@@ -247,15 +328,16 @@ def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-4, d
     Y_aug[0:R2_trunc,:] = Y
     Z_aug[0:R3_trunc,:] = Z
                 
-    x, S_approx, step_sizes, errors = tf.dGN(S, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, tol=tol, display=display)
+    x, step_sizes, errors = tf.dGN(S, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, tol=tol, display=display)
     
-    X, Y, Z = cnv.x2CPD(x, X, Y, Z, r, R1, R2, R3)
+    X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1, R2, R3, r)
        
     return X, Y, Z, step_sizes, errors
 
 
 def tens2matlab(T):
-    """This function constructs the unfolding matrix T1 of T and creates a matlab file 
+    """ 
+    This function constructs the unfolding matrix T1 of T and creates a matlab file 
     containing T1. When in matlab, we can just open this file and the matrix T_unf will
     be created automatically. To transform it in a tensor m x n x p, first initialize 
     m,n,p with the correct values, then run the following code:
@@ -322,8 +404,8 @@ def _sym_ortho(a, b):
 
 
 @njit(nogil=True)
-def update_damp(damp, v, old_error, error, old_residualnorm, residualnorm):
-    """Update rule of the damping parameter for the dGN function."""
+def update_damp(Tsize, damp, v, old_error, error, old_residualnorm, residualnorm, itn, cg_maxiter):
+    """ Update rule of the damping parameter for the dGN function. """
  
     g = 2*(old_error - error)/(old_residualnorm - residualnorm)
     if g > 0:
@@ -333,11 +415,22 @@ def update_damp(damp, v, old_error, error, old_residualnorm, residualnorm):
         damp = damp*v
         v = 2*v
 
+    # The wrong approximation is due to bad conditioning. We fix this increasing damp (increase regularization).    
+    if error > old_error or itn > 100:
+        damp = 4*damp
+    # Slow convergence is due to local minima. We fix this decreasing damp (decrease regularization).
+    elif (old_error - error)/Tsize < 1e-5:
+        damp = damp/2
+    # Damp is too big.
+    elif damp > 2:
+        damp = 2
+
     return damp, v
 
 
 def normalize(X, Y, Z, r):
-    """ Normalize the columns of X, Y, Z and scale Lambda accordingly."""
+    """ Normalize the columns of X, Y, Z and scale Lambda accordingly. This function returns
+    Lambda, X, Y, Z, where (X,Y,Z)*Lambda is a normalized CPD. """
     Lambda = np.zeros(r, dtype = np.float64)
     
     for l in range(0,r):
@@ -354,7 +447,8 @@ def normalize(X, Y, Z, r):
 
 @njit(nogil=True, parallel=True)
 def equalize(X, Y, Z, r):
-    """ After a Gauss-Newton iteration we have an approximated CPD with factors 
+    """ 
+    After a Gauss-Newton iteration we have an approximated CPD with factors 
     X_l ⊗ Y_l ⊗ Z_l. They may have very differen sizes and this can have effect
     on the convergence rate. To improve this we try to equalize their sizes by 
     introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l)
@@ -381,3 +475,71 @@ def equalize(X, Y, Z, r):
             Z[:,l] = (numerator/Z_nr)*Z[:,l] 
             
     return X, Y, Z
+
+
+def sort_dims(T, m, n, p):
+    """
+    "m = 0", "n = 1", "p = 2"
+    """
+
+    if m >= n and n >= p:
+        ordering = [0,1,2]
+        return T, ordering
+  
+    elif p >= n and n >= m:
+        ordering = [2,1,0]
+       
+    elif n >= p and p >= m:
+        ordering = [1,2,0]
+
+    elif m >= p and p >= n:
+        ordering = [0,2,1]
+
+    elif n >= m and m >= p:
+        ordering = [1,0,2]
+
+    elif p >= m and m >= n:
+        ordering = [2,0,1]
+ 
+    # Define m_s, n_s, p_s such that T_sorted.shape == m_s, n_s, p_s.
+    m_s, n_s, p_s = T.shape[ordering[0]], T.shape[ordering[1]], T.shape[ordering[2]]
+    T_sorted = np.zeros((m_s, n_s, p_s), dtype = np.float64)
+    # In the function sort_T, inv_sort is such that T_sorted[inv_sort[i,j,k]] == T[i,j,k].
+    inv_sort = np.argsort(ordering)
+    T_sorted = sort_T(T, T_sorted, ordering, inv_sort, m_s, n_s, p_s)      
+
+    return T_sorted, ordering
+   
+
+@njit(nogil=True)
+def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
+    # id receives the current triple (i,j,k) at each iteration.
+    idx = np.array([0,0,0])
+    
+    for i in range(0, m):
+        for j in range(0, n):
+            for k in range(0, p):
+               idx[0], idx[1], idx[2] = i, j, k
+               T_sorted[i,j,k] = T[idx[inv_sort[0]], idx[inv_sort[1]], idx[inv_sort[2]]]
+                              
+    return T_sorted
+        
+
+def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
+    if ordering == [0,1,2]:
+        return X, Y, Z, U1, U2, U3,
+
+    elif ordering == [0,2,1]:        
+        return X, Z, Y, U1, U3, U2
+
+    elif ordering == [1,0,2]:        
+        return Y, X, Z, U2, U1, U3
+
+    elif ordering == [1,2,0]:        
+        return Y, Z, X, U2, U3, U1
+
+    elif ordering == [2,0,1]:        
+        return Z, X, Y, U3, U1, U2
+
+    elif ordering == [2,1,0]:        
+        return Z, Y, X, U3, U2, U1
