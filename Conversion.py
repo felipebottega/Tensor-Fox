@@ -8,6 +8,8 @@ Conversion Module
  - cpd2tens
  
  - unfold
+
+ - _unfold
  
  - foldback
 """
@@ -20,7 +22,7 @@ import Auxiliar as aux
 
 
 @njit(nogil=True)
-def x2CPD(x, X, Y, Z, r, m, n, p):
+def x2CPD(x, X, Y, Z, m, n, p, r):
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to
     form the CPD of S. This program return the following arrays: 
@@ -41,9 +43,9 @@ def x2CPD(x, X, Y, Z, r, m, n, p):
     Outputs
     -------
     Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m,r)
-    Y: float 2-D ndarray of shape (n,r)
-    Z: float 2-D ndarray of shape (p,r)
+    X: float 2-D ndarray of shape (m, r)
+    Y: float 2-D ndarray of shape (n, r)
+    Z: float 2-D ndarray of shape (p, r)
     """
     
     X = x[0 : r*m].reshape(r,m).transpose()
@@ -56,7 +58,7 @@ def x2CPD(x, X, Y, Z, r, m, n, p):
 
 
 @njit(nogil=True, parallel=True)
-def CPD2tens(T_aux, X, Y, Z, r):
+def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
     """
     Converts the arrays Lambda, X, Y, Z to tensor in coordinate format.
 
@@ -75,11 +77,9 @@ def CPD2tens(T_aux, X, Y, Z, r):
     Outpus
     ------
     T_aux: float 3-D ndarray
+        Tensor (X,Y,Z) in coordinate format. 
     """
 
-    # Obtain the dimensions of the tensor.
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-       
     s = 0.0
     
     for i in prange(0,m):
@@ -106,6 +106,11 @@ def unfold(T, m, n, p, mode):
     mode: 1,2,3
         mode == 1 commands the function to construc the unfolding-1 of T.
     Similarly we can have mode == 2 or mode == 3.
+
+    Outputs
+    -------
+    This function returns a matrix of one of the following shapes: (m, n*p), 
+    (n, m*p) or (p, m*n). Each one is a possible unfolding of T.
     """
     
     # Test for consistency.
@@ -117,7 +122,9 @@ def unfold(T, m, n, p, mode):
 
 
 @njit(nogil=True, parallel=True)
-def _unfold(T, m, n, p, mode):    
+def _unfold(T, m, n, p, mode):   
+    """ This function makes the actual computations for the unfolding function. """
+ 
     if mode == 1:
         # Construct mode-1 fibers.
         T1 = np.zeros((m, n*p), dtype = np.float64)
@@ -160,7 +167,11 @@ def foldback(A, m, n, p, mode):
         3) A has shape (p,mn) and we have mode == 3.
     m, n, p: int
     mode: 1,2,3
-    
+
+    Outputs
+    -------
+    T: float 3-D ndarray
+        The reconstructed tensor.
     """
     
     # Test for consistency.
