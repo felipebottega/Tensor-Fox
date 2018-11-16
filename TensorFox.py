@@ -35,19 +35,13 @@ General Description
  
  - stats
  
- - lsmr
+ - cg
  
  **Construction:**
  
  - residual
  
  - residual_entries
- 
- - residual_derivative_structure
- 
- - concat
- 
- - residual_derivative
  
  - start_point
  
@@ -70,6 +64,8 @@ General Description
  - cpd2tens
  
  - unfold
+
+ - _unfold
  
  - foldback
  
@@ -78,6 +74,10 @@ General Description
  - consistency
  
  - line_search
+
+ - cpd_error
+
+ - bissection 
  
  - multilin_mult
  
@@ -90,6 +90,10 @@ General Description
  - _sym_ortho
  
  - update_damp
+
+ - normalize
+
+ - equalize
  
  **Display:**
  
@@ -105,11 +109,27 @@ General Description
  
  **Critical:**
  
- - update_datat
- 
+ - khatri_rao
+
+ - gramians
+
+ - hadamard
+
+ - vec
+
+ - vect
+
+ - prepare_data
+
+ - prepare_data_rmatvec
+
  - matvec
- 
+
  - rmatvec
+
+ - regularization
+
+ - precond
  
  
  [1] C. J. Hillar and Lek-Heng Lim. Most Tensor Problems are NP-Hard. Journal of the ACM. 2013.
@@ -130,7 +150,7 @@ import Display as disp
 import Critical as crt
 
 
-def cpd(T, r, energy=0.05, maxiter=200, tol=1e-4, init='smart_random', display='none'):
+def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='none'):
     """
     Given a tensor T and a rank R, this function computes one approximated CPD of T 
     with rank R. The result is given in the form [Lambda, X, Y, Z], where Lambda is a 
@@ -183,11 +203,17 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-4, init='smart_random', display='
     """ 
         
     # Compute dimensions and norm of T.
-    m, n, p = T.shape
+    m_orig, n_orig, p_orig = T.shape
+    m, n, p = m_orig, n_orig, p_orig
+    T_orig = np.copy(T)
     Tsize = np.linalg.norm(T)
-    
+            
     # Test consistency of dimensions and rank.
     aux.consistency(r, m, n, p) 
+
+    # Change ordering of indexes to improve performance if possible.
+    T, ordering = aux.sort_dims(T, m, n, p)
+    m, n, p = T.shape
     
     # COMPRESSION STAGE
     
@@ -198,7 +224,7 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-4, init='smart_random', display='
     # Compute compressed version of T with the HOSVD. We have that T = (U1,U2,U3)*S.
     S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = hosvd(T)
     R1, R2, R3 = multi_rank
-    
+        
     if display != 'none':
         print('------------------------------------------------------------------------------')
         
@@ -254,35 +280,38 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-4, init='smart_random', display='
     if display != 'none':
         print('------------------------------------------------------------------------------')
         print('Starting damped Gauss-Newton method.')
-    
+
     # Compute the approximated tensor in coordinates with the dGN method.
-    x, T_approx, step_sizes_trunc, errors_trunc = dGN(S_trunc, X, Y, Z, r, maxiter=maxiter, tol=tol, display=display) 
+    x, step_sizes_trunc, errors_trunc = dGN(S_trunc, X, Y, Z, r, maxiter=maxiter, tol=tol, display=display) 
     
     # Compute CPD of S_trunc, which shoud be close to the CPD of S.
-    X, Y, Z = cnv.x2CPD(x, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc)
+    X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
     
     # REFINEMENT STAGE
     
     if display != 'none':
         print('------------------------------------------------------------------------------') 
         print('Starting refinement.') 
-    
+        
     # Refine this CPD to be even closer to the CPD of S.
     X, Y, Z, step_sizes_refine, errors_refine = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=maxiter, tol=tol, display=display)
-   
-    # FINAL WORKS
     
+    # FINAL WORKS
+
+    # Go back to the original dimensions of T.
+    X, Y, Z, U1_sort, U2_sort, U3_sort = aux.unsort_dims(X, Y, Z, U1, U2, U3, ordering)
+       
     # Use the orthogonal transformations to obtain the CPD of T.
-    X = np.dot(U1,X)
-    Y = np.dot(U2,Y)
-    Z = np.dot(U3,Z)
+    X = np.dot(U1_sort,X)
+    Y = np.dot(U2_sort,Y)
+    Z = np.dot(U3_sort,Z)
     
     # Compute coordinate representation of the CPD of T.
-    T_aux = np.zeros(T.shape, dtype = np.float64)
-    T_approx = cnv.CPD2tens(T_aux, X, Y, Z, r)
-    
+    T_aux = np.zeros((m_orig, n_orig, p_orig), dtype = np.float64)
+    T_approx = cnv.CPD2tens(T_aux, X, Y, Z, m_orig, n_orig, p_orig, r)
+        
     # Compute relative error of the approximation.
-    rel_err = np.linalg.norm(T - T_approx)/Tsize
+    rel_err = np.linalg.norm(T_orig - T_approx)/Tsize
 
     # Normalize X, Y, Z to have column norm equal to 1.
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
@@ -355,13 +384,12 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     v = 2.0
     # old_residualnorm is the previous error (at each iteration) obtained in the LSMR function.
     old_residualnorm = 0.0
-    # lsmr_maxiter is the maximum number of iterations of the LSMR function.
-    lsmr_maxiter = max( 10, min(m*n*p, r+r*(m+n+p))/10 )
+    # cg_maxiter is the maximum number of iterations of the Conjugate Gradient.
+    cg_maxiter = max( 10, min(m*n*p, r+r*(m+n+p))/10 )
     alpha = 1.0
         
     # INITIALIZE RELEVANT ARRAYS
     
-    T_approx = np.zeros((m, n, p), dtype = np.float64)
     x = np.concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
     y = x
     step_sizes = np.zeros(maxiter)
@@ -370,9 +398,19 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     T_aux = np.zeros((m, n, p), dtype = np.float64)
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
+    # These arrays are used to store CPD's for some choices of alpha in the line search function.
+    X_low = np.zeros((m, r), dtype = np.float64)
+    Y_low = np.zeros((n, r), dtype = np.float64)
+    Z_low = np.zeros((p, r), dtype = np.float64)
+    X_high = np.zeros((m, r), dtype = np.float64)
+    Y_high = np.zeros((n, r), dtype = np.float64)
+    Z_high = np.zeros((p, r), dtype = np.float64)
+
+    # Update data for the next Gauss-Newton iteration.
+    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma = crt.prepare_data(m, n, p, r)
     
     if display == 'full':
-        print('Iteration | Step Size | Rel Error | Line Search')
+        print('Iteration | Step Size | Rel Error | Line Search |  Alpha  |  Damp  | #CG iterations ')
     
     # BEGINNING OF GAUSS-NEWTON ITERATIONS
     
@@ -387,21 +425,17 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).         
-        y, istop, itn, residualnorm, auxnorm, Dres_norm, Dres_cond, ynorm = lsmr(X, Y, Z, -res, m, n, p, r, damp=damp, atol=1e-6, btol=1e-6, conlim=1e20, maxiter=lsmr_maxiter)       
+        y, itn, residualnorm = cg(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, -res, m, n, p, r, damp, cg_maxiter)       
               
         # Try to improve the step with line search.
-        alpha = aux.line_search(T, T_aux, Tsize, X, Y, Z, x, y, r)
-        
+        alpha, error = aux.line_search(T, T_aux, X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)
+                        
         # Update point obtained by the iteration.         
         x = x + alpha*y
              
         # Update the vectors Lambda, X, Y, Z.
-        X, Y, Z = cnv.x2CPD(x, X, Y, Z, r, m, n, p)
+        X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
         
-        # Computation of the respective tensor T_approx and its absolute error associated to x.
-        T_approx = cnv.CPD2tens(T_aux, X, Y, Z, r)
-        error = np.linalg.norm(T - T_approx)
-                    
         # Update the damping parameter. If there is no improvement in the residual we can't update,
         # so we stop iterating in this case. 
         if old_residualnorm == residualnorm:
@@ -409,7 +443,7 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
             errors[it] = error
             break            
         else:
-            damp, v = aux.update_damp(damp, v, old_error, error, old_residualnorm, residualnorm)
+            damp, v = aux.update_damp(Tsize, damp, v, old_error, error, old_residualnorm, residualnorm, itn, cg_maxiter)
         
         # Set old residual to compare with the new one in the next iteration.
         old_residualnorm = residualnorm
@@ -421,9 +455,9 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
         # Show information about current iteration.
         if display == 'full':
             if alpha == 1:
-                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Fail')
+                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Fail   | ','{0:.4f}'.format(alpha),'| ','{0:.4f}'.format(damp), ' | ', itn+1)
             else:
-                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Success')
+                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Success   | ','{0:.4f}'.format(alpha),'|','{0:.4f}'.format(damp), '| ', itn+1)
         
         # After 3 iterations the program starts to verify if the size of the current step is smaller
         # than tol, or if the difference between the previous and the current relative errors are 
@@ -438,7 +472,7 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     step_sizes = step_sizes[0:it+1]
     errors = errors[0:it+1]
     
-    return x, T_approx, step_sizes, errors
+    return x, step_sizes, errors
 
 
 @jit(nogil=True)
@@ -561,7 +595,6 @@ def rank(T, display='full'):
     
     # R is an upper bound for the rank.
     R = min(m*n, m*p, n*p)
-    tol = 1e-4
     
     # INITIALIZE RELEVANT ARRAYS
     
@@ -581,10 +614,11 @@ def rank(T, display='full'):
     
     print('Start searching for rank')
     print('-------------------------------------------------------------------')
+    print('Stops at r =',R,' or less')
+    print()
     
     for r in range(1,R):  
-        if display == 'none':
-            print('r =',r,' (stops in r =',R,' or less)')
+        print('Trying r =',r)
             
         # TRUNCATION STAGE       
         
@@ -594,10 +628,10 @@ def rank(T, display='full'):
         X, Y, Z, rel_err = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc)      
         
         # Start Gauss-Newton iterations.
-        x, T_approx, step_sizes1, errors1 = dGN(S_trunc, X, Y, Z, r) 
+        x, step_sizes1, errors1 = dGN(S_trunc, X, Y, Z, r) 
         
         # Compute CPD of the point obtained.
-        X, Y, Z = cnv.x2CPD(x, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc)
+        X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
         
         # Refine solution.
         X, Y, Z, step_sizes2, errors2 = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc)
@@ -608,7 +642,7 @@ def rank(T, display='full'):
         Z = np.dot(U3,Z)
         
         # Compute the solution in coordinates.
-        T_approx = cnv.CPD2tens(T_aux, X, Y, Z, r)
+        T_approx = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
     
         # Compute relative error of this approximation.
         err = np.linalg.norm(T - T_approx)/Tsize        
@@ -616,7 +650,7 @@ def rank(T, display='full'):
         
         if r > 1:
             # Verification of the stabilization condition.
-            if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < tol:
+            if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
                 break
     
     # SAVE LAST INFORMATIONS
@@ -641,7 +675,7 @@ def rank(T, display='full'):
     return final_rank, error_per_rank
 
 
-def stats(T, r, maxit=200, tol=1e-4):
+def stats(T, r, maxit=200, tol=1e-4, num_samples = 100):
     """
     This function makes several calls of the Gauss-Newton function with random initial 
     points. Each call turns into a sample to recorded so we can make statistics lates. 
@@ -678,7 +712,6 @@ def stats(T, r, maxit=200, tol=1e-4):
     
     # INITIALIZE RELEVANT ARRAYS
     
-    num_samples = 100
     times = np.zeros(num_samples)
     steps = np.zeros(num_samples)
     rel_errors = np.zeros(num_samples)
@@ -686,23 +719,17 @@ def stats(T, r, maxit=200, tol=1e-4):
     # BEGINNING OF SAMPLING AND COMPUTING
     
     # At each run, the program computes a CPD for T with random guess for initial point.
-    for trial in range(0,num_samples):
-        if (trial > 8) and ((trial+1)%10 == 0):
-            print((trial+1),'%')
-            
+    for trial in range(1, num_samples+1):            
         start = time.time()
-        Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref = cpd(T, r, init='smart_random')
+        Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref = cpd(T, r)
                
         # Update the vectors with general information.
-        times[trial] = time.time() - start
-        steps[trial] = step_sizes_trunc.shape[0] + step_sizes_ref.shape[0]
-        rel_errors[trial] = rel_err
-                
-    # SAVE LAST COMPUTED INFORMATIONS
-    
-    times = times[0:trial+1]
-    steps = steps[0:trial+1]
-    rel_errors = rel_errors[0:trial+1]
+        times[trial-1] = time.time() - start
+        steps[trial-1] = step_sizes_trunc.shape[0] + step_sizes_ref.shape[0]
+        rel_errors[trial-1] = rel_err
+        
+        if float(trial/num_samples) in np.arange(0.1, 1.1, 0.1):
+            print(100*float(trial/num_samples), '%')
      
     # PLOT HISTOGRAMS
     
@@ -727,281 +754,44 @@ def stats(T, r, maxit=200, tol=1e-4):
     return times, steps, rel_errors
 
 
-def lsmr(X, Y, Z, b, m, n, p, r, damp=0.0, atol=1e-6, btol=1e-6, conlim=1e8, maxiter=100):
-    """
-    LSMR stands for 'least squares with minimal residual'. This LSMR function is an 
-    adaptation of the scipy's LSMR function. You can see the original in the link below:
-    https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.sparse.linalg.lsmr.html
+@njit(nogil=True)
+def cg(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, b, m, n, p, r, damp, cg_maxiter):
     
-    The principal changes are in the matrix-vector multiplications. They are specialized to 
-    this particular tensor problem, where the sparse matrix has some special structure. We
-    use the arrays data and col to refer to Dres, and the arrays datat and colt to refer to 
-    Dres.transpose.
+    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = crt.gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
+    w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = crt.prepare_data_rmatvec(X, Y, Z, m, n, p, r)
+    M = np.ones(r*(m+n+p))
+    L = np.ones(r*(m+n+p))
+    L = crt.regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
+    M = crt.precond(X, Y, Z, L, M, damp, m, n, p, r)
     
-    Inputs
-    ------
-    data, col, datat, colt: 1-D float ndarrays with 4*m*n*p*r entries each
-    b: 1-D float ndarray
-        b will receive the array -res
-    r, m, n, p: int
-    damp: float
-        Damping factor for regularized least-squares. This LSMR solves
-    the regularized least-squares problem min_x |Ax - b| + damp*|x|
-    where | | is the Euclidean norm, A = Dres, b = -res and 
-    x = (Lambda, X, Y, Z) - (Lambda^0, X^0, Y^0, Z^0). We have that 
-    (Lambda^0, X^0, Y^0, Z^0) is the flattened CPD computed in the previous
-    iteration and (Lambda, X, Y, Z) are the variables to be obtained by the
-    minimization above.
-    atol, btol : float
-        Stopping tolerances. `lsmr` continues iterations until a
-        certain backward error estimate is smaller than some quantity
-        depending on atol and btol.  Let ``r = b - Ax`` be the
-        residual vector for the current approximate solution ``x``.
-        If ``Ax = b`` seems to be consistent, ``lsmr`` terminates
-        when ``norm(r) <= atol * norm(A) * norm(x) + btol * norm(b)``.
-        Otherwise, lsmr terminates when ``norm(A^{T} r) <=
-        atol * norm(A) * norm(r)``.  If both tolerances are 1.0e-6 (say),
-        the final ``norm(r)`` should be accurate to about 6
-        digits. (The final x will usually have fewer correct digits,
-        depending on ``cond(A)`` and the size of LAMBDA.)  If `atol`
-        or `btol` is None, a default value of 1.0e-6 will be used.
-        Ideally, they should be estimates of the relative error in the
-        entries of A and B respectively.  For example, if the entries
-        of `A` have 7 correct digits, set atol = 1e-7. This prevents
-        the algorithm from doing unnecessary work beyond the
-        uncertainty of the input data.
-    conlim : float
-        `lsmr` terminates if an estimate of ``cond(A)`` exceeds
-        `conlim`.  For compatible systems ``Ax = b``, conlim could be
-        as large as 1.0e+12 (say).  For least-squares problems,
-        `conlim` should be less than 1.0e+8. If `conlim` is None, the
-        default value is 1e+8.  Maximum precision can be obtained by
-        setting ``atol = btol = conlim = 0``, but the number of
-        iterations may then be excessive.
-    maxiter : int
-        `lsmr` terminates if the number of iterations reaches
-        `maxiter`.  The default is ``maxiter = 100``.  For
-        ill-conditioned systems, a larger value of `maxiter` may be
-        needed.
+    y = np.zeros(r*(m+n+p), dtype = np.float64)
+    residual = np.zeros(r*(m+n+p), dtype = np.float64)
+    P = np.zeros(r*(m+n+p), dtype = np.float64)
+    Q = np.zeros(r*(m+n+p), dtype = np.float64)
+    z = np.zeros(r*(m+n+p), dtype = np.float64)
+    
+    residual = M*crt.rmatvec(X, Y, b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
+    P = residual
+    residualnorm = np.dot(residual, residual)
+    residualnorm_new = 0.0
+    alpha = 0.0
+    beta = 0.0
+    
+    for itn in range(0, cg_maxiter):
+        Q = M*P
+        z = crt.matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
+        z = M*z
+        alpha = residualnorm/np.dot(P.T, z)
+        y += alpha*P
+        residual = residual - alpha*z
+        residualnorm_new = np.dot(residual, residual)
+        beta = residualnorm_new/residualnorm
+        residualnorm = residualnorm_new
+        P = residual + beta*P
+        if residualnorm < 1e-6:
+            return M*y, itn, residualnorm   
         
-    Outputs
-    -------
-    x : ndarray of float
-        Least-square solution returned.
-    istop : int
-        istop gives the reason for stopping::
-          istop   = 0 means x=0 is a solution.
-                  = 1 means x is an approximate solution to A*x = B,
-                      according to atol and btol.
-                  = 2 means x approximately solves the least-squares problem
-                      according to atol.
-                  = 3 means COND(A) seems to be greater than CONLIM.
-                  = 4 is the same as 1 with atol = btol = eps (machine
-                      precision)
-                  = 5 is the same as 2 with atol = eps.
-                  = 6 is the same as 3 with CONLIM = 1/eps.
-                  = 7 means ITN reached maxiter before the other stopping
-                      conditions were satisfied.
-    itn : int
-        Number of iterations used.
-    normr : float
-        ``norm(b-Ax)``
-    normar : float
-        ``norm(A^T (b - Ax))``
-    norma : float
-        ``norm(A)``
-    conda : float
-        Condition number of A.
-    normx : float
-        ``norm(x)``
-    """
-
-    # Update data for the next Gauss-Newton iteration.
-    w_X, Mw_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = crt.prepare_data(X, Y, Z, m, n, p, r)
-
-    # Initialize arrays.
-    u = b
-    beta = np.linalg.norm(u)
-    v = np.zeros(r*(m+n+p), dtype = np.float64)
-    alpha = 0
-
-    if beta > 0:
-        u = (1 / beta) * u
-        v = crt.rmatvec(X, Y, u, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
-        alpha = np.linalg.norm(v)
-
-    if alpha > 0:
-        v = (1 / alpha) * v
-
-    # Initialize variables for 1st iteration.
-    itn = 0
-    zetabar = alpha * beta
-    alphabar = alpha
-    rho = 1
-    rhobar = 1
-    cbar = 1
-    sbar = 0
-
-    h = v.copy()
-    hbar = np.zeros(r*(m+n+p), dtype = np.float64)
-    x = np.zeros(r*(m+n+p), dtype = np.float64)
-
-    # Initialize variables for estimation of ||r||.
-    betadd = beta
-    betad = 0
-    rhodold = 1
-    tautildeold = 0
-    thetatilde = 0
-    zeta = 0
-    d = 0
-
-    # Initialize variables for estimation of ||A|| and cond(A).
-    normA2 = alpha * alpha
-    maxrbar = 0
-    minrbar = 1e+100
-    normA = np.sqrt(normA2)
-    condA = 1
-    normx = 0
-
-    # Items for use in stopping rules.
-    normb = beta
-    istop = 0
-    ctol = 0
-    if conlim > 0:
-        ctol = 1 / conlim
-    normr = beta
-
-    # Reverse the order here from the original matlab code because
-    # there was an error on return when arnorm==0.
-    normar = alpha * beta
-    if normar == 0:
-        return x, istop, itn, normr, normar, normA, condA, normx
-
-    # Main iteration loop.
-    while itn < maxiter:
-        itn = itn + 1
-
-        # Perform the next step of the bidiagonalization to obtain the
-        # next  beta, u, alpha, v.  These satisfy the relations
-        #         beta*u  =  a*v   -  alpha*u,
-        #        alpha*v  =  A'*u  -  beta*v.
-
-        u = crt.matvec(X, Y, v, w_X, Mw_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p, r) - alpha * u
-        beta = np.linalg.norm(u)
-
-        if beta > 0:
-            u = (1 / beta) * u
-            v = crt.rmatvec(X, Y, u, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r) - beta * v
-            alpha = np.linalg.norm(v)
-            if alpha > 0:
-                v = (1 / alpha) * v
-
-        # At this point, beta = beta_{k+1}, alpha = alpha_{k+1}.
-
-        # Construct rotation Qhat_{k,2k+1}.
-        chat, shat, alphahat = aux._sym_ortho(alphabar, damp)
-
-        # Use a plane rotation (Q_i) to turn B_i to R_i.
-        rhoold = rho
-        c, s, rho = aux._sym_ortho(alphahat, beta)
-        thetanew = s*alpha
-        alphabar = c*alpha
-
-        # Use a plane rotation (Qbar_i) to turn R_i^T to R_i^bar.
-        rhobarold = rhobar
-        zetaold = zeta
-        thetabar = sbar * rho
-        rhotemp = cbar * rho
-        cbar, sbar, rhobar = aux._sym_ortho(cbar * rho, thetanew)
-        zeta = cbar * zetabar
-        zetabar = - sbar * zetabar
-
-        # Update h, h_hat, x.
-        hbar = h - (thetabar * rho / (rhoold * rhobarold)) * hbar
-        x = x + (zeta / (rho * rhobar)) * hbar
-        h = v - (thetanew / rho) * h
-
-        # Estimate of ||r||.
-
-        # Apply rotation Qhat_{k,2k+1}.
-        betaacute = chat * betadd
-        betacheck = -shat * betadd
-
-        # Apply rotation Q_{k,k+1}.
-        betahat = c * betaacute
-        betadd = -s * betaacute
-
-        # Apply rotation Qtilde_{k-1}.
-        # betad = betad_{k-1} here.
-
-        thetatildeold = thetatilde
-        ctildeold, stildeold, rhotildeold = aux._sym_ortho(rhodold, thetabar)
-        thetatilde = stildeold * rhobar
-        rhodold = ctildeold * rhobar
-        betad = - stildeold * betad + ctildeold * betahat
-
-        # betad   = betad_k here.
-        # rhodold = rhod_k  here.
-
-        tautildeold = (zetaold - thetatildeold * tautildeold) / rhotildeold
-        taud = (zeta - thetatilde * tautildeold) / rhodold
-        d = d + betacheck * betacheck
-        normr = np.sqrt(d + (betad - taud)**2 + betadd * betadd)
-
-        # Estimate ||A||.
-        normA2 = normA2 + beta * beta
-        normA = np.sqrt(normA2)
-        normA2 = normA2 + alpha * alpha
-
-        # Estimate cond(A).
-        maxrbar = max(maxrbar, rhobarold)
-        if itn > 1:
-            minrbar = min(minrbar, rhobarold)
-        condA = max(maxrbar, rhotemp) / min(minrbar, rhotemp)
-
-        # Test for convergence.
-
-        # Compute norms for convergence testing.
-        normar = np.abs(zetabar)
-        normx = np.linalg.norm(x)
-
-        # Now use these norms to estimate certain other quantities,
-        # some of which will be small near a solution.
-        test1 = normr / normb
-        if (normA * normr) != 0:
-            test2 = normar / (normA * normr)
-        else:
-            test2 = np.infty
-        test3 = 1 / condA
-        t1 = test1 / (1 + normA * normx / normb)
-        rtol = btol + atol * normA * normx / normb
-
-        # The following tests guard against extremely small values of
-        # atol, btol or ctol.  (The user may have set any or all of
-        # the parameters atol, btol, conlim  to 0.)
-        # The effect is equivalent to the normAl tests using
-        # atol = eps,  btol = eps,  conlim = 1/eps.
-        if itn >= maxiter:
-            istop = 7
-        if 1 + test3 <= 1:
-            istop = 6
-        if 1 + test2 <= 1:
-            istop = 5
-        if 1 + t1 <= 1:
-            istop = 4
-
-        # Allow for tolerances set by the user.
-        if test3 <= ctol:
-            istop = 3
-        if test2 <= atol:
-            istop = 2
-        if test1 <= rtol:
-            istop = 1
-
-        if istop > 0:
-            break
-
-    return x, istop, itn, normr, normar, normA, condA, normx
+    return M*y, itn+1, residualnorm
 
 
 # Below we wrapped some functions which can be useful to the user. By doing this we just need to load the module TensorFox to do all the needed work.
@@ -1013,13 +803,9 @@ def tens2matlab(T):
     return
 
 
-def CPD2tens(T_aux, X, Y, Z, r):
-    m = X.shape[0]
-    n = Y.shape[0]
-    p = Z.shape[0]
-    
+def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
     T_aux = np.zeros((m,n,p), dtype = np.float64)
-    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, r)
+    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
     
     return T_aux
 
@@ -1052,14 +838,3 @@ def rank1_plot(Lambda, X, Y, Z, r):
     disp.rank1_plot(Lambda, X, Y, Z, r)
     
     return
-
-
-#PRELOAD PART#
-#This piece of code computes a single CPD for a small tensor. This is to preload all Numba functions.
-T_preload = np.zeros((2,2,2))
-for i in range(0,2):
-    for j in range(0,2):
-        for k in range(0,2):
-            T_preload[i,j,k] = i+j+k
-            
-cpd(T_preload, 2)
