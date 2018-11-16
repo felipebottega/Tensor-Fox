@@ -7,12 +7,6 @@ Construction Module
  
  - residual_entries
  
- - residual_derivative_structure
- 
- - concat
- 
- - residual_derivative
- 
  - start_point
  
  - smart_random
@@ -85,7 +79,7 @@ def residual(res, T, X, Y, Z, r, m, n, p):
 
 @njit(nogil=True)
 def residual_entries(T, X, Y, Z, r, m, n, p, i, j, k):
-    """Computation of each individual residual in the function 'residual'."""
+    """ Computation of each individual residual in the residual function. """
     
     acc = 0.0
     for l in range(0,r):
@@ -113,18 +107,20 @@ def start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2
     ------
     T: float 3-D ndarray
     Tsize: float
-    S_trunc: float 3-D ndarray with shape R1_trunc x R2_trunc x R3_trunc
-    U1_trunc: float 2-D ndarrays with shape R1_trunc x r
-    U2_trunc: float 2-D ndarrays with shape R2_trunc x r
-    U3_trunc: float 2-D ndarrays with shape R3_trunc x r
+    S_trunc: float 3-D ndarray with shape (R1_trunc, R2_trunc, R3_trunc)
+    U1_trunc: float 2-D ndarrays with shape (R1_trunc, r)
+    U2_trunc: float 2-D ndarrays with shape (R2_trunc, r)
+    U3_trunc: float 2-D ndarrays with shape (R3_trunc, r)
     r, R1_trunc, R2_trunc, R3_trunc: int
+    init: string
+       Method of initialization. The three method were described above.
     
     Outputs
     -------
     Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray with shape m x r
-    Y: float 2-D ndarray with shape n x r
-    Z: float 2-D ndarray with shape p x r
+    X: float 2-D ndarray with shape (m, r)
+    Y: float 2-D ndarray with shape (n, r)
+    Z: float 2-D ndarray with shape (p, r)
     rel_err: float
         Relative error associate to the starting point. More precisely, it is the relative 
     error between T and (U1_trunc,U2_trunc,U3_trunc)*S_init, where S_init = (X,Y,Z)*Lambda.
@@ -151,7 +147,7 @@ def start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2
     
     # Computation of relative error associated with the starting point given.
     T_aux = np.zeros(S_trunc.shape, dtype = np.float64)
-    S_init = cnv.CPD2tens(T_aux, X, Y, Z, r)
+    S_init = cnv.CPD2tens(T_aux, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
     T_init = aux.multilin_mult(S_init, U1_trunc, U2_trunc, U3_trunc, R1_trunc, R2_trunc, R3_trunc) 
     rel_err = np.linalg.norm(T - T_init)/Tsize
         
@@ -179,9 +175,9 @@ def smart_random(S_trunc, r, R1, R2, R3, samples=100):
     Outputs
     -------
     Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m,R1)
-    Y: float 2-D ndarray of shape (n,R2)
-    Z: float 2-D ndarray of shape (p,R3)
+    X: float 2-D ndarray of shape (m, R1)
+    Y: float 2-D ndarray of shape (n, R2)
+    Z: float 2-D ndarray of shape (p, R3)
     """
     
     # Initialize auxiliary values and arrays.
@@ -192,7 +188,7 @@ def smart_random(S_trunc, r, R1, R2, R3, samples=100):
     # Start search for a good initial point.
     for sample in range(0,samples):
         X, Y, Z = smart_sample(S_trunc, r, R1, R2, R3)
-        S_initial = cnv.CPD2tens(T_aux, X, Y, Z, r)
+        S_initial = cnv.CPD2tens(T_aux, X, Y, Z, R1, R2, R3, r)
         loss = np.linalg.norm(S_trunc - S_initial)/S_truncsize
         if loss < best_loss:
             best_loss = loss
@@ -223,9 +219,9 @@ def smart_sample(S_trunc, r, R1, R2, R3):
     Ouputs
     ------
     Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m,R1)
-    Y: float 2-D ndarray of shape (n,R2)
-    Z: float 2-D ndarray of shape (p,R3)
+    X: float 2-D ndarray of shape (m, R1)
+    Y: float 2-D ndarray of shape (n, R2)
+    Z: float 2-D ndarray of shape (p, R3)
     """
     
     # Initialize arrays to construct initial approximate CPD.
@@ -342,12 +338,13 @@ def truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy):
         
     elif (energy > 0) and (energy < 1):
         best_energy, R1_trunc, R2_trunc, R3_trunc = truncate2(T, S, U1, U2, U3, r, sigma1, sigma2, sigma3, rel_error=energy)
-    							
+
     else:
         sys.exit('Invalid energy value.')
       
     # Construct truncations of S, U1, U2, U3.    
     if best_energy == 100:
+        R1_trunc, R2_trunc, R3_trunc = sigma1.size, sigma2.size, sigma3.size
         S_trunc = S
         U1_trunc = U1
         U2_trunc = U2
@@ -382,11 +379,18 @@ def truncate1(r, sigma1, sigma2, sigma3, energy=100):
     r: int
     sigma1, sigma2, sigma3: 1-D float ndarrays
     energy: float    
+
+    Outputs
+    -------
+    best_energy: float
+        Energy of the best truncation obtained. 
+    best_r1, best_r2, best_r3: int
+        Dimensions of the best truncation obtained.
     """
     
     # Initialize values and arrays.
     best_energy = 100
-    R1, R2, R3 = sigma1.shape[0], sigma2.shape[0], sigma3.shape[0]
+    R1, R2, R3 = sigma1.size, sigma2.size, sigma3.size
     best_r1, best_r2, best_r3 = R1, R2, R3
     S_energy = np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2)
     
@@ -429,14 +433,14 @@ def truncate2(T, S, U1, U2, U3, r, sigma1, sigma2, sigma3, rel_error=0.05):
     Outputs
     -------
     best_energy: float
-        The energy of the best truncation obtained.
+        Energy of the best truncation obtained.
     best_r1, best_r2, best_r3: int
-        The dimensions of the best truncation obtained.    
+        Dimensions of the best truncation obtained.    
     """
     
     # Initialize values and arrays.
     best_energy = 100
-    R1, R2, R3 = sigma1.shape[0], sigma2.shape[0], sigma3.shape[0]
+    R1, R2, R3 = sigma1.size, sigma2.size, sigma3.size
     best_r1, best_r2, best_r3 = R1, R2, R3
     best_dims = R1*R2*R3
     Tsize = np.sqrt(np.sum(T**2))
