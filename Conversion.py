@@ -92,6 +92,7 @@ def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
     return T_aux
 
 
+@njit(nogil=True)
 def unfold(T, m, n, p, mode):
     """
     Every tensor T of order 3 has 3 unfoldings, one for each "direction".
@@ -113,12 +114,7 @@ def unfold(T, m, n, p, mode):
     (n, m*p) or (p, m*n). Each one is a possible unfolding of T.
     """
     
-    # Test for consistency.
-    if (mode != 1) and (mode != 2) and (mode != 3):
-        sys.exit('Invalid mode value.')
- 
-    else:
-        return _unfold(T, m, n, p, mode)
+    return _unfold(T, m, n, p, mode)
 
 
 @njit(nogil=True, parallel=True)
