@@ -164,8 +164,16 @@ def prepare_data(m, n, p, r):
     gamma_Y = np.zeros(r, dtype = np.float64)
     gamma_Z = np.zeros(r, dtype = np.float64)
     Gamma = np.zeros(r*(m+n+p), dtype = np.float64)
+
+    # Arrays to be used in the Conjugated Gradient.
+    M = np.ones(r*(m+n+p), dtype = np.float64)
+    L = np.ones(r*(m+n+p), dtype = np.float64)    
+    residual_cg = np.zeros(r*(m+n+p), dtype = np.float64)
+    P = np.zeros(r*(m+n+p), dtype = np.float64)
+    Q = np.zeros(r*(m+n+p), dtype = np.float64)
+    z = np.zeros(r*(m+n+p), dtype = np.float64)
     
-    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma  
+    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z   
 
 
 @njit(nogil=True)
@@ -176,36 +184,55 @@ def prepare_data_rmatvec(X, Y, Z, m, n, p, r):
     """
 
     M_X = np.zeros((n*p, r), dtype = np.float64)
-    M_X = -khatri_rao(Y, Z, M_X)
-
+    
     M_Y = np.zeros((m*p, r), dtype = np.float64)
-    M_Y = -khatri_rao(X, Z, M_Y)
-
+    
     M_Z = np.zeros((m*n,r), dtype = np.float64) 
-    M_Z = -khatri_rao(X, Y, M_Z) 
-
+    
     # B_X^T
     w_Xt = np.zeros(n*p, dtype = np.float64)
     Mw_Xt = np.zeros(r, dtype = np.float64)
     Bu_Xt = np.zeros(r*m, dtype = np.float64) 
     N_X = np.zeros((r, n*p), dtype = np.float64)
-    N_X = M_X.transpose()
-
+    
     # B_Y^T
     w_Yt = np.zeros(m*p, dtype = np.float64)
     Mw_Yt = np.zeros(r, dtype = np.float64)
     Bu_Yt = np.zeros(r*n, dtype = np.float64) 
     N_Y = np.zeros((r, m*p), dtype = np.float64)
-    N_Y = M_Y.transpose()
-
+    
     # B_Z^T
     w_Zt = np.zeros((p,m*n), dtype = np.float64)
     Bu_Zt = np.zeros(r*p, dtype = np.float64) 
     Mu_Zt = np.zeros(r, dtype = np.float64)
     N_Z = np.zeros((r, m*n), dtype = np.float64)
+        
+    return M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z
+
+
+@njit(nogil=True)
+def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z, N_X, N_Y, N_Z):
+    """
+    This function creates several auxiliar matrices which will be used later 
+    to accelerate matrix-vector products.
+    """
+
+    M_X = -khatri_rao(Y, Z, M_X)
+
+    M_Y = -khatri_rao(X, Z, M_Y)
+
+    M_Z = -khatri_rao(X, Y, M_Z) 
+
+    # B_X^T
+    N_X = M_X.transpose()
+
+    # B_Y^T
+    N_Y = M_Y.transpose()
+
+    # B_Z^T
     N_Z = M_Z.transpose()
     
-    return w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z
+    return N_X, N_Y, N_Z
 
 
 @njit(nogil=True)
@@ -327,9 +354,9 @@ def precond(X, Y, Z, L, M, damp, m, n, p, r):
     very well conditioned with its eigenvalues clustered together.
     """
     for l in range(0, r):
-        M[l*m : (l+1)*m] = np.dot(Y[:,l], Y[:,l])*np.dot(Z[:,l], Z[:,l]) + (damp**2)*L[l*m : (l+1)*m] + damp
-        M[m*r+l*n : m*r+(l+1)*n] = np.dot(X[:,l], X[:,l])*np.dot(Z[:,l], Z[:,l]) + (damp**2)*L[m*r+l*n : m*r+(l+1)*n] + damp
-        M[r*(m+n)+l*p : r*(m+n)+(l+1)*p] = np.dot(X[:,l], X[:,l])*np.dot(Y[:,l], Y[:,l]) + (damp**2)*L[r*(m+n)+l*p : r*(m+n)+(l+1)*p] + damp    
+        M[l*m : (l+1)*m] = np.dot(Y[:,l], Y[:,l])*np.dot(Z[:,l], Z[:,l]) + damp*L[l*m : (l+1)*m] 
+        M[m*r+l*n : m*r+(l+1)*n] = np.dot(X[:,l], X[:,l])*np.dot(Z[:,l], Z[:,l]) + damp*L[m*r+l*n : m*r+(l+1)*n] 
+        M[r*(m+n)+l*p : r*(m+n)+(l+1)*p] = np.dot(X[:,l], X[:,l])*np.dot(Y[:,l], Y[:,l]) + damp*L[r*(m+n)+l*p : r*(m+n)+(l+1)*p]    
         
     M = 1/np.sqrt(M)
     return M
