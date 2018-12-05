@@ -140,6 +140,7 @@ import numpy as np
 import sys
 import scipy.io
 import time
+from decimal import Decimal
 import matplotlib.pyplot as plt
 from scipy import sparse
 from numba import jit, njit, prange
@@ -150,7 +151,7 @@ import Display as disp
 import Critical as crt
 
 
-def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='none'):
+def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init='smart_random', display='none'):
     """
     Given a tensor T and a rank R, this function computes one approximated CPD of T 
     with rank R. The result is given in the form [Lambda, X, Y, Z], where Lambda is a 
@@ -218,30 +219,30 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='
     # COMPRESSION STAGE
     
     if display != 'none':
-        print('------------------------------------------------------------------------------')
-        print('Starting computation of the HOSVD of T.')
+        print('-------------------------------------------------------') 
+        print('Computing HOSVD of T')
     
     # Compute compressed version of T with the HOSVD. We have that T = (U1,U2,U3)*S.
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = hosvd(T)
+    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = hosvd(T, Tsize, r)
     R1, R2, R3 = multi_rank
         
     if display != 'none':
-        print('------------------------------------------------------------------------------')
-        
-        if (R1,R2,R3) == (m,n,p):
-            print('No compression detected.')                        
+        if (R1, R2, R3) == (m, n, p):
+            print('    No compression detected')                        
         else:
-            print('Compression detected. Compressing from',T.shape,'to',S.shape)
+            print('    Compression detected')
+            print('    Compressing from',T.shape,'to',S.shape)
             # Computation of relative error associated with compression.
             T_compress = aux.multilin_mult(S, U1, U2, U3, R1, R2, R3)
             rel_err = np.linalg.norm(T - T_compress)/Tsize
-            print('Compression relative error =', rel_err)
+            a = float('%.4e' % Decimal(rel_err))
+            print('    Compression relative error =', a)
             
     # TRUNCATION STAGE       
         
     if display != 'none':
-        print('------------------------------------------------------------------------------')
-        print('Starting truncation.')
+        print('-------------------------------------------------------') 
+        print('Computing truncation')
     
     # Truncate S to obtain a small tensor S_trunc with less energy than S, but close to S.
     S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_err = cnst.truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy)
@@ -251,12 +252,15 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='
      
     if display != 'none':
         
-        if best_energy == 100:
-            print('No truncation detected.')             
+        if (R1_trunc, R2_trunc, R3_trunc) == (R1, R2, R3):
+            print('    No truncation detected')             
         else:
-            print('Truncation detected. Truncating from', S.shape, 'to', S_trunc.shape)
-            print(np.round(best_energy,4),'% of the energy was retained.')
-            print('Truncation relative error =', rel_err) 
+            print('    Truncation detected') 
+            print('    Truncating from', S.shape, 'to', S_trunc.shape)
+            a = float('%.4e' % Decimal(best_energy))
+            print(a,'% of the energy was retained')
+            a = float('%.4e' % Decimal(rel_err))
+            print('    Truncation relative error =', a) 
             
     # GENERATION OF STARTING POINT STAGE
         
@@ -264,25 +268,25 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='
     X, Y, Z, rel_err = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc, init)      
 
     if display != 'none':
-        print('------------------------------------------------------------------------------')
-        
+        print('-------------------------------------------------------')        
         if init == 'fixed':
-            print('Initialization: fixed')
+            print('Type of initialization: fixed')
         elif init == 'random':
-            print('Initialization: random')
+            print('Type of initialization: random')
         else:
-            print('Initialization: smart random')
-        
-        print('Relative error of initial guess =', rel_err)   
+            print('Type of initialization: smart random')
+
+        a = float('%.4e' % Decimal(rel_err))
+        print('    Initial guess relative error =', a)   
     
     # DAMPED GAUSS-NEWTON STAGE 
     
     if display != 'none':
-        print('------------------------------------------------------------------------------')
-        print('Starting damped Gauss-Newton method.')
+        print('-------------------------------------------------------') 
+        print('Computing truncated CPD of T')
 
     # Compute the approximated tensor in coordinates with the dGN method.
-    x, step_sizes_trunc, errors_trunc = dGN(S_trunc, X, Y, Z, r, maxiter=maxiter, tol=tol, display=display) 
+    x, step_sizes_trunc, errors_trunc, stop_trunc = dGN(S_trunc, X, Y, Z, r, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol, display=display) 
     
     # Compute CPD of S_trunc, which shoud be close to the CPD of S.
     X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
@@ -290,11 +294,11 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='
     # REFINEMENT STAGE
     
     if display != 'none':
-        print('------------------------------------------------------------------------------') 
-        print('Starting refinement.') 
+        print('-------------------------------------------------------') 
+        print('Computing refinement of solution') 
         
     # Refine this CPD to be even closer to the CPD of S.
-    X, Y, Z, step_sizes_refine, errors_refine = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=maxiter, tol=tol, display=display)
+    X, Y, Z, step_sizes_refine, errors_refine, stop_ref = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol, display=display)
     
     # FINAL WORKS
 
@@ -318,14 +322,14 @@ def cpd(T, r, energy=0.05, maxiter=200, tol=1e-6, init='smart_random', display='
     
     # Display final informations.
     if display != 'none':
-        print('------------------------------------------------------------------------------')
+        print('=======================================================')
         print('Number of steps =',step_sizes_trunc.shape[0] + step_sizes_refine.shape[0])
         print('Final Relative error =', rel_err)
     
-    return Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_refine, errors_trunc, errors_refine
+    return Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_refine, errors_trunc, errors_refine, stop_trunc, stop_ref
 
 
-def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
+def dGN(T, X, Y, Z, r, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, display='none'):
     """
     This function uses the Damped Gauss-Newton method to compute an approximation of T 
     with rank r. An initial point to start the iterations must be given. This point is
@@ -380,14 +384,8 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     error = np.inf
     # damp is the damping factos in the damping Gauss-Newton method.
     damp = 2.0
-    # v is an auxiliary value used to update the damping factor.
-    v = 2.0
-    # old_residualnorm is the previous error (at each iteration) obtained in the LSMR function.
-    old_residualnorm = 0.0
-    # cg_maxiter is the maximum number of iterations of the Conjugate Gradient.
-    cg_maxiter = max( 10, min(m*n*p, r+r*(m+n+p))/10 )
-    alpha = 1.0
-        
+    stop = 3
+                
     # INITIALIZE RELEVANT ARRAYS
     
     x = np.concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
@@ -398,19 +396,15 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     T_aux = np.zeros((m, n, p), dtype = np.float64)
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
-    # These arrays are used to store CPD's for some choices of alpha in the line search function.
-    X_low = np.zeros((m, r), dtype = np.float64)
-    Y_low = np.zeros((n, r), dtype = np.float64)
-    Z_low = np.zeros((p, r), dtype = np.float64)
-    X_high = np.zeros((m, r), dtype = np.float64)
-    Y_high = np.zeros((n, r), dtype = np.float64)
-    Z_high = np.zeros((p, r), dtype = np.float64)
+    g = np.ones(r*(m+n+p), dtype = np.float64)
+    y = np.zeros(r*(m+n+p), dtype = np.float64)
 
-    # Update data for the next Gauss-Newton iteration.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma = crt.prepare_data(m, n, p, r)
-    
+    # Prepare data to use in each Gauss-Newton iteration.
+    data = crt.prepare_data(m, n, p, r)    
+    data_rmatvec = crt.prepare_data_rmatvec(X, Y, Z, m, n, p, r)
+        
     if display == 'full':
-        print('Iteration | Step Size | Rel Error | Line Search |  Alpha  |  Damp  | #CG iterations ')
+        print('    Iteration | Rel Error |  Damp  | #CG iterations ')
     
     # BEGINNING OF GAUSS-NEWTON ITERATIONS
     
@@ -422,49 +416,47 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
         old_x = x
         old_error = error
         
+        # cg_maxiter is the maximum number of iterations of the Conjugate Gradient. We obtain it randomly.
+        cg_maxiter = np.random.randint(cg_lower + int(np.sqrt(it)), cg_upper + it)
+                
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).         
-        y, itn, residualnorm = cg(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, -res, m, n, p, r, damp, cg_maxiter)       
+        y, g, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, g, -res, m, n, p, r, damp, cg_maxiter)       
               
-        # Try to improve the step with line search.
-        alpha, error = aux.line_search(T, T_aux, X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)
-                        
         # Update point obtained by the iteration.         
-        x = x + alpha*y
+        x = x + y
              
-        # Update the vectors Lambda, X, Y, Z.
+        # Compute X, Y, Z and error.
         X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
-        
-        # Update the damping parameter. If there is no improvement in the residual we can't update,
-        # so we stop iterating in this case. 
-        if old_residualnorm == residualnorm:
-            step_sizes[it] = np.linalg.norm(x - old_x)   
-            errors[it] = error
-            break            
-        else:
-            damp, v = aux.update_damp(Tsize, damp, v, old_error, error, old_residualnorm, residualnorm, itn, cg_maxiter)
-        
-        # Set old residual to compare with the new one in the next iteration.
-        old_residualnorm = residualnorm
-        
+        T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
+        error = np.linalg.norm(T - T_aux)
+
+        old_damp = damp
+        damp = aux.update_damp(damp, old_error, error, residualnorm)
+                        
         # Update arrays with relevant information about the current iteration.
         step_sizes[it] = np.linalg.norm(x - old_x)   
         errors[it] = error
         
         # Show information about current iteration.
         if display == 'full':
-            if alpha == 1:
-                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Fail   | ','{0:.4f}'.format(alpha),'| ','{0:.4f}'.format(damp), ' | ', itn+1)
-            else:
-                print('   ',it+1,'    | ','{0:.5f}'.format(step_sizes[it]),' | ','{0:.5f}'.format(error/Tsize),' |  Success   | ','{0:.4f}'.format(alpha),'|','{0:.4f}'.format(damp), '| ', itn+1)
-        
-        # After 3 iterations the program starts to verify if the size of the current step is smaller
-        # than tol, or if the difference between the previous and the current relative errors are 
+            a = float('%.2e' % Decimal(old_damp))
+            print('       ',it+1,'    | ', '{0:.5f}'.format(error/Tsize),' | ',a, ' | ', itn+1)
+                         
+        # After 3 iterations the program starts to verify if the difference between the previous and the current 
+        # relative errors are smaller than tol, or if the infinity norm of the derivative g of the error at x is
         # smaller than tol.
         if it >= 3:
             errors_diff = np.abs(errors[it] - errors[it-1])/Tsize
-            if (step_sizes[it] < tol) or (errors_diff < tol):
+            if step_sizes[it] < tol:
+                stop = 0
+                break
+            if errors_diff < tol:
+                stop = 1
+                break
+            elif np.linalg.norm(g, np.inf) < np.sqrt(tol):
+                stop = 2
                 break
     
     # SAVE LAST COMPUTED INFORMATIONS
@@ -472,15 +464,14 @@ def dGN(T, X, Y, Z, r, maxiter=200, tol=1e-6, display='none'):
     step_sizes = step_sizes[0:it+1]
     errors = errors[0:it+1]
     
-    return x, step_sizes, errors
+    return x, step_sizes, errors, stop
 
 
-@jit(nogil=True)
-def hosvd(T): 
+def hosvd(T, Tsize, r): 
     """
     This function computes the High order singular value decomposition (HOSVD) of a tensor T.
-    This decomposition is given by T = (U1,U2,U3)*S, where U1,U2,U3 are orthogonal vectors,
-    S is the 'central' tensor and * is the multilinear multiplication. The HOSVD is a particular
+    This decomposition is given by T = (U1,U2,U3)*S, where U1, U2, U3 are orthogonal matrices,
+    S is the central tensor and * is the multilinear multiplication. The HOSVD is a particular
     case of the Tucker decomposition.
 
     Inputs
@@ -501,63 +492,36 @@ def hosvd(T):
 
     # Compute dimensions of T.
     m, n, p = T.shape
-    
-    # If some singular value is smaller than 1/|T|^2, we assign its value to zero.
-    tol = 1/np.sum(T**2)
-    
+        
     # Compute all unfoldings of T. 
     T1 = cnv.unfold(T, m, n, p, 1)
     T2 = cnv.unfold(T, m, n, p, 2)
     T3 = cnv.unfold(T, m, n, p, 3)
     
-    # Compute reduced SVD of all unfoldings. Note that we have to verify if sigma1 is empty 
-    # after introducing the tolerance criterium. If it is empty, than we go back to the 
-    # original sigma1 and keep it unchanged.
+    # Compute SVD of unfoldings.
+    S1, S2, S3, U1, U2, U3 = aux.unfoldings_svd(T1, T2, T3, m, n, p)
+                    
+    # Truncate SVD'S OF ALL UNFOLDINGS
     
-    # REDUCED SVD'S OF ALL UNFOLDINGS
+    # First we try to truncate the SVD's by deleting some small singular values. This approach favors compression
+    # with small errors. Any compression with relative error smaller than 1e-6 will be accepted.
+    best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3, status = aux.search_compression1(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r)
     
-    # Unfolding mode 1.
-    U1, S, Vh = np.linalg.svd(T1, full_matrices=False)
-    sigma1 = S[S > tol]
-    if np.sum(sigma1) == 0:
-        sigma1 = S
-        R1 = m
-    else:
-        R1 = np.sum(S > tol)
-        U1 = U1[:,0:R1]
-    
-    # Unfolding mode 2.
-    U2, S, Vh = np.linalg.svd(T2, full_matrices=False)
-    sigma2 = S[S > tol]
-    if np.sum(sigma2) == 0:
-        sigma2 = S
-        R2 = n
-    else:
-        R2 = np.sum(S > tol)
-        U2 = U2[:,0:R2]
-    
-    # Unfolding mode 3.
-    U3, S, Vh = np.linalg.svd(T3, full_matrices=False)
-    sigma3 = S[S > tol]
-    if np.sum(sigma3) == 0:
-        sigma3 = S
-        R3 = p
-    else:
-        R3 = np.sum(S > tol)
-        U3 = U3[:,0:R3]
-    
-    # MULTILINEAR RANK
-    
-    multi_rank = np.array([R1,R2,R3])
+    # If the first search failed, we still can try to construct some artificial truncations. Notice that now we are
+    # accepting compressions with large errors. Any compression with relative error smaller than 0.5 will be accepted.
+    if status == 'fail 2':
+         best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3 = aux.search_compression2(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r)
+
     
     # CENTRAL TENSOR
     
     # Compute HOSVD of T, which is given by the identity S = (U1^T, U2^T, U3^T)*T.
     # S is the core tensor with size R1 x R2 x R3 and each Ui is an orthogonal matrix.
-    S = np.zeros((R1,R2,R3))
-    S = aux.multilin_mult(T, U1.transpose(), U2.transpose(), U3.transpose(), m, n, p)
+    multi_rank = np.array([best_R1, best_R2, best_R3])
+    S = np.zeros((best_R1, best_R2, best_R3))
+    S = aux.multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
         
-    return S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3
+    return S, multi_rank, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3
 
 
 def rank(T, display='full'):
@@ -628,13 +592,13 @@ def rank(T, display='full'):
         X, Y, Z, rel_err = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc)      
         
         # Start Gauss-Newton iterations.
-        x, step_sizes1, errors1 = dGN(S_trunc, X, Y, Z, r) 
+        x, step_sizes1, errors1, stop1 = dGN(S_trunc, X, Y, Z, r) 
         
         # Compute CPD of the point obtained.
         X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
         
         # Refine solution.
-        X, Y, Z, step_sizes2, errors2 = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc)
+        X, Y, Z, step_sizes2, errors2, stop2 = aux.refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc)
         
         # Put solution at the original space, where T lies.
         X = np.dot(U1,X)
@@ -675,7 +639,7 @@ def rank(T, display='full'):
     return final_rank, error_per_rank
 
 
-def stats(T, r, maxit=200, tol=1e-4, num_samples = 100):
+def stats(T, r, energy=99.9, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, num_samples = 100):
     """
     This function makes several calls of the Gauss-Newton function with random initial 
     points. Each call turns into a sample to recorded so we can make statistics lates. 
@@ -706,10 +670,6 @@ def stats(T, r, maxit=200, tol=1e-4, num_samples = 100):
     m, n, p = T.shape
     Tsize = np.linalg.norm(T)
     
-    # INITIALIZE RELEVANT VARIABLES
-    
-    best_error = np.inf 
-    
     # INITIALIZE RELEVANT ARRAYS
     
     times = np.zeros(num_samples)
@@ -721,7 +681,7 @@ def stats(T, r, maxit=200, tol=1e-4, num_samples = 100):
     # At each run, the program computes a CPD for T with random guess for initial point.
     for trial in range(1, num_samples+1):            
         start = time.time()
-        Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref = cpd(T, r)
+        Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref, stop_trunc, stop_ref = cpd(T, r, energy=energy, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol)
                
         # Update the vectors with general information.
         times[trial-1] = time.time() - start
@@ -755,22 +715,21 @@ def stats(T, r, maxit=200, tol=1e-4, num_samples = 100):
 
 
 @njit(nogil=True)
-def cg(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, b, m, n, p, r, damp, cg_maxiter):
+def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
+    # Give names to the arrays.
+    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
+    M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = data_rmatvec
     
+    # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = crt.gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
-    w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = crt.prepare_data_rmatvec(X, Y, Z, m, n, p, r)
-    M = np.ones(r*(m+n+p))
-    L = np.ones(r*(m+n+p))
+    N_X, N_Y, N_Z = crt.update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z, N_X, N_Y, N_Z)
     L = crt.regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
     M = crt.precond(X, Y, Z, L, M, damp, m, n, p, r)
     
-    y = np.zeros(r*(m+n+p), dtype = np.float64)
-    residual = np.zeros(r*(m+n+p), dtype = np.float64)
-    P = np.zeros(r*(m+n+p), dtype = np.float64)
-    Q = np.zeros(r*(m+n+p), dtype = np.float64)
-    z = np.zeros(r*(m+n+p), dtype = np.float64)
+    y = 0*y
     
-    residual = M*crt.rmatvec(X, Y, b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
+    g = crt.rmatvec(X, Y, b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
+    residual = M*g
     P = residual
     residualnorm = np.dot(residual, residual)
     residualnorm_new = 0.0
@@ -788,10 +747,10 @@ def cg(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_do
         beta = residualnorm_new/residualnorm
         residualnorm = residualnorm_new
         P = residual + beta*P
-        if residualnorm < 1e-6:
-            return M*y, itn, residualnorm   
+        if residualnorm < 1e-16:
+            return M*y, g, itn, residualnorm   
         
-    return M*y, itn+1, residualnorm
+    return M*y, g, itn+1, residualnorm
 
 
 # Below we wrapped some functions which can be useful to the user. By doing this we just need to load the module TensorFox to do all the needed work.
