@@ -282,7 +282,7 @@ def multirank_approx(T, r1, r2, r3):
     return T_approx
 
 
-def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-6, display='none'):
+def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, display='none'):
     """
     After the cpd function computes a CPD for T using the truncated S, this function 
     puts the CPD Lambda, X, Y, Z in the same space of S (no truncation anymore) and try
@@ -328,11 +328,11 @@ def refine(S, X, Y, Z, r, R1_trunc, R2_trunc, R3_trunc, maxiter=200, tol=1e-6, d
     Y_aug[0:R2_trunc,:] = Y
     Z_aug[0:R3_trunc,:] = Z
                 
-    x, step_sizes, errors = tf.dGN(S, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, tol=tol, display=display)
+    x, step_sizes, errors, stop = tf.dGN(S, X_aug, Y_aug, Z_aug, r, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol, display=display)
     
     X, Y, Z = cnv.x2CPD(x, X, Y, Z, R1, R2, R3, r)
        
-    return X, Y, Z, step_sizes, errors
+    return X, Y, Z, step_sizes, errors, stop
 
 
 def tens2matlab(T):
@@ -404,28 +404,17 @@ def _sym_ortho(a, b):
 
 
 @njit(nogil=True)
-def update_damp(Tsize, damp, v, old_error, error, old_residualnorm, residualnorm, itn, cg_maxiter):
+def update_damp(damp, old_error, error, residualnorm):
     """ Update rule of the damping parameter for the dGN function. """
  
-    g = 2*(old_error - error)/(old_residualnorm - residualnorm)
-    if g > 0:
-        damp = damp*max(1/3, 1-(2*g-1)**3)
-        v = 2
-    else:
-        damp = damp*v
-        v = 2*v
-
-    # The wrong approximation is due to bad conditioning. We fix this increasing damp (increase regularization).    
-    if error > old_error or itn > 100:
-        damp = 4*damp
-    # Slow convergence is due to local minima. We fix this decreasing damp (decrease regularization).
-    elif (old_error - error)/Tsize < 1e-5:
+    g = 2*(old_error - error)/(old_error - residualnorm)
+        
+    if g < 0.75:
         damp = damp/2
-    # Damp is too big.
-    elif damp > 2:
-        damp = 2
-
-    return damp, v
+    elif g > 0.9:
+        damp = 1.5*damp
+    
+    return damp
 
 
 def normalize(X, Y, Z, r):
@@ -543,3 +532,252 @@ def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
 
     elif ordering == [2,1,0]:        
         return Z, Y, X, U3, U2, U1
+
+
+@jit(nogil=True)
+def search_compression1(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r):
+    """
+    This function try different threshold values to truncate the hosvd. For
+    eps = 0.99 initially and updating with the rule eps = eps^2, we forget the singular
+    values smaller than eps*max(S1, S2, S3). If the truncation has a relative error 
+    smaller than 1e-6, then we consider this truncation is good enough. 
+
+    Inputs
+    ------
+    T: float 3-D ndarray
+    Tsize: float
+    S1, S2, S3: float 1-D ndarrays
+        Each one of these array is an ordered list (ascendent) with the singular values of the respective
+    unfolding.
+    U1, U2, U3: float 2-D ndarrays
+    m, n, p, r: int   
+
+    Outputs
+    -------
+    best_err: float
+        Relative error of the best truncation founded.
+    best_R1, best_R2, best_R3: int
+        Dimensions of the truncation.
+    best_sigma1, best_sigma2, best_sigma3: float 1-D ndarrays
+        Truncated versions od S1, S2, S3.
+    best_U1, best_U2, best_U3: float 2-D ndarrays
+        Truncated versions of U1, U2, U3.
+    status: str
+        'fail 1': At the first iteration the truncation is the original tensor. This means the tensor can't
+    be truncated (at each iteration the truncation increases).
+        'fail 2': At some iteration (after the first one) the truncation is the original tensor. For the same 
+    reasons as before we don't need to keep iterating. 
+        'success': The function found a truncation with relative error less than 1e-6. 
+    """
+
+    # Initialize the best results in the case none of the truncations work.
+    best_R1, best_R2, best_R3 = m, n, p
+    best_U1 = U1
+    best_U2 = U2
+    best_U3 = U3
+    best_sigma1 = S1
+    best_sigma2 = S2
+    best_sigma3 = S3
+       
+    # Initialize relevant constants.
+    S_energy = np.sum(best_sigma1**2) + np.sum(best_sigma2**2) + np.sum(best_sigma3**2)
+    best_energy = 0.9
+    const_max = max(S1[-1], S2[-1], S3[-1])
+    eps = 0.99
+    tol = 1
+    best_err = 1
+    status = 'fail 2'
+   
+    while tol > 1e-16:        
+        # Updates.
+        tol = eps*const_max
+        sigma1, R1, U1_new = update_truncation1(S1, U1, tol)
+        sigma2, R2, U2_new = update_truncation1(S2, U2, tol)
+        sigma3, R3, U3_new = update_truncation1(S3, U3, tol) 
+                                
+        # Stopping conditions.
+        if (R1, R2, R3) == (m, n, p):
+            # If this proccess is unable to truncate at the very first iteration, we can conclude that the tensor has no compression at all.
+            if eps == 0.99:
+                status = 'fail 1'
+                return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3, status
+            else:
+                status = 'fail 2'
+            return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3, status
+
+        # Update eps.
+        eps = eps**2
+
+        # Compute energy of compressed tensor.
+        total_energy = 100*(np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2))/S_energy                            
+                
+        if total_energy > best_energy and r < min(R1*R2, R1*R3, R2*R3):
+            # Compute error of compressed tensor.
+            S = np.zeros((R1,R2,R3))
+            S = multilin_mult(T, U1_new.transpose(), U2_new.transpose(), U3_new.transpose(), m, n, p)
+            T_compress = multilin_mult(S, U1_new, U2_new, U3_new, R1, R2, R3)
+            rel_err = np.linalg.norm(T - T_compress)/Tsize
+            
+            # Update best results only if the relative error of the compression is smaller than 1e-2.
+            if rel_err < 1e-1:
+                best_err = rel_err
+                best_energy = total_energy
+                best_R1, best_R2, best_R3 = R1, R2, R3
+                best_sigma1 = sigma1
+                best_sigma2 = sigma2
+                best_sigma3 = sigma3
+                best_U1 = U1_new
+                best_U2 = U2_new
+                best_U3 = U3_new
+            
+            # Stopping condition. 
+            if best_err < 1e-3 or best_energy > 99.9:
+                status = 'success'
+                return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3, status 
+                               
+    return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3, status 
+
+
+@jit(nogil=True)
+def update_truncation1(S, U, tol):
+    """
+    This function ia a subroutine for the search_compression1 function. It computes the truncations
+    of S and U, given some tolerance tol.
+    """
+    sigma = S[S > tol]
+    if np.sum(sigma) == 0:
+        sigma = S
+        R = U.shape[1]  
+    else:
+        R = sigma.size
+        U = U[:, U.shape[1]-R:]
+                                    
+    return sigma, R, U 
+
+
+@jit(nogil=True)
+def search_compression2(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r):
+    """
+    This function has the same inputs and outputs as the function search_compression1, with 
+    the exception of the output status, which is not necessary here.
+
+    This function try different values for the dimensions to truncate. For each dimension
+    dim, the program evaluates four values, obtained by dividing the interval [2, dim] in
+    four (almost) equal parts.
+    In this part we will accept less precise truncations, since the previous search function 
+    already tried the more precise ones. Therefore, if the truncation has a relative error 
+    smaller than 0.5, then we consider this truncation is good enough.     
+    """
+
+    best_R1, best_R2, best_R3 = m, n, p
+    best_U1 = U1
+    best_U2 = U2
+    best_U3 = U3
+    best_sigma1 = S1
+    best_sigma2 = S2
+    best_sigma3 = S3
+    S_energy = np.sum(best_sigma1**2) + np.sum(best_sigma2**2) + np.sum(best_sigma3**2)
+    best_energy = 0.9
+    best_err = 1
+    idx_list1 = [2, 1 + int(0.33*m), 1 + int(0.66*m), m]
+    idx_list2 = [2, 1 + int(0.33*n), 1 + int(0.66*n), n]
+    idx_list3 = [2, 1 + int(0.33*p), 1 + int(0.66*p), p]
+    
+    for i in idx_list1:
+        for j in idx_list2:
+            for k in idx_list3:
+                # Updates.
+                sigma1, R1, U1_temp = update_truncation2(S1, U1, m, i)
+                sigma2, R2, U2_temp = update_truncation2(S2, U2, n, j)
+                sigma3, R3, U3_temp = update_truncation2(S3, U3, p, k)   
+
+                # First stopping condition.  
+                if (R1, R2, R3) == (m, n, p):
+                    return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3    
+
+                # Compute energy of compressed tensor.
+                total_energy = 100*(np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2))/S_energy          
+        
+                if total_energy > best_energy and r < min(R1*R2, R1*R3, R2*R3):
+                    # Compute error of compressed tensor.
+                    S = np.zeros((R1,R2,R3))
+                    S = multilin_mult(T, U1_temp.transpose(), U2_temp.transpose(), U3_temp.transpose(), m, n, p)
+                    T_compress = multilin_mult(S, U1_temp, U2_temp, U3_temp, R1, R2, R3)
+                    rel_err = np.linalg.norm(T - T_compress)/Tsize
+
+                    # Update best results only if the relative error of the compression is smaller than 0.5.
+                    if rel_err < 0.5:
+                        best_err = rel_err
+                        best_energy = total_energy
+                        best_R1, best_R2, best_R3 = R1, R2, R3
+                        best_sigma1 = sigma1
+                        best_sigma2 = sigma2
+                        best_sigma3 = sigma3
+                        best_U1 = U1_temp
+                        best_U2 = U2_temp
+                        best_U3 = U3_temp
+                    
+                    # Second stopping condition.
+                    if best_err < 0.25:
+                        return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3
+
+    return best_err, best_R1, best_R2, best_R3, best_sigma1, best_sigma2, best_sigma3, best_U1, best_U2, best_U3
+
+
+@jit(nogil=True)
+def update_truncation2(S, U, dim, idx):
+    """
+    This function ia a subroutine for the search_compression1 function. It computes the truncations
+    of S and U, given some index idx (which will be in the interval [2,dim]).
+    """
+    sigma = S[dim-idx:]
+    R = sigma.size
+    U = U[:, dim-R:]
+                
+    return sigma, R, U
+
+
+def unfoldings_svd(T1, T2, T3, m, n, p):
+    """
+    Computes SVD's of all unfoldings Ti, taking in account the size of the matrix.
+    """
+
+    # SVD of unfoldings.
+    if m < n*p:
+        S1, U1 = np.linalg.eigh( np.dot(T1, T1.transpose()) )
+        # Clean noise and compute the actual singular values.
+        S1[S1 <= 0] = 0
+        S1 = np.sqrt(S1)
+    else:
+        u1, s1, v1h = np.linalg.svd(T1.transpose(), full_matrices=False)
+        S1 = np.sort(s1)
+        new_col_order = np.argsort(s1)
+        v1h = v1h.transpose()
+        U1 = v1h[:, new_col_order]
+        S1[S1 <= 0] = 0
+
+    if n < m*p:
+        S2, U2 = np.linalg.eigh( np.dot(T2, T2.transpose()) )
+        S2[S2 <= 0] = 0
+        S2 = np.sqrt(S2)
+    else:
+        u2, s2, v2h = np.linalg.svd(T2.transpose(), full_matrices=False)
+        S2 = np.sort(s2)
+        new_col_order = np.argsort(s2)
+        v2h = v2h.transpose()
+        U2 = v2h[:, new_col_order]
+        S2[S2 <= 0] = 0
+
+    if p < m*n:
+        S3, U3 = np.linalg.eigh( np.dot(T3, T3.transpose()) )
+        S3[S3 <= 0] = 0
+        S3 = np.sqrt(S3)
+    else:
+        u3, s3, v3h = np.linalg.svd(T3.transpose(), full_matrices=False)
+        S3 = np.sort(s3)
+        new_col_order = np.argsort(s3)
+        v3h = v3h.transpose()
+        U3 = v3h[:, new_col_order]
+        S3[S3 <= 0] = 0
+
+    return S1, S2, S3, U1, U2, U3
