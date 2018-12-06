@@ -73,12 +73,6 @@ General Description
  
  - consistency
  
- - line_search
-
- - cpd_error
-
- - bissection 
- 
  - multilin_mult
  
  - multirank_approx
@@ -94,6 +88,20 @@ General Description
  - normalize
 
  - equalize
+
+ - sort_dims
+
+ - sort_T
+
+ - unsort_dims
+
+ - search_compression1
+
+ - update_truncation1
+
+ - search_compression2
+
+ - update_truncation2 
  
  **Display:**
  
@@ -133,6 +141,7 @@ General Description
  
  
  [1] C. J. Hillar and Lek-Heng Lim. Most Tensor Problems are NP-Hard. Journal of the ACM. 2013.
+
 """
 
 
@@ -142,7 +151,6 @@ import scipy.io
 import time
 from decimal import Decimal
 import matplotlib.pyplot as plt
-from scipy import sparse
 from numba import jit, njit, prange
 import Construction as cnst
 import Conversion as cnv
@@ -151,7 +159,7 @@ import Display as disp
 import Critical as crt
 
 
-def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init='smart_random', display='none'):
+def cpd(T, r, energy=99.9, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init='smart_random', display='none', full_output=False):
     """
     Given a tensor T and a rank R, this function computes one approximated CPD of T 
     with rank R. The result is given in the form [Lambda, X, Y, Z], where Lambda is a 
@@ -167,7 +175,7 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
         The desired rank of the approximating tensor.
     energy: float
         The energy varies between 0 and 100. For more information about how this parameter
-    works, check the functions 'truncation', 'trancate1' and 'truncate2'. Default is 0.05.
+    works, check the functions 'truncation', 'trancate1' and 'truncate2'. Default is 99.9.
     maxiter: int
         Number of maximum iterations allowed in the Gauss-Newton function. Default is 200.
     tol: float
@@ -234,8 +242,8 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
             print('    Compressing from',T.shape,'to',S.shape)
             # Computation of relative error associated with compression.
             T_compress = aux.multilin_mult(S, U1, U2, U3, R1, R2, R3)
-            rel_err = np.linalg.norm(T - T_compress)/Tsize
-            a = float('%.4e' % Decimal(rel_err))
+            rel_error = np.linalg.norm(T - T_compress)/Tsize
+            a = float('%.4e' % Decimal(rel_error))
             print('    Compression relative error =', a)
             
     # TRUNCATION STAGE       
@@ -245,7 +253,7 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
         print('Computing truncation')
     
     # Truncate S to obtain a small tensor S_trunc with less energy than S, but close to S.
-    S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_err = cnst.truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy)
+    S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_error = cnst.truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy)
     
     # Check if the truncation is valid (if truncate too much the problem becomes ill-posed).
     aux.consistency(r, R1_trunc, R2_trunc, R3_trunc) 
@@ -259,13 +267,13 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
             print('    Truncating from', S.shape, 'to', S_trunc.shape)
             a = float('%.4e' % Decimal(best_energy))
             print(a,'% of the energy was retained')
-            a = float('%.4e' % Decimal(rel_err))
+            a = float('%.4e' % Decimal(rel_error))
             print('    Truncation relative error =', a) 
             
     # GENERATION OF STARTING POINT STAGE
         
     # Generate initial to start dGN.
-    X, Y, Z, rel_err = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc, init)      
+    X, Y, Z, rel_error = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc, init)      
 
     if display != 'none':
         print('-------------------------------------------------------')        
@@ -276,7 +284,7 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
         else:
             print('Type of initialization: smart random')
 
-        a = float('%.4e' % Decimal(rel_err))
+        a = float('%.4e' % Decimal(rel_error))
         print('    Initial guess relative error =', a)   
     
     # DAMPED GAUSS-NEWTON STAGE 
@@ -315,7 +323,7 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
     T_approx = cnv.CPD2tens(T_aux, X, Y, Z, m_orig, n_orig, p_orig, r)
         
     # Compute relative error of the approximation.
-    rel_err = np.linalg.norm(T_orig - T_approx)/Tsize
+    rel_error = np.linalg.norm(T_orig - T_approx)/Tsize
 
     # Normalize X, Y, Z to have column norm equal to 1.
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
@@ -323,10 +331,16 @@ def cpd(T, r, energy=0.05, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, init=
     # Display final informations.
     if display != 'none':
         print('=======================================================')
-        print('Number of steps =',step_sizes_trunc.shape[0] + step_sizes_refine.shape[0])
-        print('Final Relative error =', rel_err)
+        print('Final results')
+        print('    Number of steps =',step_sizes_trunc.shape[0] + step_sizes_refine.shape[0])
+        print('    Relative error =', rel_error)
+        a = float( '%.3e' % Decimal(100*(1 - rel_error)) )
+        print('    Accuracy = ', a, '%')
     
-    return Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_refine, errors_trunc, errors_refine, stop_trunc, stop_ref
+    if full_output:
+        return Lambda, X, Y, Z, T_approx, rel_error, step_sizes_trunc, step_sizes_refine, errors_trunc, errors_refine, stop_trunc, stop_ref
+    else:
+        return Lambda, X, Y, Z
 
 
 def dGN(T, X, Y, Z, r, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, display='none'):
@@ -431,11 +445,10 @@ def dGN(T, X, Y, Z, r, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, display='
         X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
         T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
         error = np.linalg.norm(T - T_aux)
-
+                        
+        # Update damp and save relevant information about the current iteration.
         old_damp = damp
         damp = aux.update_damp(damp, old_error, error, residualnorm)
-                        
-        # Update arrays with relevant information about the current iteration.
         step_sizes[it] = np.linalg.norm(x - old_x)   
         errors[it] = error
         
@@ -446,7 +459,7 @@ def dGN(T, X, Y, Z, r, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, display='
                          
         # After 3 iterations the program starts to verify if the difference between the previous and the current 
         # relative errors are smaller than tol, or if the infinity norm of the derivative g of the error at x is
-        # smaller than tol.
+        # smaller than tol^(1/2).
         if it >= 3:
             errors_diff = np.abs(errors[it] - errors[it-1])/Tsize
             if step_sizes[it] < tol:
@@ -526,14 +539,14 @@ def hosvd(T, Tsize, r):
 
 def rank(T, display='full'):
     """
-    This function computes several approximations of T for r = 1...n^2. We use 
-    these computations to determine the (most probable) rank of T. The function also 
-    returns an array `errors_per_rank` with the relative errors for the rank varying 
-    from 1 to r+1, where r is the computed rank of T. It is relevant to say that the 
-    value r computed can also be the `border rank` of T, not the actual rank. 
+    This function computes several approximations of T for r = 1...min(m*n, m*p, n*p). 
+    These computations will be used to determine the (most probable) rank of T. The function 
+    also returns an array `errors_per_rank` with the relative errors for each rank computed. 
+    It is relevant to say that the rank r computed can also be the `border rank` of T, not the 
+    actual rank. 
 
-    The idea is that the minimum of \|T-S\|, for each rank r, stabilizes when S has 
-    the same rank as T. This function also plots the graph of the errors so the user 
+    The idea is that the minimum of |T - T_approx|, for each rank r, stabilizes when S 
+    has the same rank as T. This function also plots the graph of the errors so the user 
     are able to visualize the moment when the error stabilizes.
     
     Inputs
@@ -548,7 +561,7 @@ def rank(T, display='full'):
     final_rank: int
         The computed rank of T.
     errors_per_rank: float 1-D ndarray
-        The error |T-S| computed for each rank.    
+        The error |T - T_approx| computed for each rank.    
     """
     
     # Compute dimensions and norm of T.
@@ -568,28 +581,28 @@ def rank(T, display='full'):
     
     # Before the relevant loop for r=1...R, we compute the HOSVD of T and truncate it if possible.
     # This is exactly the first part of the cpd function. 
-    
-    # COMPRESSION STAGE
-    
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = hosvd(T)
-    R1, R2, R3 = multi_rank           
-    
+
     # START THE PROCCESS OF FINDING THE RANK
     
     print('Start searching for rank')
-    print('-------------------------------------------------------------------')
+    print('------------------------------------')
     print('Stops at r =',R,' or less')
     print()
-    
+
     for r in range(1,R):  
-        print('Trying r =',r)
+        print('Testing r =',r)
+    
+        # COMPRESSION STAGE
+         
+        S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = hosvd(T, Tsize, r)
+        R1, R2, R3 = multi_rank
             
         # TRUNCATION STAGE       
         
-        S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_err = cnst.truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy=99)
+        S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_error = cnst.truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy=99)
         
         # Generate starting point.
-        X, Y, Z, rel_err = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc)      
+        X, Y, Z, rel_error = cnst.start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2_trunc, R3_trunc)      
         
         # Start Gauss-Newton iterations.
         x, step_sizes1, errors1, stop1 = dGN(S_trunc, X, Y, Z, r) 
@@ -619,17 +632,18 @@ def rank(T, display='full'):
     
     # SAVE LAST INFORMATIONS
     
-    final_rank = r-1
     error_per_rank = error_per_rank[0:r] 
-    
+    final_rank = np.argmin(error_per_rank)+1
+        
     # DISPLAY AND PLOT ALL RESULTS
     
-    print('Estimated rank(T) =',r-1)
-    print('|T - T_approx|/|T| =',error_per_rank[-2])
+    print('------------------------------------')
+    print('Estimated rank(T) =', final_rank)
+    print('|T - T_approx|/|T| =', error_per_rank[final_rank - 1])
     
     if display != 'none':
         plt.plot(range(1,r+1), np.log10(error_per_rank))
-        plt.plot(r-1, np.log10(error_per_rank[-2]), marker = 'o', color = 'k')
+        plt.plot(final_rank, np.log10(error_per_rank[final_rank - 1]), marker = 'o', color = 'k')
         plt.title('Rank trials')
         plt.xlabel('r')
         plt.ylabel(r'$\log_{10} \|T - S\|/|T|$')
@@ -679,17 +693,20 @@ def stats(T, r, energy=99.9, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, num
     # BEGINNING OF SAMPLING AND COMPUTING
     
     # At each run, the program computes a CPD for T with random guess for initial point.
+    k = 1
     for trial in range(1, num_samples+1):            
         start = time.time()
-        Lambda, X, Y, Z, T_approx, rel_err, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref, stop_trunc, stop_ref = cpd(T, r, energy=energy, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol)
+        Lambda, X, Y, Z, T_approx, rel_error, step_sizes_trunc, step_sizes_ref, errors_trunc, errors_ref, stop_trunc, stop_ref = cpd(T, r, energy=energy, maxiter=maxiter, cg_lower=cg_lower, cg_upper=cg_upper, tol=tol, full_output=True)
                
         # Update the vectors with general information.
         times[trial-1] = time.time() - start
         steps[trial-1] = step_sizes_trunc.shape[0] + step_sizes_ref.shape[0]
-        rel_errors[trial-1] = rel_err
+        rel_errors[trial-1] = rel_error
         
-        if float(trial/num_samples) in np.arange(0.1, 1.1, 0.1):
+        # Show progress status.
+        if trial == int(k/10*num_samples):
             print(100*float(trial/num_samples), '%')
+            k += 1
      
     # PLOT HISTOGRAMS
     
@@ -706,7 +723,7 @@ def stats(T, r, energy=99.9, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, num
     plt.show()
 
     [array,bins,patches] = plt.hist(np.log10(rel_errors), 50)
-    plt.xlabel(r'$\log_{10} \|T-S\|/\|T\|$')
+    plt.xlabel(r'$\log_{10} \|T - \tilde{T}\|/\|T\|$')
     plt.ylabel('Quantity')
     plt.title('Histogram of the log10 of the relative error of each trial')
     plt.show()
@@ -716,6 +733,10 @@ def stats(T, r, energy=99.9, maxiter=200, cg_lower=2, cg_upper=10, tol=1e-6, num
 
 @njit(nogil=True)
 def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
+    """
+    Conjugate gradient algorithm specialized to the tensor case.
+    """
+
     # Give names to the arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
     M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = data_rmatvec

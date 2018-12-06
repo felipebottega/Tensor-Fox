@@ -12,6 +12,7 @@
  - rank1_plot
  
  - rank1
+
 """
 
 
@@ -68,7 +69,7 @@ def infotens(T):
     print()
     
     # Multilinear rank.
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tf.hosvd(T)
+    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tf.hosvd(T, Tsize, R)
     R1, R2, R3 = multi_rank
     print('multirank(T) =',R1,',',R2,',',R3)
     print()

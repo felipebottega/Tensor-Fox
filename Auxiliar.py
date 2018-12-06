@@ -5,12 +5,6 @@ Auxiliar Module
  
  - consistency
  
- - line_search
-
- - cpd_error
-
- - bissection 
- 
  - multilin_mult
  
  - multirank_approx
@@ -26,6 +20,21 @@ Auxiliar Module
  - normalize
 
  - equalize
+
+ - sort_dims
+
+ - sort_T
+
+ - unsort_dims
+
+ - search_compression1
+
+ - update_truncation1
+
+ - search_compression2
+
+ - update_truncation2 
+
 """ 
 
 
@@ -57,139 +66,6 @@ def consistency(r, m, n, p):
         sys.exit(msg)
         
     return
-
-
-@njit(nogil=True)
-def line_search(T, T_aux, X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r):
-    """
-    We use a very simple line search after each Gauss-Newton iteration to try
-    to improve the accuracy of the minimum just computed with the lsmr function.
-    Since y is a descent direction for the error function, the program search
-    for the optimal point using a bissection strategy.
-    x + alpha*y. 
-    
-    Inputs
-    ------
-    T, T_aux: float 3-D ndarray
-    X, Y, Z, X_low, Y_low, Z_low, X_high, Y_high, Z_high: float 2-D ndarray
-    x, y: float 1-D ndarray
-        y has the same shape as x. It is a small step in some direction. This step is
-    computed with the lsmr function, and it is the principal part of the Gauss-Newton
-    method.
-    m, n, p, r: int
-    
-    Outputs
-    -------
-    best_alpha: float
-        best_alpha is a positive number such that x + alpha*y gives the best CPD in the
-    neighborhood of x + y. 
-    best_error: float
-        Is the absolute error |T - T_approx(alpha)|, where T_approx(alpha) is the tensor
-    obtained from x + alpha*y for the best alpha found.   
-    """
-    
-    # Initial values.
-    best_error = cpd_error(T, T_aux, x + y, X_high, Y_high, Z_high, m, n, p, r)
-    best_alpha = 1.0
-    alpha_low = 0.01
-    alpha_high = 3.0
-    
-    # Compute error for alpha = 0.01.
-    error_low = cpd_error(T, T_aux, x + alpha_low*y, X_low, Y_low, Z_low, m, n, p, r)
-        
-    if error_low < best_error:
-        cuts = 7
-        alpha_low = 0.01
-        alpha_high = best_alpha
-        error_high = best_error
-                
-    else:
-        # Compute error for alpha = 3.
-        error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
-        alpha_low = best_alpha
-        error_low = best_error
-                
-        if best_error < error_high:
-            cuts = 7
-                                    
-        else:
-            # First make sure the errors associated with the points bewtween best_alpha and 3 are greater. 
-            cuts = 3
-            best_alpha, best_error, alpha_low, alpha_high, error_low, error_high = bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)
-            # If best_alpha = 3, then we should look for further values of alpha. We set alpha_low = 3 and alpha_high = 30.
-            if best_alpha == 3.0:
-                cuts = 6
-                alpha_low = alpha_high
-                error_low = error_high
-                alpha_high = 30.0
-                # Compute error for alpha = 3.
-                error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
-            # If best_alpha < 3, then we try to refine the value of alpha by looking more this interval.
-            else:
-                cuts = 4
-                                           
-    best_alpha, best_error, alpha_low, alpha_high, error_low, error_high = bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r)  
-                
-    return best_alpha, best_error
-
-
-@njit(nogil=True)
-def cpd_error(T, T_aux, x, X_lh, Y_lh, Z_lh, m, n, p, r):
-    """ 
-    This function computes the error between the objective tensor T and the CPD
-    associated to x. The 'lh' index stands for 'low or high', because this function
-    computes the error in both cases.
-    """
-    
-    X_lh, Y_lh, Z_lh = cnv.x2CPD(x, X_lh, Y_lh, Z_lh, m, n, p, r)
-    T_aux = cnv.CPD2tens(T_aux, X_lh, Y_lh, Z_lh, m, n, p, r)
-    error = np.sqrt(np.sum((T - T_aux)**2))
-    
-    return error
-
-
-@njit(nogil=True)
-def bissection(alpha_low, alpha_high, error_low, error_high, cuts, T, T_aux, X_low, Y_low, Z_low, X_high, Y_high, Z_high, x, y, m, n, p, r):
-    """
-    This function tries to find the best alpha between alpha_low and alpha_high using the bissection method. 
-
-    Inputs
-    ------
-    alpha_low, alpha_high, error_low_ error_high: float
-        error_low is the error associated with x + alpha_low*y. The same goes for error_high.
-    cuts: int
-        Number of cuts to be used in this bissection. It can vary depending on alpha_low and alpha_high.
-    T, T_aux: float 3-D ndarray
-    X_low, Y_low, Z_low, X_high, Y_high, Z_high: float 2-D array
-        Matrices of the CPD associated with x + alpha*y, where 'alpha' is alpha_low or alpha_high.
-    x, y: float
-    m, n, p, r: int
-
-    Outputs
-    -------
-    best_alpha, best_error, alpha_low, alpha_high, error_low, error_high: float
-        best_alpha is in fact the best parameter alpha found, while best_error is the error associated
-    with this parameter. alpha_low is the last least value of alpha in the bissection method, while
-    alpha_high is the last greater value of alpha in the bissection method.  
-    """    
-
-    for i in range(0, cuts):
-        if error_low < error_high:
-            best_alpha = alpha_low
-            best_error = error_low
-            if i == cuts-1:
-                break  
-            alpha_high = (alpha_low + alpha_high)/2    
-            error_high = cpd_error(T, T_aux, x + alpha_high*y, X_high, Y_high, Z_high, m, n, p, r)
-        else:
-            best_alpha = alpha_high
-            best_error = error_high
-            if i == cuts-1:
-                break  
-            alpha_low = (alpha_low + alpha_high)/2
-            error_low = cpd_error(T, T_aux, x + alpha_low*y, X_low, Y_low, Z_low, m, n, p, r)
-            
-    return best_alpha, best_error, alpha_low, alpha_high, error_low, error_high
 
 
 @jit(nogil=True)
@@ -468,7 +344,10 @@ def equalize(X, Y, Z, r):
 
 def sort_dims(T, m, n, p):
     """
-    "m = 0", "n = 1", "p = 2"
+    Consider the following identifications.
+        "m = 0", "n = 1", "p = 2"
+    We will use them to reorder the dimensions of the tensor, in such a way
+    that we have m_new >= n_new >= p_new.
     """
 
     if m >= n and n >= p:
@@ -493,6 +372,7 @@ def sort_dims(T, m, n, p):
     # Define m_s, n_s, p_s such that T_sorted.shape == m_s, n_s, p_s.
     m_s, n_s, p_s = T.shape[ordering[0]], T.shape[ordering[1]], T.shape[ordering[2]]
     T_sorted = np.zeros((m_s, n_s, p_s), dtype = np.float64)
+
     # In the function sort_T, inv_sort is such that T_sorted[inv_sort[i,j,k]] == T[i,j,k].
     inv_sort = np.argsort(ordering)
     T_sorted = sort_T(T, T_sorted, ordering, inv_sort, m_s, n_s, p_s)      
@@ -502,6 +382,12 @@ def sort_dims(T, m, n, p):
 
 @njit(nogil=True)
 def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
+    """
+    Subroutine of the function sort_dims. Here the program deals with
+    the computationally costly part, which is the assignment of values
+    to the new tensor.
+    """
+
     # id receives the current triple (i,j,k) at each iteration.
     idx = np.array([0,0,0])
     
@@ -515,6 +401,11 @@ def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
         
 
 def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
+    """
+    Put the CPD factors and orthogonal transformations to the 
+    original ordering of dimensions.
+    """
+
     if ordering == [0,1,2]:
         return X, Y, Z, U1, U2, U3,
 
@@ -616,11 +507,11 @@ def search_compression1(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r):
             S = np.zeros((R1,R2,R3))
             S = multilin_mult(T, U1_new.transpose(), U2_new.transpose(), U3_new.transpose(), m, n, p)
             T_compress = multilin_mult(S, U1_new, U2_new, U3_new, R1, R2, R3)
-            rel_err = np.linalg.norm(T - T_compress)/Tsize
+            rel_error = np.linalg.norm(T - T_compress)/Tsize
             
             # Update best results only if the relative error of the compression is smaller than 1e-2.
-            if rel_err < 1e-1:
-                best_err = rel_err
+            if rel_error < 1e-1:
+                best_err = rel_error
                 best_energy = total_energy
                 best_R1, best_R2, best_R3 = R1, R2, R3
                 best_sigma1 = sigma1
@@ -703,11 +594,11 @@ def search_compression2(T, Tsize, S1, S2, S3, U1, U2, U3, m, n, p, r):
                     S = np.zeros((R1,R2,R3))
                     S = multilin_mult(T, U1_temp.transpose(), U2_temp.transpose(), U3_temp.transpose(), m, n, p)
                     T_compress = multilin_mult(S, U1_temp, U2_temp, U3_temp, R1, R2, R3)
-                    rel_err = np.linalg.norm(T - T_compress)/Tsize
+                    rel_error = np.linalg.norm(T - T_compress)/Tsize
 
                     # Update best results only if the relative error of the compression is smaller than 0.5.
-                    if rel_err < 0.5:
-                        best_err = rel_err
+                    if rel_error < 0.5:
+                        best_err = rel_error
                         best_energy = total_energy
                         best_R1, best_R2, best_R3 = R1, R2, R3
                         best_sigma1 = sigma1

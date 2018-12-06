@@ -20,6 +20,7 @@ Construction Module
  - truncate1
  
  - truncate2
+
 """ 
 
 
@@ -121,7 +122,7 @@ def start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2
     X: float 2-D ndarray with shape (m, r)
     Y: float 2-D ndarray with shape (n, r)
     Z: float 2-D ndarray with shape (p, r)
-    rel_err: float
+    rel_error: float
         Relative error associate to the starting point. More precisely, it is the relative 
     error between T and (U1_trunc,U2_trunc,U3_trunc)*S_init, where S_init = (X,Y,Z)*Lambda.
     """
@@ -149,9 +150,9 @@ def start_point(T, Tsize, S_trunc, U1_trunc, U2_trunc, U3_trunc, r, R1_trunc, R2
     T_aux = np.zeros(S_trunc.shape, dtype = np.float64)
     S_init = cnv.CPD2tens(T_aux, X, Y, Z, R1_trunc, R2_trunc, R3_trunc, r)
     T_init = aux.multilin_mult(S_init, U1_trunc, U2_trunc, U3_trunc, R1_trunc, R2_trunc, R3_trunc) 
-    rel_err = np.linalg.norm(T - T_init)/Tsize
+    rel_error = np.linalg.norm(T - T_init)/Tsize
         
-    return X, Y, Z, rel_err
+    return X, Y, Z, rel_error
 
 
 def smart_random(S_trunc, r, R1, R2, R3, samples=100):
@@ -317,7 +318,7 @@ def truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy):
         The energy of the truncation. The biggest is the energy, closer to T is the truncation
     R1_trunc, R2_trunc, R3_trunc: int
         The reduced dimensions obtained after truncating.
-    rel_err: float
+    rel_error: float
         Relative error associate to the truncation. More precisely, it is the relative error
     between T and (U1_trunc,U2_trunc,U3_trunc)*S_trunc.
     """
@@ -358,9 +359,9 @@ def truncation(T, Tsize, S, U1, U2, U3, r, sigma1, sigma2, sigma3, energy):
     
     # Computation of relative error associated with truncation. 
     T_trunc = aux.multilin_mult(S_trunc, U1_trunc, U2_trunc, U3_trunc, R1_trunc, R2_trunc, R3_trunc) 
-    rel_err = np.linalg.norm(T - T_trunc)/Tsize
+    rel_error = np.linalg.norm(T - T_trunc)/Tsize
         
-    return S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_err
+    return S_trunc, U1_trunc, U2_trunc, U3_trunc, best_energy, R1_trunc, R2_trunc, R3_trunc, rel_error
 
 
 @njit(nogil=True)
@@ -369,8 +370,8 @@ def truncate1(r, sigma1, sigma2, sigma3, energy=100):
     sigma1, sigma2, sigma3 are the list of singular values of the unfoldings of T. Using
     this lists we start to truncating S with respect to some energy in the interval [1,100],
     where 100 means no truncation at all.
-    Remember the energy associated to some truncation S_trunc is the value |S_trunc|/|S|*100.
-    Given the value 'energy', this function searches for the truncation more energy than
+    Remember the energy associated to some truncation S_trunc is the value |S_trunc|^2/|S|^2*100.
+    Given the value 'energy', this function searches for the truncation with more energy than
     'energy' but as close as possible to 'energy'. It is the infimum of all truncations with
     more energy than 'energy'.
     
@@ -395,19 +396,24 @@ def truncate1(r, sigma1, sigma2, sigma3, energy=100):
     S_energy = np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2)
     
     # Start to search for the best truncation based on energy.
-    for r1 in range(2, R1+1): 
+    for r1 in range(R1, int(R1/2), -1): 
         s1 = np.sum(sigma1[0:r1]**2)
-        for r2 in range(2, R2+1):
+        for r2 in range(R2, int(R2/2), -1):
             s2 = np.sum(sigma2[0:r2]**2)
-            for r3 in range(2, R3+1):
-                s3 = np.sum(sigma3[0:r3]**2)
+            for r3 in range(R3, int(R3/2), -1):
                 # Compute the total energy 100*|S_trunc|^2/|S|^2 of each truncation.
+                s3 = np.sum(sigma3[0:r3]**2)
                 total_energy = 100*(s1 + s2 + s3)/S_energy
                 max_r = min(r1*r2, r1*r3, r2*r3)
+                
                 # Verify if the energy is good enough. 
                 if (total_energy > energy) and (total_energy < best_energy) and (r <= max_r):
                     best_energy = total_energy
                     best_r1, best_r2, best_r3 = r1, r2, r3
+
+                # Stopping condition.
+                if R3 - r3 < 2 and R2 - r2 < 2 and total_energy < energy:
+                    return best_energy, best_r1, best_r2, best_r3
                                           
     return best_energy, best_r1, best_r2, best_r3
 
@@ -462,10 +468,10 @@ def truncate2(T, S, U1, U2, U3, r, sigma1, sigma2, sigma3, rel_error=0.05):
                 U3_trunc = U3[:, :r3]  
                 # Compute the relative error of this truncation.
                 T_trunc = aux.multilin_mult(S_trunc, U1_trunc, U2_trunc, U3_trunc, r1, r2, r3) 
-                rel_err = np.sqrt(np.sum((T - T_trunc)**2))/Tsize
+                rel_error_test = np.sqrt(np.sum((T - T_trunc)**2))/Tsize
                 max_r = min(r1*r2, r1*r3, r2*r3)
                 # Verify if this truncation is good enough.
-                if (rel_err < rel_error) and (r1*r2*r3 < best_dims) and (r <= max_r):
+                if (rel_error_test < rel_error) and (r1*r2*r3 < best_dims) and (r <= max_r):
                     s1 = np.sum(sigma1[0:r1]**2)
                     s2 = np.sum(sigma2[0:r2]**2)
                     s3 = np.sum(sigma3[0:r3]**2)
