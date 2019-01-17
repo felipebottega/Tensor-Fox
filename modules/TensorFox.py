@@ -57,6 +57,8 @@ General Description
  
  - cpd2tens
  
+ - tens_entries
+ 
  - unfold
  
  - foldback

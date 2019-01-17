@@ -21,7 +21,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from numba import njit, prange
-import TensorFox as tf
+import TensorFox as tfx
 import Auxiliar as aux
 
 
@@ -74,12 +74,12 @@ def infotens(T):
     trunc_dims = 0
     level = 1
     display = 0
-    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop = tf.hosvd(T, Tsize, R, trunc_dims, level, display)
+    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop = tfx.hosvd(T, Tsize, R, trunc_dims, level, display)
     print('multirank(T) =',R1,',',R2,',',R3)
     print()
     
     # Estimative of the rank of T.
-    r, error_per_rank = tf.rank(T, display='none')
+    r, error_per_rank = tfx.rank(T, display='none')
     print()
     
     return

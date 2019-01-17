@@ -46,7 +46,7 @@ import numpy as np
 import sys
 import scipy.io
 from numba import jit, njit, prange
-import TensorFox as tf
+import TensorFox as tfx
 import Construction as cnst
 import Conversion as cnv
 import Critical as crt
@@ -147,11 +147,16 @@ def multirank_approx(T, r1, r2, r3):
         The approximating tensor with multilinear rank = (r1,r2,r3).
     """
     
-    # Compute dimensions of T.
+    # Compute dimensions and norm of T.
     m, n, p = T.shape
+    Tsize = np.linalg.norm(T)
     
     # Compute the HOSVD of T.
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tf.hosvd(T)
+    trunc_dims = 0
+    level = 1
+    display = 0
+    r = min(m, n, p)
+    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tfx.hosvd(T, Tsize, r, trunc_dims, level, display)
     U1 = U1[:,0:r1]
     U2 = U2[:,0:r2]
     U3 = U3[:,0:r3]

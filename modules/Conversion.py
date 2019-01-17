@@ -7,9 +7,9 @@ Conversion Module
  
  - cpd2tens
  
+ - tens_entries
+ 
  - unfold
-
- - _unfold
  
  - foldback
 
