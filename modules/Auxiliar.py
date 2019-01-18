@@ -170,31 +170,14 @@ def multirank_approx(T, r1, r2, r3):
 
 def tens2matlab(T):
     """ 
-    This function constructs the unfolding matrix T1 of T and creates a matlab file 
-    containing T1. When in matlab, we can just open this file and the matrix T_unf will
-    be created automatically. To transform it in a tensor m x n x p, first initialize 
-    m,n,p with the correct values, then run the following code:
-    
-    T = zeros(m,n,p);
-    s = 1;
-    for k=1:p
-       for j=1:n 
-           T(:,j,k) = T1(:,s);
-           s = s+1;
-       end
-    end
-    
-    After that we have the same tensor to work with in matlab. 
+    This function creates a matlab file containing T and its dimensions. 
     """
     
     # Compute dimensions of T.
     m, n, p = T.shape
     
-    # Unfold the tensor.
-    T1 = cnv.unfold(T, m, n, p, mode=1)
-    
     # Save the unfolding in matlab format.
-    scipy.io.savemat('T1.mat', dict(T1=T1, m=m, n=n, p=p))
+    scipy.io.savemat('T_data.mat', dict(T=T, m=m, n=n, p=p))
     
     return
 
