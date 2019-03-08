@@ -218,6 +218,26 @@ def normalize(X, Y, Z, r):
     return Lambda, X, Y, Z
 
 
+def denormalize(Lambda, X, Y, Z):
+    R = Lambda.size
+    X_new = np.zeros(X.shape)
+    Y_new = np.zeros(Y.shape)
+    Z_new = np.zeros(Z.shape)
+    for r in range(R):
+        if Lambda[r] >= 0:
+            a = Lambda[r]**(1/3)
+            X_new[:,r] = a*X[:,r]
+            Y_new[:,r] = a*Y[:,r]
+            Z_new[:,r] = a*Z[:,r]
+        else:
+            a = (-Lambda[r])**(1/3)
+            X_new[:,r] = -a*X[:,r]
+            Y_new[:,r] = a*Y[:,r]
+            Z_new[:,r] = a*Z[:,r]
+            
+    return X_new, Y_new, Z_new
+
+
 @njit(nogil=True)
 def equalize(X, Y, Z, r):
     """ 
