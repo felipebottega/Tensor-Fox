@@ -219,6 +219,12 @@ def normalize(X, Y, Z, r):
 
 
 def denormalize(Lambda, X, Y, Z):
+    """
+    By undoing the normalization of the factor this function makes it unnecessary the use
+    of the diagonal tensor Lambda. This is useful when one wants the CPD described only by
+    the triplet (X, Y, Z).
+    """
+
     R = Lambda.size
     X_new = np.zeros(X.shape)
     Y_new = np.zeros(Y.shape)
