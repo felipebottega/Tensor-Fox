@@ -412,7 +412,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     # error is the current absolute error of the approximation.
     error = np.inf
     # damp is the damping factos in the damping Gauss-Newton method.
-    damp = 2.0
+    damp = 2.0*np.max(np.abs(T))
     stop = 4
                     
     # INITIALIZE RELEVANT ARRAYS
@@ -707,7 +707,7 @@ def rank(T, display=2):
     # SAVE LAST INFORMATIONS
     
     error_per_rank = error_per_rank[0:r] 
-    final_rank = np.argmin(error_per_rank)+1
+    final_rank = np.nanargmin(error_per_rank)+1
         
     # DISPLAY AND PLOT ALL RESULTS
     
