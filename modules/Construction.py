@@ -15,6 +15,8 @@ Construction Module
  
  - assign_values
 
+ - smart
+
 """ 
 
 
@@ -112,13 +114,12 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
     
     Outputs
     -------
-    Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
+    X: float 2-D ndarray of shape (R1, r)
+    Y: float 2-D ndarray of shape (R2, r)
+    Z: float 2-D ndarray of shape (R3, r)
     rel_error: float
         Relative error associate to the starting point. More precisely, it is the relative 
-    error between T and (U1,U2,U3)*S_init, where S_init = (X,Y,Z)*Lambda.
+    error between T and (U1,U2,U3)*S_init, where S_init = (X,Y,Z)*I.
     """
     
     if type(init) == list: 
@@ -177,10 +178,9 @@ def smart_random(S, r, R1, R2, R3):
         
     Outputs
     -------
-    Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m, R1)
-    Y: float 2-D ndarray of shape (n, R2)
-    Z: float 2-D ndarray of shape (p, R3)
+    X: float 2-D ndarray of shape (R1, r)
+    Y: float 2-D ndarray of shape (R2, r)
+    Z: float 2-D ndarray of shape (R3, r)
     """
     
     # Initialize auxiliary values and arrays.
@@ -243,10 +243,9 @@ def smart_sample(S, r, R1, R2, R3):
     
     Ouputs
     ------
-    Lambda: float 1-D ndarray with r entries
-    X: float 2-D ndarray of shape (m, R1)
-    Y: float 2-D ndarray of shape (n, R2)
-    Z: float 2-D ndarray of shape (p, R3)
+    X: float 2-D ndarray of shape (R1, r)
+    Y: float 2-D ndarray of shape (R2, r)
+    Z: float 2-D ndarray of shape (R3, r)
     """
     
     # Initialize arrays to construct initial approximate CPD.
@@ -297,3 +296,51 @@ def assign_values(S, X, Y, Z, r, R1, R2, R3, C1, C2, C3, arr1, arr2, arr3, l):
     X[i,l] = S[i,j,k] 
         
     return X[:,l], Y[:,l], Z[:,l]
+
+
+@njit(nogil=True)
+def smart(S, r, R1, R2, R3):
+    """
+    Construct a truncated version of S with the r entries with higher energy.
+    Let S_{i_l,j_l,k_l}, l = 1...r, be the points chosen by this method. With them we 
+    form the tensor S_init = sum_{l=1}^r S_{i_l,j_l,k_l} e_{i_l} ⊗ e_{j_l} ⊗ e_{k_l}, 
+    which should be close to S_trunc.
+    
+    Inputs
+    ------
+    S: 3-D float ndarray
+    r: int
+    R1, R2, R3: int
+        The dimensions of the truncated tensor S.
+            
+    Outputs
+    -------
+    X: float 2-D ndarray of shape (R1, r)
+    Y: float 2-D ndarray of shape (R2, r)
+    Z: float 2-D ndarray of shape (R3, r)
+    """
+
+    # Find the entries of S with higher energy.
+    largest = np.zeros(r, dtype=np.float64)
+    indexes = np.zeros((r,3), dtype=np.int64)
+    for i in range(R1):
+        for j in range(R2):
+            for k in range(R3):
+                if np.abs(S[i,j,k]) > np.min(np.abs(largest)):
+                    idx = np.argmin(np.abs(largest))
+                    largest[idx] = S[i,j,k]
+                    indexes[idx,:] = np.array([i,j,k])
+
+    # Use the entries computed previously to generates the factors X, Y, Z.
+    s = 1/np.linalg.norm(S.flatten())
+    X = s*np.random.randn(R1, r)
+    Y = s*np.random.randn(R2, r)
+    Z = s*np.random.randn(R3, r)
+
+    for l in range(r):
+        i, j, k = indexes[l,:]
+        X[i,l] = largest[l]
+        Y[j,l] = 1
+        Z[k,l] = 1
+                    
+    return X, Y, Z
