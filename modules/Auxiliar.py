@@ -15,6 +15,8 @@ Auxiliar Module
 
  - normalize
 
+ - denormalize
+
  - equalize
 
  - sort_dims
@@ -39,6 +41,7 @@ Auxiliar Module
 
  - unfoldings_svd
 
+ - make_info
 """ 
 
 
@@ -220,7 +223,7 @@ def normalize(X, Y, Z, r):
 
 def denormalize(Lambda, X, Y, Z):
     """
-    By undoing the normalization of the factor this function makes it unnecessary the use
+    By undoing the normalization of the factors this function makes it unnecessary the use
     of the diagonal tensor Lambda. This is useful when one wants the CPD described only by
     the triplet (X, Y, Z).
     """
@@ -634,7 +637,7 @@ def set_constraints(m, n, p, level):
 
 def generate_cuts(sigma1, sigma2, sigma3, num_cuts, r):
     """
-    At iteration i of the function search_compress, we will truncate the sigmas by considering
+    At iteration i of the function clean_compression, we will truncate the sigmas by considering
     only the singular values bigger than cut[i]. Each cut is a random number between 0 and 100.
     This means we will take num_cut points of each array of singular values.
     """
@@ -772,6 +775,8 @@ def make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, error
                 print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
             if self.stop[2] == 4:
                 print('4 - Limit of iterations was been reached.')
+            if self.stop[2] == 5:
+                print('5 - No refinement was performed.')
 
             msg = ' '
             return msg
