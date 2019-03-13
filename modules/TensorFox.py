@@ -50,6 +50,8 @@ General Description
  - smart_sample
  
  - assign_values
+
+ - smart
  
  **Conversion:**
  
@@ -76,6 +78,8 @@ General Description
  - update_damp
 
  - normalize
+
+ - denormalize
 
  - equalize
 
@@ -294,10 +298,8 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
         print('--------------------------------------------------------------------------------------------------------------')        
         if type(init) == list:
             print('Type of initialization: user')
-        elif init == 'random':
-            print('Type of initialization: random')
         else:
-            print('Type of initialization: smart random')
+            print('Type of initialization:', init)
         if display == 3:
             a = float('%.4e' % Decimal(rel_error))
             print('    Initial guess relative error =', a)   
@@ -412,7 +414,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     # error is the current absolute error of the approximation.
     error = np.inf
     # damp is the damping factos in the damping Gauss-Newton method.
-    damp = 2.0*np.max(np.abs(T))
+    damp = np.max(np.abs(T))
     stop = 4
                     
     # INITIALIZE RELEVANT ARRAYS
@@ -829,6 +831,8 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
     residual = M*g
     P = residual
     residualnorm = np.dot(residual, residual)
+    if residualnorm == 0.0:
+        residualnorm = 1e-6
     residualnorm_new = 0.0
     alpha = 0.0
     beta = 0.0
@@ -838,7 +842,10 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
         Q = M*P
         z = crt.matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
         z = M*z
-        alpha = residualnorm/np.dot(P.T, z)
+        denominator = np.dot(P.T, z)
+        if denominator == 0.0:
+            denominator = 1e-6
+        alpha = residualnorm/denominator
         y += alpha*P
         residual = residual - alpha*z
         residualnorm_new = np.dot(residual, residual)
@@ -857,48 +864,3 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
                  return M*y, g, itn, residualnorm
 
     return M*y, g, itn+1, residualnorm
-
-
-# Below we wrapped some functions which can be useful to the user. By doing this we just need to load the module TensorFox to do all the needed work.
-
-def multilin_mult(T, L, M, N, m, n, p):
-    LMNT = aux.multilin_mult(T, L, M, N, m, n, p)
-    
-    return LMNT
-
-
-def tens2matlab(T):    
-    aux.tens2matlab(T)
-    
-    return
-
-
-def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
-    T_aux = np.zeros((m,n,p), dtype = np.float64)
-    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
-    
-    return T_aux
-
-
-def showtens(T):
-    disp.showtens(T)
-    
-    return
-
-
-def infotens(T):
-    disp.infotens(T)
-    
-    return
-
-
-def infospace(m,n,p):
-    disp.infospace(m,n,p)
-    
-    return
-
-
-def rank1_plot(Lambda, X, Y, Z, m, n, p, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False):
-    disp.rank1_plot(Lambda, X, Y, Z, m, n, p, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False)
-    
-    return
