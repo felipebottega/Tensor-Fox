@@ -104,6 +104,10 @@ General Description
  - generate_cuts
 
  - unfoldings_svd
+
+ - make_info
+
+ - clean_zeros
  
  **Display:**
  
@@ -169,7 +173,7 @@ import Display as disp
 import Critical as crt
 
 
-def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init='smart_random', trunc_dims=0, level=1, symm=False, display=0):
+def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init='smart_random', trunc_dims=0, level=1, refine=False, symm=False, display=0):
     """
     Given a tensor T and a rank r, this function computes an approximated CPD of T 
     with rank r. The result is given in the form [Lambda, X, Y, Z], where Lambda is a 
@@ -315,10 +319,16 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
     
     # REFINEMENT STAGE
     
-    if display != 0:
-        print('--------------------------------------------------------------------------------------------------------------') 
-        print('Computing refinement of solution') 
-    X, Y, Z, step_sizes_refine, errors_refine, gradients_refine, stop_refine = dGN(S, X, Y, Z, r, maxiter_refine, tol_refine, symm, display)
+    if refine:
+        if display != 0:
+            print('--------------------------------------------------------------------------------------------------------------') 
+            print('Computing refinement of solution') 
+        X, Y, Z, step_sizes_refine, errors_refine, gradients_refine, stop_refine = dGN(S, X, Y, Z, r, maxiter_refine, tol_refine, symm, display)
+    else:
+        step_sizes_refine = np.array([0])
+        errors_refine = np.array([0]) 
+        gradients_refine = np.array([0]) 
+        stop_refine = 5 
     
     # FINAL WORKS
 
@@ -332,7 +342,7 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
     
     # Compute coordinate representation of the CPD of T.
     T_aux = np.zeros((m_orig, n_orig, p_orig), dtype = np.float64)
-    T_approx = cnv.CPD2tens(T_aux, X, Y, Z, m_orig, n_orig, p_orig, r)
+    T_approx = cnv.cpd2tens(T_aux, X, Y, Z, m_orig, n_orig, p_orig, r)
         
     # Normalize X, Y, Z to have column norm equal to 1.
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
@@ -367,7 +377,6 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     Inputs
     ------
     T: float 3-D ndarray
-    Lambda: Float 1-D ndarray with r entries
     X: float 2-D ndarray of shape (m,r)
     Y: float 2-D ndarray of shape (n,r)
     Z: float 2-D ndarray of shape (p,r)
@@ -414,7 +423,10 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     # error is the current absolute error of the approximation.
     error = np.inf
     # damp is the damping factos in the damping Gauss-Newton method.
-    damp = np.max(np.abs(T))
+    damp = np.mean(np.abs(T))
+    old_damp = damp
+    # constant used in the third stopping condition
+    const = 1 + int(maxiter/10)
     stop = 4
                     
     # INITIALIZE RELEVANT ARRAYS
@@ -427,7 +439,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     # T_aux is an auxiliary array used only to accelerate the CPD2tens and residual functions.
     T_aux = np.zeros((m, n, p), dtype = np.float64)
     X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
-    T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
+    T_aux = cnv.cpd2tens(T_aux, X, Y, Z, m, n, p, r)
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
     g = np.zeros(r*(m+n+p), dtype = np.float64)
@@ -469,7 +481,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
             Z = X
                
         # Compute error.
-        T_aux = cnv.CPD2tens(T_aux, X, Y, Z, m, n, p, r)
+        T_aux = cnv.cpd2tens(T_aux, X, Y, Z, m, n, p, r)
         error = np.linalg.norm(T - T_aux)
                                                         
         # Update damp. 
@@ -480,16 +492,16 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
         step_sizes[it] = np.linalg.norm(x - old_x)   
         errors[it] = error
         gradients[it] = np.linalg.norm(g, np.inf)
-        errors_diff = np.abs(errors[it] - errors[it-1])/Tsize
+        if it == 0:
+            errors_diff = errors[it]/Tsize
+        else:
+            errors_diff = np.abs(errors[it] - errors[it-1])/Tsize
         
         # Show information about current iteration.
         if display > 1:
             a = float('%.2e' % Decimal(old_damp))
-            if it >= 1:
-                print('       ',it+1,'    | ', '{0:.6f}'.format(error/Tsize), ' |   ', '{0:.6f}'.format(errors_diff), '   | ', '{0:.6f}'.format(gradients[it]), ' |', a, '|   ', itn)
-            else:
-                print('       ',it+1,'    | ', '{0:.6f}'.format(error/Tsize), ' |        -       | ', '{0:.6f}'.format(gradients[it]), ' |', a, '|   ', itn)
-                         
+            print('       ',it+1,'    | ', '{0:.6f}'.format(error/Tsize), ' |   ', '{0:.6f}'.format(errors_diff), '   | ', '{0:.6f}'.format(gradients[it]), ' |', a, '|   ', itn)
+                   
         # Stopping conditions.
         if it >= 3:
             if step_sizes[it] < tol:
@@ -501,11 +513,10 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
             if gradients[it] < np.sqrt(tol):
                 stop = 2
                 break 
-            k = 1 + int(maxiter/10)
-            if it > k and it%k == 0:
-                # If the mean of the last k (default is k=20) relative differences is less than 10*tol, we stop iterating.
-                # This prevents the program to progress when the improvements are too little to compensate. 
-                if np.mean(np.abs(errors[it-k : it] - errors[it-k-1 : it-1]))/Tsize < 10*tol:
+            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol, then 
+            # we stop iterating. We don't want to waste time computing with 'almost negligible' improvements for long time.
+            if it > const and it%const == 0: 
+                if np.mean(np.abs(errors[it-const : it] - errors[it-const-1 : it-1]))/Tsize < 10*tol:
                     stop = 3
                     break  
     
@@ -688,13 +699,15 @@ def rank(T, display=2):
 
     # START THE PROCCESS OF FINDING THE RANK
     
-    print('Start searching for rank')
-    print('------------------------------------')
-    print('Stops at r =',R,' or less')
-    print()
+    if display != 0:
+        print('Start searching for rank')
+        print('------------------------------------')
+        print('Stops at r =',R,' or less')
+        print()
 
     for r in range(1,R):  
-        print('Testing r =',r)
+        if display != 0:
+            print('Testing r =',r)
     
         Lambda, X, Y, Z, T_approx, info = cpd(T, r)
     
