@@ -62,7 +62,7 @@ def x2CPD(x, X, Y, Z, m, n, p, r):
 
 
 @njit(nogil=True, parallel=True)
-def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
+def cpd2tens(T_aux, X, Y, Z, m, n, p, r):
     """
     Converts the arrays Lambda, X, Y, Z to tensor in coordinate format.
 
@@ -95,7 +95,7 @@ def CPD2tens(T_aux, X, Y, Z, m, n, p, r):
 @njit(nogil=True)
 def tens_entries(X, Y, Z, r, i, j, k):
     """ 
-    Computation of each individual entry in the CPD2tens function. 
+    Computation of each individual entry in the cpd2tens function. 
     """
     
     acc = 0.0
