@@ -54,15 +54,19 @@ def infotens(T):
     m, n, p = T.shape
     Tsize = np.linalg.norm(T)
     
-    print('T is a tensor of dimensions',m,'x',n,'x',p)
+    print('T is a tensor of dimensions', m, 'x', n, 'x', p)
     print()
-    print('|T| =',Tsize)
+    print('|T| =', Tsize)
     print()
     
     # Max and min entries of T.
-    print('max(T) =',np.max(T))
+    print('max(T) =', np.max(T))
     print()
-    print('min(T) =',np.min(T))
+    print('min(T) =', np.min(T))
+    print()
+    print('E[T] =', np.mean(T))
+    print()
+    print('E[|T|] =', np.mean(np.abs(T)))
     print()
     
     # Bounds on rank.
@@ -72,20 +76,27 @@ def infotens(T):
     
     # Multilinear rank.
     trunc_dims = 0
-    level = 1
-    display = 0
-    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop = tfx.hosvd(T, Tsize, R, trunc_dims, level, display)
-    print('multirank(T) =',R1,',',R2,',',R3)
-    print()
+    level = 2
+    display = 3
+    print('Computing multilinear rank...')
+    print('------------------------------------')
+    try:
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, rel_error = tfx.hosvd(T, Tsize, int(np.sqrt(R)), trunc_dims, level, display)
+        print('Estimated multirank(T) =', R1, ',', R2, ',', R3)
+        print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
+        print()
+    except SystemExit:  
+        print()      
     
     # Estimative of the rank of T.
-    r, error_per_rank = tfx.rank(T, display='none')
+    print('Computing rank...')
+    r, error_per_rank = tfx.rank(T, display=0)
     print()
     
     return
 
 
-def infospace(m,n,p):
+def infospace(m, n, p):
     """
     This function shows general information about the tensorial space
     R^m ⊗ R^n ⊗ R^p. At the moment we don't have too much to show. This
