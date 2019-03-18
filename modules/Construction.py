@@ -138,9 +138,20 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
         
     elif init == 'smart_random':
         X, Y, Z = smart_random(S, r, R1, R2, R3)
+
+    elif init == 'smart':
+        X, Y, Z = smart(S, r, R1, R2, R3)
         
     else:
         sys.exit('Error with init parameter.') 
+
+    # Depending on the tensor, the factors X, Y, Z may have null entries. We want to
+    # avoid that. The solution is to introduce some little random noise. 
+    X, Y, Z = aux.clean_zeros(S, X, Y, Z)
+
+    # Make all factors balanced.
+    Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
+    X, Y, Z = aux.denormalize(Lambda, X, Y, Z)
 
     if symm:
         Y = X
@@ -149,7 +160,7 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
     if display == 3:
         # Computation of relative error associated with the starting point given.
         T_aux = np.zeros(S.shape, dtype = np.float64)
-        S_init = cnv.CPD2tens(T_aux, X, Y, Z, R1, R2, R3, r)
+        S_init = cnv.cpd2tens(T_aux, X, Y, Z, R1, R2, R3, r)
         rel_error = aux.compute_error(T, Tsize, S_init, R1, R2, R3, U1, U2, U3)
         return X, Y, Z, rel_error
 
@@ -192,33 +203,11 @@ def smart_random(S, r, R1, R2, R3):
     # Start search for a good initial point.
     for sample in range(0,samples):
         X, Y, Z = smart_sample(S, r, R1, R2, R3)
-        S_init = cnv.CPD2tens(T_aux, X, Y, Z, R1, R2, R3, r)
+        S_init = cnv.cpd2tens(T_aux, X, Y, Z, R1, R2, R3, r)
         rel_error = np.linalg.norm(S - S_init)/Ssize
         if rel_error < best_error:
             best_error = rel_error
             best_X, best_Y, best_Z = X, Y, Z
-
-    # Depending on the tensor, the factors X, Y, Z may have null columns.
-    # In the case this happens we introduce some random noise. 
-    X_colsum = np.sum(best_X, axis=0)
-    Y_colsum = np.sum(best_Y, axis=0)
-    Z_colsum = np.sum(best_Z, axis=0)
-    for l in range(0,r):
-        max_X = np.max(X)
-        max_Y = np.max(Y)
-        max_Z = np.max(Z)
-        if max_X == 0:
-            max_X = 1
-        if max_Y == 0:
-            max_Y = 1
-        if max_Z == 0:
-            max_Z = 1
-        if X_colsum[l] == 0:
-            best_X[:,l] = (max_X/10)*np.random.randn(R1)
-        if Y_colsum[l] == 0:
-            best_Y[:,l] = (max_Y/10)*np.random.randn(R2)
-        if Z_colsum[l] == 0:
-            best_Z[:,l] = (max_Z/10)*np.random.randn(R3)
 
     return best_X, best_Y, best_Z
 
@@ -331,12 +320,12 @@ def smart(S, r, R1, R2, R3):
                     largest[idx] = S[i,j,k]
                     indexes[idx,:] = np.array([i,j,k])
 
+    # Initialize the factors X, Y, Z.
+    X = np.zeros((R1, r), dtype=np.float64)
+    Y = np.zeros((R2, r), dtype=np.float64)
+    Z = np.zeros((R3, r), dtype=np.float64)
+    
     # Use the entries computed previously to generates the factors X, Y, Z.
-    s = 1/np.linalg.norm(S.flatten())
-    X = s*np.random.randn(R1, r)
-    Y = s*np.random.randn(R2, r)
-    Z = s*np.random.randn(R3, r)
-
     for l in range(r):
         i, j, k = indexes[l,:]
         X[i,l] = largest[l]
