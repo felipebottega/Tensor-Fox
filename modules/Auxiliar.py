@@ -782,3 +782,31 @@ def make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, error
             return msg
 
     return info
+
+
+@jit(nogil=True)
+def clean_zeros(T, X, Y, Z):
+    """
+    Any null entry is set to a small random number.
+    """
+
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    r = X.shape[1]
+
+    # Initialize the factors X, Y, Z with small noises to avoid null entries.
+    s = 1/np.linalg.norm(T.flatten())**2
+
+    for i in range(m):
+        for l in range(r):
+            if X[i,l] == 0.0:
+                X[i,l] = s*np.random.randn() 
+    for j in range(n):
+        for l in range(r):
+            if Y[j,l] == 0.0:
+                Y[j,l] = s*np.random.randn() 
+    for k in range(p):
+        for l in range(r):
+            if Z[k,l] == 0.0:
+                Z[k,l] = s*np.random.randn() 
+
+    return X, Y, Z
