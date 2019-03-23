@@ -215,7 +215,7 @@ def prepare_data(m, n, p, r):
 
 
 @njit(nogil=True)
-def prepare_data_rmatvec(X, Y, Z, m, n, p, r):
+def prepare_data_rmatvec(m, n, p, r):
     """
     This function creates several auxiliar matrices which will be used later 
     to accelerate matrix-vector products.
@@ -249,7 +249,7 @@ def prepare_data_rmatvec(X, Y, Z, m, n, p, r):
 
 
 @njit(nogil=True)
-def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z, N_X, N_Y, N_Z):
+def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z):
     """
     This function creates several auxiliar matrices which will be used later 
     to accelerate matrix-vector products.
@@ -260,15 +260,6 @@ def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z, N_X, N_Y, N_Z):
     M_Y = -khatri_rao(X, Z, M_Y)
 
     M_Z = -khatri_rao(X, Y, M_Z) 
-
-    # B_X^T
-    #N_X = M_X.transpose()
-
-    # B_Y^T
-    #N_Y = M_Y.transpose()
-
-    # B_Z^T
-    #N_Z = M_Z.transpose()
     
     return M_X, M_Y, M_Z
 
@@ -279,7 +270,7 @@ def matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_X
     Makes the matrix-vector computation (Dres.transpose*Dres)*v. 
     """
      
-    # Divide v into three blocks, convert them into matrices and transpose them. 
+    # Split v into three blocks, convert them into matrices and transpose them. 
     # With this we have the matrices V_X^T, V_Y^T, V_Z^T.
     V_Xt = v[0 : m*r].reshape(r, m)
     V_Yt = v[m*r : r*(m+n)].reshape(r, n)
@@ -326,7 +317,7 @@ def matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_X
 
 
 @njit(nogil=True)
-def rmatvec(X, Y, u, w_Xt, Mw_Xt, Bu_Xt, M_X, w_Yt, Mw_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, Mu_Zt, M_Z, m, n, p, r):     
+def rmatvec(u, w_Xt, Mw_Xt, Bu_Xt, M_X, w_Yt, Mw_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, Mu_Zt, M_Z, m, n, p, r):     
     """    
     Computes the matrix-vector product Dres.transpose*u.
     """
