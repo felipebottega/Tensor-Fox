@@ -160,7 +160,8 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
     if display == 3:
         # Computation of relative error associated with the starting point given.
         T_aux = np.zeros(S.shape, dtype = np.float64)
-        S_init = cnv.cpd2tens(T_aux, X, Y, Z, R1, R2, R3, r)
+        temp = np.zeros((m, r), dtype = np.float64, order='F')
+        S_init = cnv.cpd2tens(T_aux, X, Y, Z, temp, R1, R2, R3, r)
         rel_error = aux.compute_error(T, Tsize, S_init, R1, R2, R3, U1, U2, U3)
         return X, Y, Z, rel_error
 
@@ -199,11 +200,12 @@ def smart_random(S, r, R1, R2, R3):
     best_error = np.inf
     Ssize = np.linalg.norm(S)
     T_aux = np.zeros(S.shape, dtype = np.float64)
+    temp = np.zeros((m, r), dtype = np.float64, order='F')
 
     # Start search for a good initial point.
     for sample in range(0,samples):
         X, Y, Z = smart_sample(S, r, R1, R2, R3)
-        S_init = cnv.cpd2tens(T_aux, X, Y, Z, R1, R2, R3, r)
+        S_init = cnv.cpd2tens(T_aux, X, Y, Z, temp, R1, R2, R3, r)
         rel_error = np.linalg.norm(S - S_init)/Ssize
         if rel_error < best_error:
             best_error = rel_error
