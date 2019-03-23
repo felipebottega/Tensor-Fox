@@ -23,7 +23,7 @@ import Auxiliar as aux
 
 
 @njit(nogil=True)
-def x2CPD(x, X, Y, Z, m, n, p, r):
+def x2cpd(x, X, Y, Z, m, n, p, r):   
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to
     form the CPD of S. This program return the following arrays: 
@@ -50,19 +50,30 @@ def x2CPD(x, X, Y, Z, m, n, p, r):
     X: float 2-D ndarray of shape (m, r)
     Y: float 2-D ndarray of shape (n, r)
     Z: float 2-D ndarray of shape (p, r)
-    """
-    
-    X = x[0 : r*m].reshape(r,m).transpose()
-    Y = x[r*m : r*(m+n)].reshape(r,n).transpose()
-    Z = x[r*(m+n) : r*(m+n+p)].reshape(r,p).transpose()
-
+    """ 
+    s = 0
+    for l in range(r):
+        for i in range(m):
+            X[i,l] = x[s]
+            s += 1
+            
+    for l in range(r):
+        for j in range(n):
+            Y[j,l] = x[s]
+            s += 1
+            
+    for l in range(r):
+        for k in range(p):
+            Z[k,l] = x[s]
+            s += 1
+            
     X, Y, Z = aux.equalize(X, Y, Z, r)
-        
+          
     return X, Y, Z
 
 
-@njit(nogil=True, parallel=True)
-def cpd2tens(T_aux, X, Y, Z, m, n, p, r):
+@njit(nogil=True)
+def cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r):
     """
     Converts the arrays Lambda, X, Y, Z to tensor in coordinate format.
 
@@ -84,31 +95,17 @@ def cpd2tens(T_aux, X, Y, Z, m, n, p, r):
     T_aux: float 3-D ndarray
         Tensor (X,Y,Z) in coordinate format. 
     """
-
-    for i in prange(0,m):
-        for j in range(0,n):
-            for k in range(0,p):
-                T_aux[i,j,k] = tens_entries(X, Y, Z, r, i, j, k)
+    
+    for k in range(p):
+        for l in range(r):
+            temp[:,l] = Z[k,l]*X[:,l]
+        T_aux[:,:,k] = np.dot(temp, Y.T)
+        
     return T_aux
 
 
 @njit(nogil=True)
-def tens_entries(X, Y, Z, r, i, j, k):
-    """ 
-    Computation of each individual entry in the cpd2tens function. 
-    """
-    
-    acc = 0.0
-    for l in range(0,r):
-        acc += X[i,l]*Y[j,l]*Z[k,l]
-        
-    T_ijk = acc
-        
-    return T_ijk
-
-
-@njit(nogil=True)
-def unfold(T, m, n, p, mode):   
+def unfold(T, Tl, m, n, p, mode):   
     """
     Every tensor T of order 3 has 3 unfoldings, one for each "direction".
     It is commom to denote the unfoldings by T_(1), T_(2), T(3). These 
@@ -130,28 +127,21 @@ def unfold(T, m, n, p, mode):
     """
  
     if mode == 1:
-        # Construct mode-1 fibers.
-        T1 = np.zeros((m, n*p), dtype = np.float64)
         for i in range(0,m):
-            T1[i, :] = (T[i,:,:].transpose()).ravel()
-
-        return T1
+            temp = T[i,:,:].T
+            Tl[i, :] = temp.ravel()
     
     if mode == 2:
-        # Construct mode-2 fibers.
-        T2 = np.zeros((n, m*p), dtype = np.float64)
         for j in range(0,n):
-            T2[j, :] = (T[:,j,:].transpose()).ravel()
-
-        return T2
+            temp = T[:,j,:].T
+            Tl[j, :] = temp.ravel()
     
     if mode == 3:
-        # Construct mode-3 fibers.
-        T3 = np.zeros((p, m*n), dtype = np.float64)
         for k in range(0,p):
-            T3[k,:] = (T[:,:,k].transpose()).ravel()
+            temp = T[:,:,k].T
+            Tl[k,:] = temp.ravel()
 
-        return T3
+    return Tl
 
 
 @njit(nogil=True)
