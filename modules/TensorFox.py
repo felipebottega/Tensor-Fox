@@ -342,7 +342,8 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
     
     # Compute coordinate representation of the CPD of T.
     T_aux = np.zeros((m_orig, n_orig, p_orig), dtype = np.float64)
-    T_approx = cnv.cpd2tens(T_aux, X, Y, Z, m_orig, n_orig, p_orig, r)
+    temp = np.zeros((m_orig, r), dtype = np.float64, order='F')
+    T_approx = cnv.cpd2tens(T_aux, X, Y, Z, temp, m_orig, n_orig, p_orig, r)
         
     # Normalize X, Y, Z to have column norm equal to 1.
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
@@ -436,10 +437,11 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     step_sizes = np.zeros(maxiter)
     errors = np.zeros(maxiter)
     gradients = np.zeros(maxiter)
-    # T_aux is an auxiliary array used only to accelerate the CPD2tens and residual functions.
+    # T_aux is an auxiliary array used only to accelerate the cpd2tens and residual functions.
     T_aux = np.zeros((m, n, p), dtype = np.float64)
-    X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
-    T_aux = cnv.cpd2tens(T_aux, X, Y, Z, m, n, p, r)
+    temp = np.zeros((m, r), dtype = np.float64, order='F')
+    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
+    T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
     g = np.zeros(r*(m+n+p), dtype = np.float64)
@@ -447,7 +449,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = crt.prepare_data(m, n, p, r)    
-    data_rmatvec = crt.prepare_data_rmatvec(X, Y, Z, m, n, p, r)
+    data_rmatvec = crt.prepare_data_rmatvec(m, n, p, r)
         
     if display > 1:
         print('    Iteration | Rel Error  | Rel Error Diff |     ||g||    | Damp| #CG iterations')
@@ -463,7 +465,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
         old_error = error
                
         # cg_maxiter is the maximum number of iterations of the Conjugate Gradient. We obtain it randomly.
-        cg_maxiter = np.random.randint(1 + it**0.4, 2 + it**0.8)
+        cg_maxiter = np.random.randint(1 + it**0.4, 2 + it**0.9)
                              
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
@@ -474,14 +476,14 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
         x = x + y
         
         # Compute X, Y, Z.
-        X, Y, Z = cnv.x2CPD(x, X, Y, Z, m, n, p, r)
+        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
         if symm:
             X = (X+Y+Z)/3
             Y = X
             Z = X
                
         # Compute error.
-        T_aux = cnv.cpd2tens(T_aux, X, Y, Z, m, n, p, r)
+        T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
         error = np.linalg.norm(T - T_aux)
                                                         
         # Update damp. 
@@ -586,9 +588,12 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
     m, n, p = T.shape
         
     # Compute all unfoldings of T and its SVD's. 
-    T1 = cnv.unfold(T, m, n, p, 1)
-    T2 = cnv.unfold(T, m, n, p, 2)
-    T3 = cnv.unfold(T, m, n, p, 3)
+    T1 = np.zeros((m, n*p), dtype = np.float64)
+    T2 = np.zeros((n, m*p), dtype = np.float64)
+    T3 = np.zeros((p, m*n), dtype = np.float64) 
+    T1 = cnv.unfold(T, T1, m, n, p, 1)
+    T2 = cnv.unfold(T, T2, m, n, p, 2)
+    T3 = cnv.unfold(T, T3, m, n, p, 3)
     sigma1, sigma2, sigma3, U1, U2, U3 = aux.unfoldings_svd(T1, T2, T3, m, n, p)
                             
     # TRUNCATE SVD'S OF UNFOLDINGS
@@ -833,14 +838,15 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
     
     # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = crt.gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
-    N_X, N_Y, N_Z = crt.update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z, N_X, N_Y, N_Z)
+    N_X, N_Y, N_Z = crt.update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
     L = crt.regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
     M = crt.precond(X, Y, Z, L, M, damp, m, n, p, r)
+    const = 2 + int(cg_maxiter/5)
     
     y = 0*y
     
     # g = Dres^T*res is the gradient of the error function E.    
-    g = crt.rmatvec(X, Y, b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
+    g = crt.rmatvec(b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
     residual = M*g
     P = residual
     residualnorm = np.dot(residual, residual)
@@ -870,10 +876,10 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
         # Stopping criteria.
         if residualnorm < 1e-16:
             return M*y, g, itn, residualnorm   
-        k = 2 + int(cg_maxiter/5)
-        if itn >= 2*k and itn%k == 0: 
-             # Stop if the mean residual norms itn-20:itn-10 is less than the mean of residual norms itn-10:itn. 
-             if np.mean(residual_list[itn-2*k : itn-k]) < np.mean(residual_list[itn-k : itn]):
+
+        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
+        if itn >= 2*const and itn%const == 0:  
+             if np.mean(residual_list[itn-2*const : itn-const]) < np.mean(residual_list[itn-const : itn]):
                  return M*y, g, itn, residualnorm
 
     return M*y, g, itn+1, residualnorm
