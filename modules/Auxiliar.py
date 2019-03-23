@@ -109,21 +109,24 @@ def multilin_mult(T, L, M, N, m, n, p):
     LT = np.zeros((d1, n, p), dtype = np.float64)
     LMT = np.zeros((d1, d2, p), dtype = np.float64)
     LMNT = np.zeros((d1, d2, d3), dtype = np.float64)
+    T1 = np.zeros((m, n*p), dtype = np.float64)
+    T2 = np.zeros((n, d1*p), dtype = np.float64)
+    T3 = np.zeros((p, d1*d2), dtype = np.float64)
         
     # Compute unfoldings and update the new tensors accordingly
-    T1 = cnv.unfold(T ,m, n, p, 1)
+    T1 = cnv.unfold(T, T1, m, n, p, 1)
     T1_new = np.dot(L, T1)
     for k in range(0, p):
         for j in range(0, n):
             LT[:,j,k] = T1_new[:, k*n + j]
      
-    T2 = cnv.unfold(LT, d1, n, p, 2)
+    T2 = cnv.unfold(LT, T2, d1, n, p, 2)
     T2_new = np.dot(M, T2)
     for k in range(0, p):
         for i in range(0, d1):
             LMT[i,:,k] = T2_new[:, k*d1 + i]
     
-    T3 = cnv.unfold(LMT, d1, d2, p, 3)
+    T3 = cnv.unfold(LMT, T3, d1, d2, p, 3)
     T3_new = np.dot(N, T3)
     for j in range(0, d2):
         for i in range(0, d1):
@@ -179,7 +182,7 @@ def tens2matlab(T):
     # Compute dimensions of T.
     m, n, p = T.shape
     
-    # Save the unfolding in matlab format.
+    # Save the tensor in matlab format.
     scipy.io.savemat('T_data.mat', dict(T=T, m=m, n=n, p=p))
     
     return
