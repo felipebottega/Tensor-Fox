@@ -470,7 +470,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).         
-        y, g, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, g, -res, m, n, p, r, damp, cg_maxiter)       
+        y, g, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, g, -res, m, n, p, r, damp, cg_maxiter, tol)       
               
         # Update point obtained by the iteration.         
         x = x + y
@@ -827,7 +827,7 @@ def stats(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, nu
     return times, steps, rel_errors
 
 
-def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
+def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
@@ -874,7 +874,7 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter):
         P = residual + beta*P
 
         # Stopping criteria.
-        if residualnorm < 1e-16:
+        if residualnorm < tol:
             return M*y, g, itn, residualnorm   
 
         # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
