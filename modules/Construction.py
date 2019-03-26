@@ -200,7 +200,7 @@ def smart_random(S, r, R1, R2, R3):
     best_error = np.inf
     Ssize = np.linalg.norm(S)
     T_aux = np.zeros(S.shape, dtype = np.float64)
-    temp = np.zeros((m, r), dtype = np.float64, order='F')
+    temp = np.zeros((R1, r), dtype = np.float64, order='F')
 
     # Start search for a good initial point.
     for sample in range(0,samples):
