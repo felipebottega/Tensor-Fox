@@ -64,6 +64,8 @@ General Description
  - unfold
  
  - foldback
+
+ - transform
  
  **Auxiliar:**
  
@@ -171,9 +173,10 @@ import Conversion as cnv
 import Auxiliar as aux
 import Display as disp
 import Critical as crt
+import Dense_info as dns
 
 
-def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init='smart_random', trunc_dims=0, level=1, refine=False, symm=False, display=0):
+def cpd(T, r, options=False):
     """
     Given a tensor T and a rank r, this function computes an approximated CPD of T 
     with rank r. The result is given in the form [Lambda, X, Y, Z], where Lambda is a 
@@ -242,6 +245,9 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
         accuracy: the accuracy of the solution, which is defined by the formula 100*(1 - rel_error). 0
     means 0 % of accuracy (worst case) and 100 means 100 % of accuracy (best case). 
     """ 
+
+    # Set options
+    maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, display = aux.make_options(options)
         
     # Compute relevant variables and arrays.
     m_orig, n_orig, p_orig = T.shape
@@ -294,9 +300,9 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
         
     # Generate initial to start dGN.
     if display == 3:
-        X, Y, Z, rel_error = cnst.start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, display)  
+        X, Y, Z, rel_error = cnst.start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, low, upp, factor, display)  
     else:  
-        X, Y, Z = cnst.start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, display)  
+        X, Y, Z = cnst.start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, low, upp, factor, display)  
     
     if display != 0:
         print('--------------------------------------------------------------------------------------------------------------')        
@@ -315,7 +321,7 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
         print('Computing CPD of T')
    
     # Compute the approximated tensor in coordinates with the dGN method.
-    X, Y, Z, step_sizes_main, errors_main, gradients_main, stop_main = dGN(S, X, Y, Z, r, maxiter, tol, symm, display) 
+    X, Y, Z, step_sizes_main, errors_main, gradients_main, stop_main = dGN(S, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display) 
     
     # REFINEMENT STAGE
     
@@ -323,7 +329,7 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
         if display != 0:
             print('--------------------------------------------------------------------------------------------------------------') 
             print('Computing refinement of solution') 
-        X, Y, Z, step_sizes_refine, errors_refine, gradients_refine, stop_refine = dGN(S, X, Y, Z, r, maxiter_refine, tol_refine, symm, display)
+        X, Y, Z, step_sizes_refine, errors_refine, gradients_refine, stop_refine = dGN(S, X, Y, Z, r, maxiter_refine, tol_refine, symm, low, upp, factor, display)
     else:
         step_sizes_refine = np.array([0])
         errors_refine = np.array([0]) 
@@ -349,7 +355,7 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
     
     # Save and display final informations.
-    info = aux.make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine)
+    info = aux.output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine)
 
     if display != 0:
         print('==============================================================================================================')
@@ -362,7 +368,7 @@ def cpd(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, init
     return Lambda, X, Y, Z, T_approx, info
 
 
-def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
+def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
     """
     This function uses the Damped Gauss-Newton method to compute an approximation of T 
     with rank r. An initial point to start the iterations must be given. This point is
@@ -423,6 +429,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     
     # error is the current absolute error of the approximation.
     error = np.inf
+    best_error = np.inf
     # damp is the damping factos in the damping Gauss-Newton method.
     damp = np.mean(np.abs(T))
     old_damp = damp
@@ -437,10 +444,13 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     step_sizes = np.zeros(maxiter)
     errors = np.zeros(maxiter)
     gradients = np.zeros(maxiter)
-    # T_aux is an auxiliary array used only to accelerate the cpd2tens and residual functions.
+    # Create auxiliary arrays.
     T_aux = np.zeros((m, n, p), dtype = np.float64)
     temp = np.zeros((m, r), dtype = np.float64, order='F')
-    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
+    X_aux = np.zeros((m, r), dtype = np.float64)
+    Y_aux = np.zeros((n, r), dtype = np.float64)
+    Z_aux = np.zeros((p, r), dtype = np.float64)
+    X, Y, Z = cnv.x2cpd(x, X_aux, Y_aux, Z_aux, m, n, p, r)
     T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
@@ -476,15 +486,17 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
         x = x + y
         
         # Compute X, Y, Z.
-        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
-        if symm:
-            X = (X+Y+Z)/3
-            Y = X
-            Z = X
+        X, Y, Z = cnv.x2cpd(x, X_aux, Y_aux, Z_aux, m, n, p, r)
+        X, Y, Z = cnv.transform(X_aux, Y_aux, Z_aux, m, n, p, r, low, upp, factor, symm)
                
         # Compute error.
         T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
         error = np.linalg.norm(T - T_aux)
+
+        # Update best solution.
+        if error < best_error:
+            best_error = error
+            best_X, best_Y, best_Z = X, Y, Z
                                                         
         # Update damp. 
         old_damp = damp
@@ -521,6 +533,9 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
                 if np.mean(np.abs(errors[it-const : it] - errors[it-const-1 : it-1]))/Tsize < 10*tol:
                     stop = 3
                     break  
+            if error > Tsize/tol:
+                stop = 6
+                break 
     
     # SAVE LAST COMPUTED INFORMATIONS
     
@@ -528,7 +543,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, display):
     errors = errors[0:it+1]
     gradients = gradients[0:it+1]
     
-    return X, Y, Z, step_sizes, errors, gradients, stop
+    return best_X, best_Y, best_Z, step_sizes, errors, gradients, stop
 
 
 def hosvd(T, Tsize, r, trunc_dims, level, display): 
