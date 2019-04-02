@@ -13,6 +13,8 @@ Conversion Module
  
  - foldback
 
+ - transform
+
 """
 
 import numpy as np
@@ -191,3 +193,46 @@ def foldback(A, m, n, p, mode):
                 s += 1
      
     return T
+
+
+@njit(nogil=True)
+def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
+    """
+    Depending on the choice of the user, this function can project the entries of X, Y, Z
+    in a given interval (this is very useful with we have constraints at out disposal), it 
+    can make the corresponding tensor symmetric or non-negative.
+    It is advisable to transform the tensor so that its entries have mean zero and variance
+    1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that
+    it is always better to choose low and upp such that low = -upp.
+    
+    Inputs
+    ------
+    X: float 2-D ndarray of shape (m, r)
+    Y: float 2-D ndarray of shape (n, r)
+    Z: float 2-D ndarray of shape (p, r)
+    m, n, p: int
+    r: int
+    low, upp: float
+    symm: bool
+        
+    Outputs
+    -------
+    X: float 2-D ndarray of shape (m, r)
+    Y: float 2-D ndarray of shape (n, r)
+    Z: float 2-D ndarray of shape (p, r)
+    """ 
+
+    if a != 0 and b != 0:
+        eps = 0.02
+        B =   np.log( (b-a)/eps - 1 )/( factor*(b-a)/2 - eps )
+        A = -B*(a+b)/2
+        X = a + (b-a) * 1/( 1 + np.exp(-A-B*X) )
+        Y = a + (b-a) * 1/( 1 + np.exp(-A-B*Y) )
+        Z = a + (b-a) * 1/( 1 + np.exp(-A-B*Z) )
+        
+    if symm:
+        X = (X+Y+Z)/3
+        Y = X
+        Z = X
+
+    return X, Y, Z
