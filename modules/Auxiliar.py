@@ -41,7 +41,12 @@ Auxiliar Module
 
  - unfoldings_svd
 
- - make_info
+ - output_info
+
+ - make_options
+
+ - clean_zeros
+
 """ 
 
 
@@ -269,7 +274,7 @@ def equalize(X, Y, Z, r):
     We can see that this solution satisfy the conditions mentioned above.
     """
     
-    for l in prange(0, r):
+    for l in range(0, r):
         X_nr = np.linalg.norm(X[:,l])
         Y_nr = np.linalg.norm(Y[:,l])
         Z_nr = np.linalg.norm(Z[:,l])
@@ -720,7 +725,7 @@ def unfoldings_svd(T1, T2, T3, m, n, p):
     return Sigma1, Sigma2, Sigma3, U1, U2, U3
 
 
-def make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine):
+def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine):
     class info:
         rel_error = np.linalg.norm(T_orig - T_approx)/Tsize
         step_sizes = [step_sizes_main, step_sizes_refine]
@@ -764,6 +769,8 @@ def make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, error
                 print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
             if self.stop[1] == 4:
                 print('4 - Limit of iterations was been reached.')
+            if self.stop[1] == 6:
+                print('6 - dGN diverged.')
 
             # stop_refine message
             print()
@@ -780,11 +787,61 @@ def make_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, error
                 print('4 - Limit of iterations was been reached.')
             if self.stop[2] == 5:
                 print('5 - No refinement was performed.')
+            if self.stop[2] == 6:
+                print('6 - dGN diverged.')
 
-            msg = ' '
-            return msg
+            return 
 
-    return info
+    output = info()
+
+    return output
+
+
+def make_options(options):
+    # Default options
+    maxiter = 200  
+    tol = 1e-12  
+    maxiter_refine = 200
+    tol_refine = 1e-10
+    init = 'smart_random'
+    trunc_dims = 0
+    level = 1
+    refine = False
+    symm = False
+    low = 0
+    upp = 0
+    factor = 0
+    display = 0
+
+    # User defined options
+    if 'maxiter' in dir(options):
+         maxiter = options.maxiter
+    if 'tol' in dir(options):
+         tol = options.tol
+    if 'maxiter_refine' in dir(options):
+         maxiter_refine = options.maxiter_refine
+    if 'tol_refine' in dir(options):
+         tol_refine = options.tol_refine
+    if 'init' in dir(options):
+         init = options.init
+    if 'trunc_dims' in dir(options):
+         trunc_dims = options.trunc_dims
+    if 'level' in dir(options):
+         level = options.level
+    if 'refine' in dir(options):
+         refine = options.refine
+    if 'symm' in dir(options):
+         symm = options.symm
+    if 'low' in dir(options):
+         low = options.low
+    if 'upp' in dir(options):
+         upp = options.upp
+    if 'factor' in dir(options):
+         factor = options.factor
+    if 'display' in dir(options):
+         display = options.display
+
+    return maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, display
 
 
 @jit(nogil=True)
@@ -797,7 +854,7 @@ def clean_zeros(T, X, Y, Z):
     r = X.shape[1]
 
     # Initialize the factors X, Y, Z with small noises to avoid null entries.
-    s = 1/np.linalg.norm(T.flatten())**2
+    s = 1/np.linalg.norm(1 + T.flatten())**2
 
     for i in range(m):
         for l in range(r):
