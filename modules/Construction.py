@@ -86,7 +86,7 @@ def residual_entries(T_ijk, X, Y, Z, r, i, j, k):
     return res_ijk
 
 
-def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, display):
+def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, low, upp, factor, display):
     """
     This function generates a starting point to begin the iterations of the
     Gauss-Newton method. There are three options:
@@ -127,9 +127,9 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
         Y = init[ordering[1]]
         Z = init[ordering[2]]  
         dims = [R1, R2, R3]
-        X = X[:R1, :]
-        Y = Y[:R2, :]
-        Z = Z[:R3, :]
+        X = np.dot(U1.T, X)
+        Y = np.dot(U2.T, Y)
+        Z = np.dot(U3.T, Z) 
                 
     elif init == 'random':
         X = np.random.randn(R1, r)
@@ -153,9 +153,7 @@ def start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, di
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
     X, Y, Z = aux.denormalize(Lambda, X, Y, Z)
 
-    if symm:
-        Y = X
-        Z = X
+    X, Y, Z = cnv.transform(X, Y, Z, R1, R2, R3, r, low, upp, factor, symm)
     
     if display == 3:
         # Computation of relative error associated with the starting point given.
