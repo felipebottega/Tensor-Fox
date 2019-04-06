@@ -5,7 +5,7 @@ General Description
  
  - Canonical polyadic decomposition (CPD)
  
- - High order singular value decomposition (HOSVD)
+ - Multilinear singular value decomposition (MLSVD)
  
  - Multilinear rank
  
@@ -29,7 +29,7 @@ General Description
  
  - dGN 
  
- - hosvd
+ - mlsvd
  
  - rank
  
@@ -107,7 +107,7 @@ General Description
 
  - unfoldings_svd
 
- - make_info
+ - output_info
 
  - clean_zeros
  
@@ -228,7 +228,7 @@ def cpd(T, r, options=False):
         Lambda,X,Y,Z are such that (X,Y,Z)*Lambda ~ T.
     T_approx: float 3-D ndarray
         The approximating tensor in coordinates.
-    info: class
+    output: class
         This class contains all information needed about the computations made. We summarize
     these informations below.
         rel_error: relative error |T - T_approx|/|T| of the approximation computed. 
@@ -239,7 +239,7 @@ def cpd(T, r, options=False):
     these gradients converges to zero as we keep iterating since the objetive point is a local minimum.
         stop: it is a list of three integers. The first one indicates how the compression was obtained.
     The second integer indicates why the dGN stopped at the first run, and the third integer indicates
-    why the dGN stopped at the second run (refinement stage). See the functions hosvd and dGN for more
+    why the dGN stopped at the second run (refinement stage). See the functions mlsvd and dGN for more
     information.
         num_steps: the total number of steps (iterations) the dGN function used at the two runs.
         accuracy: the accuracy of the solution, which is defined by the formula 100*(1 - rel_error). 0
@@ -268,13 +268,13 @@ def cpd(T, r, options=False):
     
     if display != 0:
         print('--------------------------------------------------------------------------------------------------------------') 
-        print('Computing HOSVD of T')
+        print('Computing MLSVD of T')
     
-    # Compute compressed version of T with the HOSVD. We have that T = (U1,U2,U3)*S.
+    # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
     if display == 3:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, best_error = hosvd(T, Tsize, r, trunc_dims, level, display)
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = mlsvd(T, Tsize, r, trunc_dims, level, display)
     else:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop = hosvd(T, Tsize, r, trunc_dims, level, display)
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = mlsvd(T, Tsize, r, trunc_dims, level, display)
 
     # When the tensor is symmetric we want S to have equal dimensions. 
     if symm:
@@ -355,17 +355,20 @@ def cpd(T, r, options=False):
     Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
     
     # Save and display final informations.
-    info = aux.output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine)
+    output = aux.output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine)
 
     if display != 0:
         print('==============================================================================================================')
         print('Final results')
-        print('    Number of steps =', info.num_steps)
-        print('    Relative error =', info.rel_error)
-        a = float( '%.3e' % Decimal(info.accuracy) )
+        if refine:
+            print('    Number of steps =', output.num_steps)
+        else:
+            print('    Number of steps =', output.num_steps-1)
+        print('    Relative error =', output.rel_error)
+        a = float( '%.6e' % Decimal(output.accuracy) )
         print('    Accuracy = ', a, '%')
     
-    return Lambda, X, Y, Z, T_approx, info
+    return Lambda, X, Y, Z, T_approx, output
 
 
 def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
@@ -546,11 +549,11 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
     return best_X, best_Y, best_Z, step_sizes, errors, gradients, stop
 
 
-def hosvd(T, Tsize, r, trunc_dims, level, display): 
+def mlsvd(T, Tsize, r, trunc_dims, level, display): 
     """
-    This function computes the High order singular value decomposition (HOSVD) of a tensor T.
+    This function computes the High order singular value decomposition (MLSVD) of a tensor T.
     This decomposition is given by T = (U1,U2,U3)*S, where U1, U2, U3 are orthogonal matrices,
-    S is the central tensor and * is the multilinear multiplication. The HOSVD is a particular
+    S is the central tensor and * is the multilinear multiplication. The MLSVD is a particular
     case of the Tucker decomposition.
 
     Inputs
@@ -579,7 +582,7 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
     sigma1, sigma2, sigma3: float 1-D arrays
         Each one of these array is an ordered list with the singular values of the respective 
     unfolding of T. We have that sigma1.size = R1, sigma2.size = R2, sigma3.size = R3.
-    hosvd_stop: int
+    mlsvd_stop: int
         It is a integer between 0 and 7, indicating how the compression was obtained. Below we 
     summarize the possible situations.
         0: truncation is given manually by the user with trunc_dims.
@@ -615,7 +618,7 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
 
     # Specific truncation is given by the user.
     if type(trunc_dims) == list:
-        hosvd_stop = 0
+        mlsvd_stop = 0
         S_energy = np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2)
         R1, R2, R3 = trunc_dims 
         U1, U2, U3 = U1[:, :R1], U2[:, :R2], U3[:, :R3] 
@@ -624,24 +627,24 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
         best_energy = aux.compute_energy(S_energy, sigma1, sigma2, sigma3) 
         if display == 3:
             best_error = aux.compute_error(T, Tsize, S, R1, R2, R3, U1, U2, U3)
-            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, best_error
+            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error
         else:
-            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop
+            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
     # Level = 4 means no truncation.
     if level == 4:
-        hosvd_stop = 1
+        mlsvd_stop = 1
         U1, U2, U3 = np.eye(m), np.eye(n), np.eye(p)
         sigma1, sigma2, sigma3 = np.ones(m), np.ones(n), np.ones(p)
         if display == 3:
-            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, 0.0
+            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, 0.0
         else:
-            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop
+            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
     # The original SVD factors may have extra information due to noise or numerical error. We clean this SVD performing
     # a specialized truncation. 
     stage = 1
-    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, situation = aux.clean_compression(T, Tsize, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = aux.clean_compression(T, Tsize, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
                       
     # Overfit occurred and the user should decrease the value of the rank.
     if situation == 'overfit':
@@ -653,9 +656,9 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
     if (R1, R2, R3) == (m, n, p) or situation == 'random':
         if display == 3:
             best_error = aux.compute_error(T, Tsize, S, R1, R2, R3, U1, U2, U3)
-            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, best_error
+            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error
         else:
-            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop
+            return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
     # Sometimes the first truncation still is too large. To fix this we consider a second truncation over the first truncation.
     else:
@@ -663,8 +666,8 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
             level += 1
         stage = 2
         best_energy2 = 100
-        S, best_energy2, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, situation = aux.clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
-        # The second energy is a fraction of the first one. To compare with the original HOSVD we update the energy accordingly.
+        S, best_energy2, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = aux.clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+        # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy accordingly.
         best_energy = best_energy*best_energy2/100
                      
         if situation == 'overfit':
@@ -673,12 +676,12 @@ def hosvd(T, Tsize, r, trunc_dims, level, display):
     # Compute error of compressed tensor.
     if display == 3:
         best_error = aux.compute_error(T, Tsize, S, R1, R2, R3, U1, U2, U3)
-        return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, best_error
+        return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error
         
-    return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop
+    return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
            
 
-def rank(T, display=2):
+def rank(T, plot=True):
     """
     This function computes several approximations of T for r = 1...min(m*n, m*p, n*p). 
     These computations will be used to determine the (most probable) rank of T. The function 
@@ -712,27 +715,28 @@ def rank(T, display=2):
    
     # error_per_rank saves the relative error of the CPD for each rank r.
     error_per_rank = np.zeros(R)
+
+    # Set random initialization (works more generally)
+    class options:
+        init = 'random'    
     
-    
-    # Before the relevant loop for r=1...R, we compute the HOSVD of T and truncate it if possible.
+    # Before the relevant loop for r=1...R, we compute the MLSVD of T and truncate it if possible.
     # This is exactly the first part of the cpd function. 
 
     # START THE PROCCESS OF FINDING THE RANK
     
-    if display != 0:
-        print('Start searching for rank')
-        print('------------------------------------')
-        print('Stops at r =',R,' or less')
-        print()
+    print('Start searching for rank')
+    print('Stops at r =',R,' or less')
+    print('-----------------------------')
 
-    for r in range(1,R):  
-        if display != 0:
-            print('Testing r =',r)
+    for r in range(1,R+1):  
+        s = "Testing r = " + str(r)
+        sys.stdout.write('\r'+s)
     
-        Lambda, X, Y, Z, T_approx, info = cpd(T, r)
+        Lambda, X, Y, Z, T_approx, output = cpd(T, r, options)
     
         # Save relative error of this approximation.
-        error_per_rank[r-1] = info.rel_error   
+        error_per_rank[r-1] = output.rel_error   
         
         if r > 1:
             # Verification of rank stabilization condition.
@@ -746,11 +750,10 @@ def rank(T, display=2):
         
     # DISPLAY AND PLOT ALL RESULTS
     
-    print('------------------------------------')
-    print('Estimated rank(T) =', final_rank)
+    print('\nEstimated rank(T) =', final_rank)
     print('|T - T_approx|/|T| =', error_per_rank[final_rank - 1])
     
-    if display != 0:
+    if plot:
         plt.plot(range(1,r+1), np.log10(error_per_rank))
         plt.plot(final_rank, np.log10(error_per_rank[final_rank - 1]), marker = 'o', color = 'k')
         plt.title('Rank trials')
@@ -762,7 +765,7 @@ def rank(T, display=2):
     return final_rank, error_per_rank
 
 
-def stats(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, num_samples = 100):
+def stats(T, r, options=False, num_samples = 100):
     """
     This function makes several calls of the Gauss-Newton function with random initial 
     points. Each call turns into a sample to recorded so we can make statistics lates. 
@@ -794,6 +797,9 @@ def stats(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, nu
     # Compute dimensions and norm of T.
     m, n, p = T.shape
     Tsize = np.linalg.norm(T)
+
+    # Set options
+    maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, display = aux.make_options(options)
     
     # INITIALIZE RELEVANT ARRAYS
     
@@ -804,20 +810,18 @@ def stats(T, r, maxiter=200, tol=1e-12, maxiter_refine=200, tol_refine=1e-10, nu
     # BEGINNING OF SAMPLING AND COMPUTING
     
     # At each run, the program computes a CPD for T with random guess for initial point.
-    k = 1
     for trial in range(1, num_samples+1):            
         start = time.time()
-        Lambda, X, Y, Z, T_approx, info = cpd(T, r, maxiter=maxiter, tol=tol, maxiter_refine=maxiter_refine, tol_refine=tol_refine,)
+        Lambda, X, Y, Z, T_approx, output = cpd(T, r, options)
                
         # Update the vectors with general information.
         times[trial-1] = time.time() - start
-        steps[trial-1] = info.num_steps
-        rel_errors[trial-1] = info.rel_error
+        steps[trial-1] = output.num_steps
+        rel_errors[trial-1] = output.rel_error
         
-        # Show progress status.
-        if trial == int(k/10*num_samples):
-            print(100*float(trial/num_samples), '%')
-            k += 1
+        # Display progress bar.
+        s = "[" + trial*"=" + (num_samples-trial)*" " + "]" + " " + str( np.round(100*trial/num_samples, 2) ) + "%"
+        sys.stdout.write('\r'+s)
      
     # PLOT HISTOGRAMS
     
@@ -887,14 +891,14 @@ def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter, tol):
         residualnorm = residualnorm_new
         residual_list.append(residualnorm)
         P = residual + beta*P
-
+        
         # Stopping criteria.
         if residualnorm < tol:
-            return M*y, g, itn, residualnorm   
+            break   
 
         # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
         if itn >= 2*const and itn%const == 0:  
              if np.mean(residual_list[itn-2*const : itn-const]) < np.mean(residual_list[itn-const : itn]):
-                 return M*y, g, itn, residualnorm
-
+                 break
+    
     return M*y, g, itn+1, residualnorm
