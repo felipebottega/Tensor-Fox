@@ -81,7 +81,7 @@ def infotens(T):
     print('Computing multilinear rank...')
     print('------------------------------------')
     try:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, rel_error = tfx.hosvd(T, Tsize, int(np.sqrt(R)), trunc_dims, level, display)
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = tfx.mlsvd(T, Tsize, int(np.sqrt(R)), trunc_dims, level, display)
         print('Estimated multirank(T) =', R1, ',', R2, ',', R3)
         print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
         print()
@@ -90,7 +90,7 @@ def infotens(T):
     
     # Estimative of the rank of T.
     print('Computing rank...')
-    r, error_per_rank = tfx.rank(T, display=0)
+    r, error_per_rank = tfx.rank(T, plot=False)
     print()
     
     return
