@@ -154,7 +154,24 @@ General Description
  - regularization
 
  - precond
+
+ **Dense**
+
+ - jacobian
  
+ - Hessian
+
+ - precond
+
+ - eig_dist
+
+ - plot_structures
+
+ - dense_cpd
+
+ - dense_dGN
+
+ - dense_output_info
  
  [1] C. J. Hillar and Lek-Heng Lim. Most Tensor Problems are NP-Hard. Journal of the ACM. 2013.
 
@@ -173,7 +190,7 @@ import Conversion as cnv
 import Auxiliar as aux
 import Display as disp
 import Critical as crt
-import Dense_info as dns
+import Dense as dns
 
 
 def cpd(T, r, options=False):
