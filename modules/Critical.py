@@ -36,7 +36,7 @@ Critical Module
 """
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def kronecker(A, B):
     """
     Computes the Kronecker product between A and B. We must have 
@@ -45,10 +45,9 @@ def kronecker(A, B):
 
     a1, a2 = A.shape
     b1, b2 = B.shape
-    print(a1, a2, b1, b2)
     M = np.zeros((a1*b1, a2*b2), dtype = np.float64)
     
-    for i in prange(0, a1-1):
+    for i in range(0, a1-1):
         for j in range(0, a2-1):
             M[i*b1 : (i+1)*b1, j*b2 : (j+1)*b2] = A[i, j]*B
 
