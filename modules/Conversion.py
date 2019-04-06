@@ -112,7 +112,7 @@ def unfold(T, Tl, m, n, p, mode):
     Every tensor T of order 3 has 3 unfoldings, one for each "direction".
     It is commom to denote the unfoldings by T_(1), T_(2), T(3). These 
     unfoldings can be viewed as special kind of transformations of T. 
-    They are important for computing the HOSVD of T.
+    They are important for computing the MLSVD of T.
     
     Inputs
     ------
