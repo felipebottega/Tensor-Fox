@@ -17,6 +17,8 @@ Construction Module
 
  - smart
 
+ - find_factor
+
 """ 
 
 
@@ -29,6 +31,7 @@ from scipy import sparse
 from numba import jit, njit, prange
 import Conversion as cnv
 import Auxiliar as aux
+import TensorFox as tfx
 
 
 @njit(nogil=True, parallel=True)
@@ -342,36 +345,55 @@ def find_factor(T, Tsize, r, options, plot=False):
     m, n, p = T.shape
     T, ordering = aux.sort_dims(T, m, n, p)
     m, n, p = T.shape
+    N = 101
+
+    if type(init) == list:
+        print('Type of initialization: user')
+    else:
+        print('Type of initialization:', init)
+    print()
      
     # compute compressed version of T   
-    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, hosvd_stop, best_error = tfx.hosvd(T, Tsize, r, trunc_dims, level, display)
+    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = tfx.mlsvd(T, Tsize, r, trunc_dims, level, display)
 
     # first run
     factors = np.linspace(0, 100, 100)
     errors = []
+    i = 1
+    print('First run')
     for factor in factors:
         X, Y, Z, rel_error = start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, low, upp, factor, display) 
         errors.append(rel_error)
+        # display progress bar
+        s = "[" + i*"=" + (N-i-1)*" " + "]" + " " + str(i) + "%"
+        sys.stdout.write('\r'+s)
+        i += 1
 
     # second run    
     best_factor = factors[np.argmin(errors)]
     factors = np.linspace(best_factor-1, best_factor+1, 100)
     errors = []
+    i = 1
+    print('\nSecond run')
     for factor in factors:
         X, Y, Z, rel_error = start_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, init, ordering, symm, low, upp, factor, display) 
         errors.append(rel_error)
+        s = "[" + i*"=" + (N-i-1)*" " + "]" + " " + str(i) + "%"
+        sys.stdout.write('\r'+s)
+        i += 1
     
     # final result    
     best_factor = factors[np.argmin(errors)]
     best_error = errors[np.argmin(errors)]
 
     # plot factor x error curve if requested
-    plt.plot(factors, errors, '+')
-    plt.plot(best_factor, best_error, 'r*', label='Optimal factor')
-    plt.xlabel('Factor')
-    plt.ylabel('Relative error')
-    plt.grid()
-    plt.legend()
-    plt.show()
+    if plot:
+        plt.plot(factors, errors, '+')
+        plt.plot(best_factor, best_error, 'r*', label='Optimal factor')
+        plt.xlabel('Factor')
+        plt.ylabel('Relative error')
+        plt.grid()
+        plt.legend()
+        plt.show()
     
     return best_factor, best_error
