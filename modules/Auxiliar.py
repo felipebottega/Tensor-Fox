@@ -143,7 +143,7 @@ def multilin_mult(T, L, M, N, m, n, p):
 def multirank_approx(T, r1, r2, r3):
     """
     This function computes an approximation of T with multilinear rank = (r1,r2,r3).
-    Truncation the central tensor of the HOSVD doesn't gives the best low multirank
+    Truncation the central tensor of the MLSVD doesn't gives the best low multirank
     approximation, but gives very good approximations. 
     
     Inputs
@@ -162,12 +162,12 @@ def multirank_approx(T, r1, r2, r3):
     m, n, p = T.shape
     Tsize = np.linalg.norm(T)
     
-    # Compute the HOSVD of T.
+    # Compute the MLSVD of T.
     trunc_dims = 0
     level = 1
     display = 0
     r = min(m, n, p)
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tfx.hosvd(T, Tsize, r, trunc_dims, level, display)
+    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tfx.mlsvd(T, Tsize, r, trunc_dims, level, display)
     U1 = U1[:,0:r1]
     U2 = U2[:,0:r2]
     U3 = U3[:,0:r3]
@@ -372,7 +372,7 @@ def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
 
 def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage):
     """
-    This function try different threshold values to truncate the hosvd. The conditions to accept
+    This function try different threshold values to truncate the mlsvd. The conditions to accept
     a truncation are defined by the parameter level. Higher level means harder constraints, which
     translates to bigger tensors after the truncation.
 
@@ -381,7 +381,7 @@ def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, 
     T: float 3-D ndarray
     Tsize: float
     S: float 3-D ndarray
-        Central tensor obtained by the hosvd.
+        Central tensor obtained by the mlsvd.
     sigma1, sigma2, sigma3: float 1-D ndarrays
         Each one of these array is an ordered list (ascendent) with the singular values of the respective
     unfolding.
@@ -407,11 +407,11 @@ def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, 
         Truncated versions of U1, U2, U3.
     best_sigma1, best_sigma2, best_sigma3: float 1-D ndarrays
         Truncated versions of sigma1, sigma2, sigma3.
-    hosvd_stop: 0,1,2,3,4,5,6 or 7 
+    mlsvd_stop: 0,1,2,3,4,5,6 or 7 
     situation: str
         There are three possibilities.
-        1) situation == 'random' means the function stopped with random truncation (hosvd_stop == 4) 
-        2) situation == 'overfit' means the function stopped with because of overfit (hosvd_stop == 5) 
+        1) situation == 'random' means the function stopped with random truncation (mlsvd_stop == 4) 
+        2) situation == 'overfit' means the function stopped with because of overfit (mlsvd_stop == 5) 
         3) situation == 'ok' means the function stopped normally, without random truncation or overfit     
     """
 
@@ -475,29 +475,29 @@ def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, 
 
         # If all three cuts stopped iterating, we are done.
         if sigma1_settled == True and sigma2_settled == True and sigma3_settled == True:
-             hosvd_stop = 2
+             mlsvd_stop = 2
              best_energy = total_energy
              best_R1, best_R2, best_R3 = R1_new, R2_new, R3_new
              best_sigma1, best_sigma2, best_sigma3 = sigma1_new, sigma2_new, sigma3_new
              best_U1, best_U2, best_U3 = U1_new, U2_new, U3_new
              best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
-             return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation 
+             return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation 
 
         # If the proccess is unable to compress at the very first iteration, then the tensor 
         # singular values are equal or almost equal. In this case we can't truncate.
         if (R1_new, R2_new, R3_new) == (m, n, p) and i == 0:  
-            hosvd_stop = 3
+            mlsvd_stop = 3
             best_R1, best_R2, best_R3 = m, n, p
             best_U1, best_U2, best_U3 = np.eye(m), np.eye(n), np.eye(p)
             best_sigma1, best_sigma2, best_sigma3 = np.ones(m), np.ones(n), np.ones(p)
-            return T, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation              
+            return T, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation              
             
         # If no truncation was detected through almost all iterations, we may assume this tensor is random or
         # has a lot of random noise (although it is also possible that the energy stop condition is too restrictive
         # for this case). When this happens the program just choose some small truncation to work with. A good
         # idea is to suppose the chosen rank is correct and use it to estimate the truncation size.
         if stage == 1 and i == num_cuts-int(num_cuts/10): 
-            hosvd_stop = 4
+            mlsvd_stop = 4
             situation = 'random'
             val1, val2, val3 = max(1, min(m, r) - 1), max(1, min(n, r) - 1), max(1, min(p, r) - 1)
             if sigma1_settled == False:
@@ -508,14 +508,14 @@ def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, 
                 best_sigma3, best_R3, best_U3 = update_compression(sigma3, U3, sigma3[val3]) 
             best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
             best_energy = compute_energy(S_energy, best_sigma1, best_sigma2, best_sigma3) 
-            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation  
+            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation  
         
         # Stop the program due to a probable overfit. In this case we stop and return the previous valid values.
         if total_energy > 99.99 and r > min(R1_new*R2_new, R1_new*R3_new, R2_new*R3_new) and R1_new + R2_new + R3_new > 3:
-            hosvd_stop = 5
+            mlsvd_stop = 5
             situation = 'overfit'
             best_energy = compute_energy(S_energy, best_sigma1, best_sigma2, best_sigma3)
-            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation
+            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation
         
         # CHECK QUALITY OF TRUNCATION.
         
@@ -530,18 +530,18 @@ def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, 
             # Inner stopping condition.
 
             if best_energy > energy_tol:
-                hosvd_stop = 6
+                mlsvd_stop = 6
                 best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
-                return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation 
+                return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation 
     
         # Keep values of all dimensions to compare in the next iteration.
         R1_old, R2_old, R3_old = R1_new, R2_new, R3_new
 
-    hosvd_stop = 7
+    mlsvd_stop = 7
     best_S = S[:best_R1, :best_R2, :best_R3]
     best_U1, best_U2, best_U3 = U1[:, :best_R1], U2[:, :best_R2], U3[:, :best_R3] 
     best_sigma1, best_sigma2, best_sigma3 = sigma1[:best_R1], sigma2[:best_R2], sigma3[:best_R3]
-    return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, hosvd_stop, situation
+    return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation
 
 
 def update_compression(S, U, tol):
@@ -636,7 +636,7 @@ def set_constraints(m, n, p, level):
         if 1e7 < val:
             energy_tol = 99.9
 
-    # Truncation is almost equal or equal to the original HOSVD.
+    # Truncation is almost equal or equal to the original MLSVD.
     if level == 3:
         energy_tol = 99.999999999
 
@@ -725,20 +725,20 @@ def unfoldings_svd(T1, T2, T3, m, n, p):
     return Sigma1, Sigma2, Sigma3, U1, U2, U3
 
 
-def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, hosvd_stop, stop_main, stop_refine):
+def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine):
     class info:
         rel_error = np.linalg.norm(T_orig - T_approx)/Tsize
         step_sizes = [step_sizes_main, step_sizes_refine]
         errors = [errors_main, errors_refine]
-        errors_diff = [np.concatenate(([1], np.abs(errors_main[0:-1] - errors_main[1:]))), np.concatenate(([1], np.abs(errors_refine[0:-1] - errors_refine[1:])))]
+        errors_diff = [np.concatenate(([errors_main[0]], np.abs(errors_main[0:-1] - errors_main[1:]))), np.concatenate(([errors_refine[0]], np.abs(errors_refine[0:-1] - errors_refine[1:])))]
         gradients = [gradients_main, gradients_refine]
-        stop = [hosvd_stop, stop_main, stop_refine]
+        stop = [mlsvd_stop, stop_main, stop_refine]
         num_steps = np.size(step_sizes_main) + np.size(step_sizes_refine)
         accuracy = max(0, 100*(1 - rel_error))
 
         def stop_msg(self):
-            # hosvd_stop message
-            print('HOSVD stop:')
+            # mlsvd_stop message
+            print('MLSVD stop:')
             if self.stop[0] == 0:
                 print('0 - Truncation was given manually by the user.')
             if self.stop[0] == 1:
