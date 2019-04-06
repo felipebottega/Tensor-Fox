@@ -1,5 +1,3 @@
-import numpy as np
-from numba import jit, njit, prange
 """
 Critical Module
  
@@ -34,6 +32,9 @@ Critical Module
  - precond
 
 """
+
+import numpy as np
+from numba import jit, njit, prange
 
 
 @njit(nogil=True)
