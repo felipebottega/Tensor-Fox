@@ -567,7 +567,6 @@ def tricpd(T, r, options):
 def bicpd(T, r, prev_X, options):
     """
     Practically the same as tricpd, but this function keeps the first factor fixed during all the computations. 
-    Furthermore, the other factors are necessarily generated randomly. The user has no control on the initialization.
     """
 
     # Set options
@@ -579,8 +578,7 @@ def bicpd(T, r, prev_X, options):
     ordering = [0,1,2]
     tol = np.min([tol*m*n*p, 1e-1])
     tol_refine = np.min([tol_refine*m*n*p, 1e-1])
-    #trunc_dims = [m, n, p]
-                   
+                       
     # Test consistency of dimensions and rank.
     aux.consistency(r, (m, n, p), symm) 
     
