@@ -18,10 +18,12 @@ Conversion Module
 """
 
 import numpy as np
+import itertools
 import sys
 import scipy.io
 from numba import jit, njit, prange
 import Auxiliar as aux
+import Critical as crt
 
 
 @njit(nogil=True)
@@ -29,13 +31,11 @@ def x2cpd(x, X, Y, Z, m, n, p, r):
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to
     form the CPD of S. This program return the following arrays: 
-    Lambda = [Lambda_1,...,Lambda_r],
     X = [X_1,...,X_r],
     Y = [Y_1,...,Y_r],
     Z = [Z_1,...,Z_r].
     
-    Then we have that T_approx = (X,Y,Z)*diag(Lambda_l), where diag(Lambda_l) is
-    a diagonal r x r x r tensor.
+    Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal r x r x r tensor.
     
     Inputs
     ------
@@ -48,62 +48,59 @@ def x2cpd(x, X, Y, Z, m, n, p, r):
         
     Outputs
     -------
-    Lambda: float 1-D ndarray with r entries
     X: float 2-D ndarray of shape (m, r)
     Y: float 2-D ndarray of shape (n, r)
     Z: float 2-D ndarray of shape (p, r)
     """ 
+
     s = 0
     for l in range(r):
-        for i in range(m):
-            X[i,l] = x[s]
-            s += 1
+        X[:,l] = x[s:s+m]
+        s = s+m
             
     for l in range(r):
-        for j in range(n):
-            Y[j,l] = x[s]
-            s += 1
+        Y[:,l] = x[s:s+n]
+        s = s+n
             
     for l in range(r):
-        for k in range(p):
-            Z[k,l] = x[s]
-            s += 1
+        Z[:,l] = x[s:s+p]
+        s = s+p
             
     X, Y, Z = aux.equalize(X, Y, Z, r)
           
     return X, Y, Z
 
 
-@njit(nogil=True)
-def cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r):
+def cpd2tens(factors, dims):
     """
-    Converts the arrays Lambda, X, Y, Z to tensor in coordinate format.
+    Converts the factor matrices to tensor in coordinate format using
+    a Khatri-Rao product formula.
 
     Inputs
     ------
-    T_aux: float 3-D ndarray
-        This array will receive the coordinates of the approximated tensor.
-    We define it outside of this function because this function is called
-    several times, and would be too much time costly to create a new tensor
-    for every call.
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
-    m, n, p: int
-    r: int
+    factors: list of L floats 2-D ndarray of shape (dims[i], r) each
+    dims: tuple of L ints
 
-    Outpus
+    Outputs
     ------
-    T_aux: float 3-D ndarray
-        Tensor (X,Y,Z) in coordinate format. 
+    T_approx: float L-D ndarray
+        Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
     """
-    
-    for k in range(p):
-        for l in range(r):
-            temp[:,l] = Z[k,l]*X[:,l]
-        T_aux[:,:,k] = np.dot(temp, Y.T)
-        
-    return T_aux
+
+    L = len(dims)
+    prod_dims = np.prod(np.array(dims[1:]))
+    T1_approx = np.zeros((dims[0], prod_dims))
+    M = factors[1]
+   
+    for l in range(2,L):
+        a1, a2 = factors[l].shape
+        b1, b2 = M.shape
+        N = np.zeros((a1*b1, a2))
+        M = crt.khatri_rao(factors[l], M, N)        
+
+    T1_approx = np.dot(factors[0], M.T)
+    T_approx = T1_approx.reshape(dims, order='F')
+    return T_approx
 
 
 @njit(nogil=True)
@@ -144,6 +141,62 @@ def unfold(T, Tl, m, n, p, mode):
             Tl[k,:] = temp.ravel()
 
     return Tl
+
+
+def high_unfold1_generic(T, T1, dims, l, idx, s):
+    """
+    Computes the first unfolding of a tensor with any high order. The first
+    call must initiate with l=L (the total number of modes), idx=() and s=0.
+    This function works with any order L but it is slow.
+    """
+
+    l -= 1
+    
+    if l < 0:
+        s = 0
+    
+    elif l > 0:
+        for i in range(dims[l]):
+            idx_temp = (i,) + idx
+            T1, s = high_unfold1_generic(T, T1, dims, l, idx_temp, s)
+                
+    else:
+        for i in range(dims[l]):
+            idx_temp = (i,) + idx
+            T1[i,s] = T[idx_temp]
+        s += 1
+        
+    return T1, s
+
+
+def high_unfold1(T, dims):
+    """
+    Computes the first unfolding of a tensor up to order L=12. 
+    """
+ 
+    L = len(dims)
+    T1 = np.zeros((dims[0], np.prod(dims[1:])))
+
+    if L == 4:
+        return crt.unfold1_order4(T, T1, dims)
+    if L == 5:
+        return crt.unfold1_order5(T, T1, dims)
+    if L == 6:
+        return crt.unfold1_order6(T, T1, dims)
+    if L == 7:
+        return crt.unfold1_order7(T, T1, dims)
+    if L == 8:
+        return crt.unfold1_order8(T, T1, dims)
+    if L == 9:
+        return crt.unfold1_order9(T, T1, dims)
+    if L == 10:
+        return crt.unfold1_order10(T, T1, dims)
+    if L == 11:
+        return crt.unfold1_order11(T, T1, dims)
+    if L == 12:
+        return crt.unfold1_order12(T, T1, dims)
+
+    return T1
 
 
 @njit(nogil=True)
@@ -214,6 +267,7 @@ def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
     r: int
     low, upp: float
     symm: bool
+    fix: float 2-D ndarray of shape (m, r)
         
     Outputs
     -------
@@ -234,5 +288,5 @@ def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
         X = (X+Y+Z)/3
         Y = X
         Z = X
-
+    
     return X, Y, Z
