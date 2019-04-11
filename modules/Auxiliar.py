@@ -60,30 +60,42 @@ import Conversion as cnv
 import Critical as crt
 
 
-def consistency(r, m, n, p, symm):
+def consistency(r, dims, symm):
     """ 
     This function checks some invalid cases before anything is done in the program. 
     """
 
+    L = len(dims)
+
     # If some dimension is equal to 1, the user may just use classical SVD with numpy.
-    # We won't address these situations here. 
-    if (m == 1) or (n == 1) or (p == 1):
-        sys.exit('At least one dimension is equal to 1. This situation not supported by Tensor Fox.')
+    # We won't address these situations here.
+    for i in range(L):  
+        if dims[i] == 1:
+            sys.exit('At least one dimension is equal to 1. This situation not supported by Tensor Fox.')
         
     # Consistency of rank value.
-    if type(r) != int:
-        sys.exit('Invalid rank value.')
+    if (type(r) != int) or (r < 1):
+        sys.exit('Rank must be a positive integer.')
         
-    # Check valid interval for rank.
-    if (r > min(m*n, m*p, n*p)) or (r < 1):
-        value = str(min(m*n, m*p, n*p))
-        msg = 'Rank r must be satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + value + '.'
-        sys.exit(msg)
+    # Check if rank is well defined in the third order case.
+    if L == 3:
+        m, n, p = dims[0], dims[1], dims[2]
+        if r > min(m*n, m*p, n*p):
+            msg = 'Rank must be satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
+            sys.exit(msg)
+
+    # Check if rank is well defined in the higher order case.
+    if L > 3:
+        if r > min(dims) or r < 2:
+            msg = 'Rank must be satisfy 2 <= r <= min' + str(dims) + ' = ' + str(min(dims)) + '.'
+            sys.exit(msg)
 
     if symm:
-        if (m != n) or (m != p) or (n != p):
-            msg = 'Symmetric tensors must have equal dimensions.'
-            sys.exit(msg)
+        for i in range(L):
+            for j in range(L):
+                if dims[i] != dims[j]:
+                    msg = 'Symmetric tensors must have equal dimensions.'
+                    sys.exit(msg)
         
     return
 
@@ -209,24 +221,28 @@ def update_damp(damp, old_error, error, residualnorm):
     return damp
 
 
-def normalize(X, Y, Z, r):
+def normalize(factors, r):
     """ 
-    Normalize the columns of X, Y, Z to have unit column norm and scale Lambda accordingly.
-    This function returns Lambda, X, Y, Z, where (X,Y,Z)*Lambda is a normalized CPD. 
+    Normalize the columns of the factors to have unit column norm and scale Lambda accordingly.
+    This function returns Lambda and the normalized factors. 
     """
 
-    Lambda = np.zeros(r, dtype = np.float64)
+    Lambda = np.zeros(r)
+    L = len(factors)
     
     for l in range(0,r):
-        xn = np.linalg.norm(X[:,l])
-        yn = np.linalg.norm(Y[:,l])
-        zn = np.linalg.norm(Z[:,l])
-        Lambda[l] = xn*yn*zn
-        X[:,l] = X[:,l]/xn
-        Y[:,l] = Y[:,l]/yn
-        Z[:,l] = Z[:,l]/zn
+        norms = np.zeros(L)
+        for ll in range(L):
+            W = factors[ll]
+            # Save norm of the l-th column of the ll factor and normalize the current factor.
+            norms[ll] = np.linalg.norm(W[:,l]) 
+            W[:,l] = W[:,l]/norms[ll]
+            # Update factors accordingly.
+            factors[ll] = W 
+
+        Lambda[l] = np.prod(norms)
         
-    return Lambda, X, Y, Z
+    return Lambda, factors
 
 
 def denormalize(Lambda, X, Y, Z):
@@ -259,8 +275,8 @@ def denormalize(Lambda, X, Y, Z):
 def equalize(X, Y, Z, r):
     """ 
     After a Gauss-Newton iteration we have an approximated CPD with factors 
-    X_l ⊗ Y_l ⊗ Z_l. They may have very differen sizes and this can have effect
-    on the convergence rate. To improve this we try to equalize their sizes by 
+    X_l ⊗ Y_l ⊗ Z_l. They may have very differen magnitudes and this can have effect
+    on the convergence rate. To improve this we try to equalize their magnitudes by 
     introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l)
     and |a*X_l| = |b*Y_l| = |c*Z_l|. Notice that we must have a*b*c = 1.
     
@@ -361,10 +377,10 @@ def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
         return Y, X, Z, U2, U1, U3
 
     elif ordering == [1,2,0]:        
-        return Y, Z, X, U2, U3, U1
+        return Z, X, Y, U3, U1, U2
 
     elif ordering == [2,0,1]:        
-        return Z, X, Y, U3, U1, U2
+        return Y, Z, X, U2, U3, U1
 
     elif ordering == [2,1,0]:        
         return Z, Y, X, U3, U2, U1
@@ -742,11 +758,11 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
             if self.stop[0] == 0:
                 print('0 - Truncation was given manually by the user.')
             if self.stop[0] == 1:
-                print('1 - User choose level = 4 so no truncation was done.')
+                print('1 - User choose level = 5, that is, to work with the original tensor.')
             if self.stop[0] == 2:
                 print('2 - When testing the truncations a big gap between singular values were detected and the program lock the size of the truncation.')
             if self.stop[0] == 3:
-                print('3 - The program was unable to compress at the very first iteration. In this case the tensor singular values are equal or almost equal. The program stops the truncation process when this happens.')
+                print('3 - The program was unable to truncate at the very first attempt. In this case the MLSVD singular values are equal or almost equal. The program stops the truncation process when this happens.')
             if self.stop[0] == 4:
                 print('4 - Tensor probably is random or has a lot of noise.')
             if self.stop[0] == 5:
@@ -754,7 +770,9 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
             if self.stop[0] == 6:
                 print('6 - The energy of the truncation is accepted because it is big enough.')
             if self.stop[0] == 7:
-                print('7 - None of the previous conditions were satisfied and we keep the last truncation computed. This condition is only possible at the second stage.')
+                print('7 - None of the previous conditions were satisfied and we used the last truncation computed. This condition is only possible at the second stage.')
+            if self.stop[0] == 8:
+                print('1 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of the MLSVD) but without truncating it.')
            
             # stop_main message
             print()
@@ -811,6 +829,7 @@ def make_options(options):
     low = 0
     upp = 0
     factor = 0
+    trials = 10
     display = 0
 
     # User defined options
@@ -838,10 +857,63 @@ def make_options(options):
          upp = options.upp
     if 'factor' in dir(options):
          factor = options.factor
+    if 'trials' in dir(options):
+         trials = options.trials
     if 'display' in dir(options):
          display = options.display
 
-    return maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, display
+    return maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, trials, display
+
+
+def make_class_options(options):
+    # Default options
+    class temp_options:
+        maxiter = 200  
+        tol = 1e-12  
+        maxiter_refine = 200
+        tol_refine = 1e-10
+        init = 'smart_random'
+        trunc_dims = 0
+        level = 1
+        refine = False
+        symm = False
+        low = 0
+        upp = 0
+        factor = 0
+        trials = 10
+        display = 0
+
+    # User defined options
+    if 'maxiter' in dir(options):
+         temp_options.maxiter = options.maxiter
+    if 'tol' in dir(options):
+         temp_options.tol = options.tol
+    if 'maxiter_refine' in dir(options):
+         temp_options.maxiter_refine = options.maxiter_refine
+    if 'tol_refine' in dir(options):
+         temp_options.tol_refine = options.tol_refine
+    if 'init' in dir(options):
+         temp_options.init = options.init
+    if 'trunc_dims' in dir(options):
+         temp_options.trunc_dims = options.trunc_dims
+    if 'level' in dir(options):
+         temp_options.level = options.level
+    if 'refine' in dir(options):
+         temp_options.refine = options.refine
+    if 'symm' in dir(options):
+         temp_options.symm = options.symm
+    if 'low' in dir(options):
+         temp_options.low = options.low
+    if 'upp' in dir(options):
+         temp_options.upp = options.upp
+    if 'factor' in dir(options):
+         temp_options.factor = options.factor
+    if 'trials' in dir(options):
+         temp_options.trials = options.trials
+    if 'display' in dir(options):
+         temp_options.display = options.display
+
+    return temp_options
 
 
 @jit(nogil=True)
@@ -870,3 +942,19 @@ def clean_zeros(T, X, Y, Z):
                 Z[k,l] = s*np.random.randn() 
 
     return X, Y, Z
+
+
+def compute_core(V, dims, r, l):
+    """
+    Computation of one core of the tensor train function (TT_cores).
+    """
+
+    V = V.reshape(r*dims[l], np.prod(dims[l+1:]), order='F')
+    U, S, V = np.linalg.svd(V, full_matrices=False, compute_uv=True)
+    U = U[:,:r]
+    S = S[:r]
+    S = np.diag(S)
+    V = V[:r,:]
+    V = np.dot(S, V)
+    g = U.reshape(r, dims[l], r, order='F')    
+    return V, g
