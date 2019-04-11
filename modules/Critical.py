@@ -389,3 +389,147 @@ def precond(X, Y, Z, L, M, damp, m, n, p, r):
         
     M = 1/np.sqrt(M)
     return M
+
+
+@njit(nogil=True)
+def unfold1_order4(T, T1, dims):
+    rows, a, b, c = dims
+    s = 0
+    for i3 in range(c):
+        for i2 in range(b):
+            for i1 in range(a):
+                T1[:,s] = T[:,i1,i2,i3]
+                s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order5(T, T1, dims):
+    rows, a, b, c, d = dims
+    s = 0
+    for i4 in range(d):
+        for i3 in range(c):
+            for i2 in range(b):
+                for i1 in range(a):
+                    T1[:,s] = T[:,i1,i2,i3,i4]
+                    s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order6(T, T1, dims):
+    rows, a, b, c, d, e = dims
+    s = 0
+    for i5 in range(e):
+        for i4 in range(d):
+            for i3 in range(c):
+                for i2 in range(b):
+                    for i1 in range(a):
+                        T1[:,s] = T[:,i1,i2,i3,i4,i5]
+                        s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order7(T, T1, dims):
+    rows, a, b, c, d, e, f = dims
+    s = 0
+    for i6 in range(f):
+        for i5 in range(e):
+            for i4 in range(d):
+                for i3 in range(c):
+                    for i2 in range(b):
+                        for i1 in range(a):
+                            T1[:,s] = T[:,i1,i2,i3,i4,i5,i6]
+                            s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order8(T, T1, dims):
+    rows, a, b, c, d, e, f, g = dims
+    s = 0
+    for i7 in range(g):
+        for i6 in range(f):
+            for i5 in range(e):
+                for i4 in range(d):
+                    for i3 in range(c):
+                        for i2 in range(b):
+                            for i1 in range(a):
+                                T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7]
+                                s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order9(T, T1, dims):
+    rows, a, b, c, d, e, f, g, h = dims
+    s = 0
+    for i8 in range(h):
+        for i7 in range(g):
+            for i6 in range(f):
+                for i5 in range(e):
+                    for i4 in range(d):
+                        for i3 in range(c):
+                            for i2 in range(b):
+                                for i1 in range(a):
+                                    T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8]
+                                    s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order10(T, T1, dims):
+    rows, a, b, c, d, e, f, g, h, i = dims
+    s = 0
+    for i9 in range(i):
+        for i8 in range(h):
+            for i7 in range(g):
+                for i6 in range(f):
+                    for i5 in range(e):
+                        for i4 in range(d):
+                            for i3 in range(c):
+                                for i2 in range(b):
+                                    for i1 in range(a):
+                                        T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9]
+                                        s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order11(T, T1, dims):
+    rows, a, b, c, d, e, f, g, h, i, j = dims
+    s = 0
+    for i10 in range(j):
+        for i9 in range(i):
+            for i8 in range(h):
+                for i7 in range(g):
+                    for i6 in range(f):
+                        for i5 in range(e):
+                            for i4 in range(d):
+                                for i3 in range(c):
+                                    for i2 in range(b):
+                                        for i1 in range(a):
+                                            T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10]
+                                            s += 1
+    return T1
+
+
+@njit(nogil=True)
+def unfold1_order12(T, T1, dims):
+    rows, a, b, c, d, e, f, g, h, i, j, k = dims
+    s = 0
+    for i11 in range(k):
+        for i10 in range(j):
+            for i9 in range(i):
+                for i8 in range(h):
+                    for i7 in range(g):
+                        for i6 in range(f):
+                            for i5 in range(e):
+                                for i4 in range(d):
+                                    for i3 in range(c):
+                                        for i2 in range(b):
+                                            for i1 in range(a):
+                                                T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11]
+                                                s += 1
+    return T1
