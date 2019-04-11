@@ -35,9 +35,15 @@ def showtens(T):
     frontal slice separately), this function does the job. 
     """
     
-    for k in range(0,T.shape[2]):
-        print(T[:,:,k])
-        print()
+    dims = T.shape
+    L = len(dims)
+
+    if L == 3:
+        for k in range(T.shape[2]):
+            print(T[:,:,k])
+            print()
+    else:
+        print(T)
         
     return
 
@@ -51,10 +57,11 @@ def infotens(T):
     """
     
     # Compute dimensions and norm of T.
-    m, n, p = T.shape
+    dims = T.shape
+    L = len(dims)
     Tsize = np.linalg.norm(T)
     
-    print('T is a tensor of dimensions', m, 'x', n, 'x', p)
+    print('T is a tensor of dimensions', dims)
     print()
     print('|T| =', Tsize)
     print()
@@ -70,38 +77,35 @@ def infotens(T):
     print()
     
     # Bounds on rank.
-    R = min(m*n, m*p, n*p)
-    print(1,'<= rank(T) <=',R)
+    sorted_dims = np.sort(np.array(dims))
+    R = np.prod(sorted_dims[1:])
+    print(1, '<= rank(T) <=', R)
+    print()
+
+    # Show generic rank.
+    R_gen = int(np.ceil( np.prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
+    print('Generic rank of the tensor space of T =', R_gen)
     print()
     
-    # Multilinear rank.
-    trunc_dims = 0
-    level = 2
-    display = 3
-    print('Computing multilinear rank...')
-    print('------------------------------------')
-    try:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = tfx.mlsvd(T, Tsize, int(np.sqrt(R)), trunc_dims, level, display)
-        print('Estimated multirank(T) =', R1, ',', R2, ',', R3)
-        print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
-        print()
-    except SystemExit:  
-        print()      
+    # Multilinear rank (only for third order tensors).
+    if L == 3:
+        trunc_dims = 0
+        level = 2
+        display = 3
+        print('Computing multilinear rank...')
+        print('------------------------------------')
+        try:
+            S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = tfx.mlsvd(T, Tsize, R_gen, trunc_dims, level, display)
+            print('Estimated multirank(T) =', R1, ',', R2, ',', R3)
+            print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
+            print()
+        except SystemExit:  
+            print()      
     
     # Estimative of the rank of T.
     print('Computing rank...')
     r, error_per_rank = tfx.rank(T, plot=False)
     print()
-    
-    return
-
-
-def infospace(m, n, p):
-    """
-    This function shows general information about the tensorial space
-    R^m ⊗ R^n ⊗ R^p. At the moment we don't have too much to show. This
-    is an on going work.
-    """
     
     return
 
