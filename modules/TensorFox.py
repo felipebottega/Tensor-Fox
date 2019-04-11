@@ -1111,8 +1111,9 @@ def rank(T, plot=True):
     print('|T - T_approx|/|T| =', error_per_rank[final_rank - Rmin])
     
     if plot:
-        plt.plot(range(Rmin, r+1), np.log10(error_per_rank))
-        plt.plot(final_rank, np.log10(error_per_rank[final_rank - Rmin]), marker = 'o', color = 'k')
+        plt.plot(range(Rmin, r+1), np.log10(error_per_rank), '--')
+        plt.plot(range(Rmin, r+1), np.log10(error_per_rank), 'bs', markerfacecolor="None", markeredgewidth=2)
+        plt.plot(final_rank, np.log10(error_per_rank[final_rank - Rmin]), marker = 's', color='b')
         plt.title('Rank trials')
         plt.xlabel('r')
         plt.ylabel(r'$\log_{10} \|T - S\|/|T|$')
