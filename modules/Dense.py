@@ -142,7 +142,7 @@ def dense_cpd(T, r, options=False, plot=False):
     """ 
 
     # Set options
-    maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, display = aux.make_options(options)
+    maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, trials, display = aux.make_options(options)
         
     # Compute relevant variables and arrays.
     m_orig, n_orig, p_orig = T.shape
@@ -153,7 +153,7 @@ def dense_cpd(T, r, options=False, plot=False):
     tol_refine = np.min([tol_refine*m*n*p, 1e-1])
                    
     # Test consistency of dimensions and rank.
-    aux.consistency(r, m, n, p, symm) 
+    aux.consistency(r, (m, n, p), symm) 
 
     # Change ordering of indexes to improve performance if possible.
     T, ordering = aux.sort_dims(T, m, n, p)
@@ -243,13 +243,8 @@ def dense_cpd(T, r, options=False, plot=False):
     Z = np.dot(U3_sort,Z)
     
     # Compute coordinate representation of the CPD of T.
-    T_aux = np.zeros((m_orig, n_orig, p_orig), dtype = np.float64)
-    temp = np.zeros((m_orig, r), dtype = np.float64, order='F')
-    T_approx = cnv.cpd2tens(T_aux, X, Y, Z, temp, m_orig, n_orig, p_orig, r)
+    T_approx = cnv.cpd2tens([X, Y, Z], (m_orig, n_orig, p_orig))
         
-    # Normalize X, Y, Z to have column norm equal to 1.
-    Lambda, X, Y, Z = aux.normalize(X, Y, Z, r)
-    
     # Save and display final informations.
     output = dense_output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, conds_main, conds_refine, mlsvd_stop, stop_main, stop_refine)
 
@@ -264,7 +259,7 @@ def dense_cpd(T, r, options=False, plot=False):
         a = float( '%.6e' % Decimal(output.accuracy) )
         print('    Accuracy = ', a, '%')
     
-    return Lambda, X, Y, Z, T_approx, output
+    return [X, Y, Z], T_approx, output
 
 
 def dense_dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display, plot):
@@ -307,7 +302,7 @@ def dense_dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display, plot
     Y_aux = np.zeros((n, r), dtype = np.float64)
     Z_aux = np.zeros((p, r), dtype = np.float64)
     X, Y, Z = cnv.x2cpd(x, X_aux, Y_aux, Z_aux, m, n, p, r)
-    T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
+    T_aux = cnv.cpd2tens([X, Y, Z], (m, n, p))
     # res is the array with the residuals (see the residual function for more information).
     res = np.zeros(m*n*p, dtype = np.float64)
     g = np.zeros(r*(m+n+p), dtype = np.float64)
@@ -347,7 +342,7 @@ def dense_dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display, plot
         X, Y, Z = cnv.transform(X_aux, Y_aux, Z_aux, m, n, p, r, low, upp, factor, symm)
                
         # Compute error.
-        T_aux = cnv.cpd2tens(T_aux, X, Y, Z, temp, m, n, p, r)
+        T_aux = cnv.cpd2tens([X, Y, Z], (m, n, p))
         error = np.linalg.norm(T - T_aux)
 
         # Matrix of preconditioned normal equations 
