@@ -45,7 +45,11 @@ Auxiliar Module
 
  - make_options
 
+ - make_class_options
+
  - clean_zeros
+
+ - compute_core
 
 """ 
 
@@ -53,6 +57,7 @@ Auxiliar Module
 import numpy as np
 import sys
 import scipy.io
+from sklearn.utils.extmath import randomized_svd as rand_svd
 from numba import jit, njit, prange
 import TensorFox as tfx
 import Construction as cnst
@@ -865,11 +870,13 @@ def make_options(options):
     return maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, trials, display
 
 
-def make_class_options(options):
+def make_class_options(options, dims):
+    L = len(dims)
+
     # Default options
     class temp_options:
         maxiter = 200  
-        tol = 1e-12  
+        tol = 1e-12 * 10**(2*(3-L))
         maxiter_refine = 200
         tol_refine = 1e-10
         init = 'smart_random'
@@ -887,11 +894,11 @@ def make_class_options(options):
     if 'maxiter' in dir(options):
          temp_options.maxiter = options.maxiter
     if 'tol' in dir(options):
-         temp_options.tol = options.tol
+         temp_options.tol = options.tol * 10**(2*(3-L))
     if 'maxiter_refine' in dir(options):
          temp_options.maxiter_refine = options.maxiter_refine
     if 'tol_refine' in dir(options):
-         temp_options.tol_refine = options.tol_refine
+         temp_options.tol_refine = options.tol_refine * 10**(2*(3-L))
     if 'init' in dir(options):
          temp_options.init = options.init
     if 'trunc_dims' in dir(options):
@@ -950,7 +957,8 @@ def compute_core(V, dims, r, l):
     """
 
     V = V.reshape(r*dims[l], np.prod(dims[l+1:]), order='F')
-    U, S, V = np.linalg.svd(V, full_matrices=False, compute_uv=True)
+    low_rank = min(V.shape[0], V.shape[1])
+    U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:,:r]
     S = S[:r]
     S = np.diag(S)
