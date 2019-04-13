@@ -36,6 +36,8 @@ General Description
  - stats
  
  - cg
+
+ - TT_cores
  
  **Construction:**
  
@@ -109,15 +111,21 @@ General Description
 
  - output_info
 
+ - make_options
+
+ - make_class_options
+
  - clean_zeros
+
+ - compute_core
  
  **Display:**
  
  - showtens
  
  - infotens
- 
- - infospace
+
+ - adjust
  
  - rank1_plot
  
@@ -184,6 +192,7 @@ import scipy.io
 import time
 from decimal import Decimal
 import matplotlib.pyplot as plt
+from sklearn.utils.extmath import randomized_svd as rand_svd
 from numba import jit, njit, prange
 import Construction as cnst
 import Conversion as cnv
@@ -268,7 +277,7 @@ def cpd(T, r, options=False):
     Tsize = np.linalg.norm(T)
 
     # Set options
-    options = aux.make_class_options(options)
+    options = aux.make_class_options(options, dims)
                    
     # Test consistency of dimensions and rank.
     aux.consistency(r, dims, options.symm)  
@@ -852,8 +861,15 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
         
         # Show information about current iteration.
         if display > 1:
-            a = float('%.2e' % Decimal(old_damp))
-            print('       ',it+1,'    | ', '{0:.6f}'.format(error/Tsize), ' |   ', '{0:.6f}'.format(errors_diff), '   | ', '{0:.6f}'.format(gradients[it]), ' |', a, '|   ', itn)
+            if error/Tsize > 1e-6 and errors_diff > 1e-6 and gradients[it] > 1e-6:
+                a = float('%.2e' % Decimal(old_damp))
+                print('       ',it+1,'    | ', '{0:.6f}'.format(error/Tsize), ' |   ', '{0:.6f}'.format(errors_diff), '   | ', '{0:.6f}'.format(gradients[it]), ' |', a, '|   ', itn)
+            else:
+                a1 = float('%.6e' % Decimal(error/Tsize))
+                a2 = float('%.6e' % Decimal(errors_diff))
+                a3 = float('%.6e' % Decimal(gradients[it]))
+                a4 = float('%.2e' % Decimal(old_damp))
+                print('       ',it+1,'    | ', a1, ' |   ', a2, '   | ', a3, ' |', a4, '|   ', itn)
                    
         # Stopping conditions.
         if it >= 3:
@@ -940,6 +956,16 @@ def mlsvd(T, Tsize, r, trunc_dims, level, display):
 
     # Compute dimensions of T.
     m, n, p = T.shape
+
+    # Level = 5 means no truncation and no compression, in other words, the original tensor.
+    if level == 5:
+        mlsvd_stop = 1
+        U1, U2, U3 = np.eye(m), np.eye(n), np.eye(p)
+        sigma1, sigma2, sigma3 = np.ones(m), np.ones(n), np.ones(p)
+        if display == 3:
+            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, 0.0
+        else:
+            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
         
     # Compute all unfoldings of T and its SVD's. 
     T1 = np.zeros((m, n*p), dtype = np.float64)
@@ -977,16 +1003,6 @@ def mlsvd(T, Tsize, r, trunc_dims, level, display):
             return S, 100, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, 0.0
         else:
             return S, 100, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
-
-    # Level = 5 means no truncation and no compression, in other words, the original tensor.
-    if level == 5:
-        mlsvd_stop = 1
-        U1, U2, U3 = np.eye(m), np.eye(n), np.eye(p)
-        sigma1, sigma2, sigma3 = np.ones(m), np.ones(n), np.ones(p)
-        if display == 3:
-            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, 0.0
-        else:
-            return T, 100, m, n, p, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
     # The original SVD factors may have extra information due to noise or numerical error. We clean this SVD performing
     # a specialized truncation. 
@@ -1111,9 +1127,8 @@ def rank(T, plot=True):
     print('|T - T_approx|/|T| =', error_per_rank[final_rank - Rmin])
     
     if plot:
-        plt.plot(range(Rmin, r+1), np.log10(error_per_rank), '--')
-        plt.plot(range(Rmin, r+1), np.log10(error_per_rank), 'bs', markerfacecolor="None", markeredgewidth=2)
-        plt.plot(final_rank, np.log10(error_per_rank[final_rank - Rmin]), marker = 's', color='b')
+        plt.plot(range(Rmin, r+1), np.log10(error_per_rank))
+        plt.plot(final_rank, np.log10(error_per_rank[final_rank - Rmin]), marker = 'o', color = 'k')
         plt.title('Rank trials')
         plt.xlabel('r')
         plt.ylabel(r'$\log_{10} \|T - S\|/|T|$')
@@ -1301,7 +1316,8 @@ def TT_cores(T, r):
     G = []
     
     # Compute first core
-    U, S, V = np.linalg.svd(T1, full_matrices=False, compute_uv=True)
+    low_rank = min(T1.shape[0], T1.shape[1])
+    U, S, V = rand_svd(T1, low_rank, n_iter=0)
     U = U[:,:r]
     S = S[:r]
     S = np.diag(S)
