@@ -6,8 +6,8 @@
  - showtens
  
  - infotens
- 
- - infospace
+
+ - adjust
  
  - rank1_plot
  
