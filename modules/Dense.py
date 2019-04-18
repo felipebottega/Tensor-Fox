@@ -1,21 +1,7 @@
 """
-Dense module
+ Dense module 
 
- - jacobian
- 
- - Hessian
-
- - precond
-
- - eig_dist
-
- - plot_structures
-
- - dense_cpd
-
- - dense_dGN
-
- - dense_output_info
+ This module is specific for research purposes and can be ignored in general.
 
 """
 
