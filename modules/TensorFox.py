@@ -1,5 +1,5 @@
 """
-General Description
+ General Description
  
  *Tensor Fox* is a vast library of routines related to tensor problems. Since most tensor problems fall in the category of NP-hard problems [1], a great effort was made to make this library as efficient as possible. Some relevant routines and features of Tensor Fox are the following: 
  
@@ -15,171 +15,13 @@ General Description
  
  - Rank related information about tensors and tensorial spaces
  
- - Convert tensors to matlab format
+ - CPD tensor train
  
- - High performance with parallelism and GPU computation (soon)
+ - High performance with parallelism 
  
- The CPD algorithm is based on the Damped Gauss-Newton method (dGN) with help of line search at each iteration in order to accelerate the convergence. We expect to make more improvements soon.
+ The CPD algorithm is based on the damped Gauss-Newton method (dGN) with preconditioning and very tuned parameters. We expect to make more improvements soon.
  
- All functions of Tensor Fox are separated in five categories: *Main*, *Construction*, *Conversion*, *Auxiliar*, *Display* and *Critical*. Each category has its own module, this keeps the whole project more organized. The main module is simply called *Tensor Fox*, since this is the module the user will interact to most of the time. The other modules have the same names as their categories. The construction module deals with constructing more complicated objects necessary to make computations with. The conversion module deals with conversions of one format to another. The auxiliar module includes minor function dealing with certain computations which are not so interesting to see at the main module. The display module has functions to display useful information. Finally, the critical module is not really a module, but a set of compiled Cython functions dealing with the more computationally demanding parts. We list all the functions and their respective categories below.
- 
- **Main:** 
- 
- - cpd
- 
- - dGN 
- 
- - mlsvd
- 
- - rank
- 
- - stats
- 
- - cg
-
- - TT_cores
- 
- **Construction:**
- 
- - residual
- 
- - residual_entries
- 
- - start_point
- 
- - smart_random
- 
- - smart_sample
- 
- - assign_values
-
- - smart
- 
- **Conversion:**
- 
- - x2cpd
- 
- - cpd2tens
- 
- - tens_entries
- 
- - unfold
- 
- - foldback
-
- - transform
- 
- **Auxiliar:**
- 
- - consistency
- 
- - multilin_mult
- 
- - multirank_approx
- 
- - tens2matlab
- 
- - update_damp
-
- - normalize
-
- - denormalize
-
- - equalize
-
- - sort_dims
-
- - sort_T
-
- - unsort_dims
-
- - clean_compression
-
- - update_compression
-
- - compute_error
-
- - compute_energy
-
- - check_jump
-
- - set_constraints
-
- - generate_cuts
-
- - unfoldings_svd
-
- - output_info
-
- - make_options
-
- - make_class_options
-
- - clean_zeros
-
- - compute_core
- 
- **Display:**
- 
- - showtens
- 
- - infotens
-
- - adjust
- 
- - rank1_plot
- 
- - rank1
-
- - rank_progress
- 
- **Critical:**
- 
- - kronecker
-
- - khatri_rao
-
- - khatri_rao_inner_computations
-
- - gramians
-
- - hadamard
-
- - vec
-
- - vect
-
- - prepare_data
-
- - prepare_data_rmatvec
-
- - update_data_rmatvec
-
- - matvec
-
- - rmatvec
-
- - regularization
-
- - precond
-
- **Dense**
-
- - jacobian
- 
- - Hessian
-
- - precond
-
- - eig_dist
-
- - plot_structures
-
- - dense_cpd
-
- - dense_dGN
-
- - dense_output_info
+ All functions of Tensor Fox are separated in five categories: *Main*, *Construction*, *Conversion*, *Auxiliar*, *Display*, *Critical* and *Dense*. Each category has its own module, this keeps the whole project more organized. The 'main' module is simply called *Tensor Fox*, since this is the module the user will interact to most of the time. The other modules have the same names as their categories. The 'construction' module deals with constructing more complicated objects necessary to make computations with. The 'conversion' module deals with conversions of one format to another. The 'auxiliar' module includes minor function dealing with certain computations which are not so interesting to see at the main module. The 'display' module has functions to display useful information. Finally, the 'critical' module is deals with the more computationally demanding parts, this is where are the 'ugly' parts of the program. The 'dense' is extra and can be left aside.
  
  [1] C. J. Hillar and Lek-Heng Lim. Most Tensor Problems are NP-Hard. Journal of the ACM. 2013.
 
@@ -824,7 +666,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).         
-        y, g, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, g, -res, m, n, p, r, damp, cg_maxiter, tol)       
+        y, g, itn, residualnorm = crt.cg(X, Y, Z, data, data_rmatvec, y, g, -res, m, n, p, r, damp, cg_maxiter, tol)       
               
         # Update point obtained by the iteration.         
         x = x + y
@@ -1237,64 +1079,6 @@ def stats(T, r, options=False, num_samples = 100):
     plt.show()
 
     return times, steps, rel_errors
-
-
-def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter, tol):
-    """
-    Conjugate gradient algorithm specialized to the tensor case.
-    """
-
-    # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
-    M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = data_rmatvec
-    
-    # Compute the values of all arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = crt.gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
-    N_X, N_Y, N_Z = crt.update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
-    L = crt.regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
-    M = crt.precond(X, Y, Z, L, M, damp, m, n, p, r)
-    const = 2 + int(cg_maxiter/5)
-    
-    y = 0*y
-    
-    # g = Dres^T*res is the gradient of the error function E.    
-    g = crt.rmatvec(b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
-    residual = M*g
-    P = residual
-    residualnorm = np.dot(residual, residual)
-    if residualnorm == 0.0:
-        residualnorm = 1e-6
-    residualnorm_new = 0.0
-    alpha = 0.0
-    beta = 0.0
-    residual_list = []
-        
-    for itn in range(0, cg_maxiter):
-        Q = M*P
-        z = crt.matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
-        z = M*z
-        denominator = np.dot(P.T, z)
-        if denominator == 0.0:
-            denominator = 1e-6
-        alpha = residualnorm/denominator
-        y += alpha*P
-        residual = residual - alpha*z
-        residualnorm_new = np.dot(residual, residual)
-        beta = residualnorm_new/residualnorm
-        residualnorm = residualnorm_new
-        residual_list.append(residualnorm)
-        P = residual + beta*P
-        
-        # Stopping criteria.
-        if residualnorm < tol:
-            break   
-
-        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
-        if itn >= 2*const and itn%const == 0:  
-             if np.mean(residual_list[itn-2*const : itn-const]) < np.mean(residual_list[itn-const : itn]):
-                 break
-    
-    return M*y, g, itn+1, residualnorm
 
 
 def TT_cores(T, r):
