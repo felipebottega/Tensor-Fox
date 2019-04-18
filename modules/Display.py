@@ -1,19 +1,7 @@
 """
  Display Module
  
- This module contains function centered in computing and displaying general information about tensors and tensor spaces. Below we list all funtions presented in this module.
- 
- - showtens
- 
- - infotens
-
- - adjust
- 
- - rank1_plot
- 
- - rank1
-
- - rank_progress
+ This module contains function centered in computing and displaying general information about tensors and tensor spaces. 
 
 """
 
