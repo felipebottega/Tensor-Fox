@@ -1,35 +1,7 @@
 """
-Critical Module
+ Critical Module
  
- This module is responsible for the most costly parts. Below we list all funtions presented in this module.
-
- - kronecker
-
- - khatri_rao
-
- - khatri_rao_inner_computations
-
- - gramians
-
- - hadamard
-
- - vec
-
- - vect
-
- - prepare_data
-
- - prepare_data_rmatvec
-
- - update_data_rmatvec
-
- - matvec
-
- - rmatvec
-
- - regularization
-
- - precond
+ This module is responsible for the most costly parts of Tensor Fox.
 
 """
 
@@ -389,6 +361,64 @@ def precond(X, Y, Z, L, M, damp, m, n, p, r):
         
     M = 1/np.sqrt(M)
     return M
+
+
+def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter, tol):
+    """
+    Conjugate gradient algorithm specialized to the tensor case.
+    """
+
+    # Give names to the arrays.
+    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
+    M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = data_rmatvec
+    
+    # Compute the values of all arrays.
+    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
+    N_X, N_Y, N_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
+    L = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
+    M = precond(X, Y, Z, L, M, damp, m, n, p, r)
+    const = 2 + int(cg_maxiter/5)
+    
+    y = 0*y
+    
+    # g = Dres^T*res is the gradient of the error function E.    
+    g = rmatvec(b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
+    residual = M*g
+    P = residual
+    residualnorm = np.dot(residual, residual)
+    if residualnorm == 0.0:
+        residualnorm = 1e-6
+    residualnorm_new = 0.0
+    alpha = 0.0
+    beta = 0.0
+    residual_list = []
+        
+    for itn in range(0, cg_maxiter):
+        Q = M*P
+        z = matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
+        z = M*z
+        denominator = np.dot(P.T, z)
+        if denominator == 0.0:
+            denominator = 1e-6
+        alpha = residualnorm/denominator
+        y += alpha*P
+        residual = residual - alpha*z
+        residualnorm_new = np.dot(residual, residual)
+        beta = residualnorm_new/residualnorm
+        residualnorm = residualnorm_new
+        residual_list.append(residualnorm)
+        P = residual + beta*P
+        
+        # Stopping criteria.
+        if residualnorm < tol:
+            break   
+
+        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
+        if itn >= 2*const and itn%const == 0:  
+            if np.mean(residual_list[itn-2*const : itn-const]) < np.mean(residual_list[itn-const : itn]):
+                break
+    
+    return M*y, g, itn+1, residualnorm
 
 
 @njit(nogil=True)
