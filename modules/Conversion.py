@@ -1,19 +1,7 @@
 """
-Conversion Module
+ Conversion Module
  
- This module, as the name indicates, cares about converting objects into another objects. Below we list all funtions presented in this module.
- 
- - x2cpd
- 
- - cpd2tens
- 
- - tens_entries
- 
- - unfold
- 
- - foldback
-
- - transform
+ This module, as the name indicates, cares about converting objects into another objects.
 
 """
 
