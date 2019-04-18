@@ -1,23 +1,7 @@
 """
-Construction Module
+ Construction Module
  
- As we mentioned in the main module *Tensor Fox*, the module *Construction* is responsible for constructing the more complicated objects necessary to make computations. Between these objects we have the array of residuals, the derivative of the residuals, the starting points to begin the iterations and so on. Below we list all funtions presented in this module.
- 
- - residual
- 
- - residual_entries
- 
- - start_point
- 
- - smart_random
- 
- - smart_sample
- 
- - assign_values
-
- - smart
-
- - find_factor
+ As we mentioned in the main module *Tensor Fox*, the module *Construction* is responsible for constructing the more complicated objects necessary to make computations. Between these objects we have the array of residuals, the derivative of the residuals, the starting points to begin the iterations and so on. 
 
 """ 
 
