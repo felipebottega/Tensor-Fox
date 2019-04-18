@@ -1,55 +1,7 @@
 """
-Auxiliar Module
+ Auxiliar Module
  
- This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the user but most of them are just some piece of another (and more important) function. Below we list all funtions presented in this module.
- 
- - consistency
- 
- - multilin_mult
- 
- - multirank_approx
- 
- - tens2matlab
- 
- - update_damp
-
- - normalize
-
- - denormalize
-
- - equalize
-
- - sort_dims
-
- - sort_T
-
- - unsort_dims
-
- - clean_compression
-
- - update_compression
-
- - compute_error
-
- - compute_energy
-
- - check_jump
-
- - set_constraints
-
- - generate_cuts
-
- - unfoldings_svd
-
- - output_info
-
- - make_options
-
- - make_class_options
-
- - clean_zeros
-
- - compute_core
+ This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the user but most of them are just some piece of another (and more important) function. 
 
 """ 
 
@@ -638,28 +590,28 @@ def set_constraints(m, n, p, level):
     # Normal truncation.
     if level == 1:
         if val <= 1e5:
-            energy_tol = 99.9999999
+            energy_tol = 100 - 1e-7
         if 1e5 < val and val <= 1e6:
-            energy_tol = 99.999
+            energy_tol = 100 - 1e-3
         if 1e6 < val and val <= 1e7:
-            energy_tol = 99.9
+            energy_tol = 100 - 1e-1
         if 1e7 < val:
-            energy_tol = 99
+            energy_tol = 100 - 1
 
     # Truncation is large.
     if level == 2:
         if val <= 1e5:
-            energy_tol = 99.999999999
+            energy_tol = 100 - 1e-9
         if 1e5 < val and val <= 1e6:
-            energy_tol = 99.99999
+            energy_tol = 100 - 1e-5
         if 1e6 < val and val <= 1e7:
-            energy_tol = 99.999
+            energy_tol = 100 - 1e-3
         if 1e7 < val:
-            energy_tol = 99.9
+            energy_tol = 100 - 1e-1
 
     # Truncation is almost equal or equal to the original MLSVD.
     if level == 3:
-        energy_tol = 99.999999999
+        energy_tol = 100 - 1e-9
 
     return energy_tol
 
