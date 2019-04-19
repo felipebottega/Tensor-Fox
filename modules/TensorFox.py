@@ -648,7 +648,7 @@ def dGN(T, X, Y, Z, r, maxiter, tol, symm, low, upp, factor, display):
     data_rmatvec = crt.prepare_data_rmatvec(m, n, p, r)
         
     if display > 1:
-        print('    Iteration | Rel Error  | Rel Error Diff |     ||g||    | Damp| #CG iterations')
+        print('    Iteration | Rel Error  | Rel Error Diff |     |grad|     | Damp| #CG iterations')
     
     # START GAUSS-NEWTON ITERATIONS
     
