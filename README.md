@@ -53,7 +53,6 @@ There are a lot of questions we can make about a given tensor $T$. What are its 
 Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. As the previous function hinted, **T** should have rank 3. We can compute the corresponding CPD with the function **cpd**.
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb5.png)
-![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb6.png)
 
 ## :fox_face: Structure of Tensor Fox
 
