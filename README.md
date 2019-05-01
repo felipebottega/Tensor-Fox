@@ -47,7 +47,7 @@ Since Numpy's convention is different from ours with regard to third order tenso
 
 ### Computing the CPD
 
-Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. As the previous function hinted, **T** should have rank 3. We can compute the corresponding CPD with the function **cpd**.
+Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD with simply calling the function **cpd** with the tensor and the rank as arguments.
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
 
@@ -57,9 +57,9 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 
 |**TensorFox**|  |
 |---|---|
-| cpd| computes the CPD of a tensor *T* with rank *R*. |
+| cpd| computes the CPD of a tensor **T** with rank *R*. |
 | rank| estimates the rank of a tensor.|
-| stats| given a tensor *T* and a rank *R*, this fucntions computes some statistics regarding the CPD computation. |
+| stats| given a tensor **T** and a rank *R*, this fucntions computes some statistics regarding the CPD computation. |
 | foxit| does the same job as the *cpd* function but at the end it prints and plots relevant information. |
    
 |**Auxiliar**|  |
@@ -107,7 +107,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **MultilinearAlgebra**| |
 |---|---|
 | multilin_mult| performs the multilinear multiplication. |
-| multirank_approx| given a tensor *T* and a prescribed multirank (R1, ..., Rm), this function tries to find the (almost) best approximation of *T* with multirank (R1, ..., Rm). |
+| multirank_approx| given a tensor **T** and a prescribed multirank (R1, ..., Rm), this function tries to find the (almost) best approximation of **T** with multirank (R1, ..., Rm). |
 | kronecker| computes the [Kronecker product](https://en.wikipedia.org/wiki/Kronecker_product) between two matrices. |
 | khatri_rao| computes the [Khatri-Rao product](https://en.wikipedia.org/wiki/Kronecker_product#Khatri%E2%80%93Rao_product) between two matrices. |
 | hadamard| computes the [Hadamar product](https://en.wikipedia.org/wiki/Hadamard_product_(matrices)) between two matrices. |
