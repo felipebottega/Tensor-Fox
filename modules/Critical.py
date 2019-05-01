@@ -1,565 +1,2574 @@
 """
  Critical Module
- 
+ ===============
  This module is responsible for the most costly parts of Tensor Fox.
-
 """
 
 import numpy as np
-from numba import jit, njit, prange
-
-
-@njit(nogil=True)
-def kronecker(A, B):
-    """
-    Computes the Kronecker product between A and B. We must have 
-    M.shape = (a1*b1, a2*b2), where A.shape = (a1, a2) and B.shape = (b1, b2). 
-    """
-
-    a1, a2 = A.shape
-    b1, b2 = B.shape
-    M = np.zeros((a1*b1, a2*b2), dtype = np.float64)
-    
-    for i in range(0, a1-1):
-        for j in range(0, a2-1):
-            M[i*b1 : (i+1)*b1, j*b2 : (j+1)*b2] = A[i, j]*B
-
-    return M 
+from numpy import dot, empty, float64
+from numba import njit, prange
 
 
 @njit(nogil=True, parallel=True)
-def khatri_rao(A, B, M):
-    """
-    Computes the Khatri-Rao product between A and B. We must have 
-    M.shape = (a1*b1, a2), where A.shape = (a1, a2) and B.shape = (b1, b2),
-    with a2 == b2. 
-    """
-
-    a1, a2 = A.shape
-    b1, b2 = B.shape
-    
-    for i in prange(0, a1):
-        M[i*b1 : (i+1)*b1, :] = khatri_rao_inner_computations(A, B, M, i, b1, b2)
-
-    return M 
-
-
-@njit(nogil=True)
-def khatri_rao_inner_computations(A, B, M, i, b1, b2):
-    """
-    Computes A[i, :]*B.
-    """
-
-    for k in range(0, b1):
-        for j in range(0, b2):
-            M[i*b1 + k, j] = A[i,j]*B[k,j]
-
-    return M[i*b1 : (i+1)*b1, :] 
-
-
-@njit(nogil=True)
-def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
-    """ 
-    Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard
-    products between the different Gramians. 
-    """
-    
-    Gr_X = np.dot(X.T, X)
-    Gr_Y = np.dot(Y.T, Y)
-    Gr_Z = np.dot(Z.T, Z)
-    Gr_XY = Gr_X*Gr_Y
-    Gr_XZ = Gr_X*Gr_Z
-    Gr_YZ = Gr_Y*Gr_Z
-            
-    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
+def unfold1_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i2 in prange(I2):
+        for i1 in range(I1):
+            s = i2*I1 + i1
+            Tl[:,s] = T[:, i1, i2]
+    return Tl
 
 
 @njit(nogil=True, parallel=True)
-def hadamard(A, B, M, r):
-    """
-    Computes M = A * B, where * is the Hadamard product. Since all Hadamard
-    products in this context are between r x r matrices, we assume this
-    without verifications.
-    """
-    
-    for i in prange(0, r):
-            M[i,:] = A[i, :]*B[i, :]
-
-    return M 
+def unfold2_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i2 in prange(I2):
+        for i0 in range(I0):
+            s = i2*I0 + i0
+            Tl[:,s] = T[i0, :, i2]
+    return Tl
 
 
 @njit(nogil=True, parallel=True)
-def vec(M, Bv, num_rows, r):
-    """ 
-    Take a matrix M with shape (num_rows, r) and stack vertically its columns
-    to form the matrix Bv = vec(M) with shape (num_rows*r,).
-    """
-    
-    for j in prange(0, r):
-        Bv[j*num_rows : (j+1)*num_rows] = M[:,j]
-        
-    return Bv
+def unfold3_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i1 in prange(I1):
+        for i0 in range(I0):
+            s = i1*I0 + i0
+            Tl[:,s] = T[i0, i1, :]
+    return Tl
 
 
 @njit(nogil=True, parallel=True)
-def vect(M, Bv, num_cols, r):
-    """ 
-    Take a matrix M with shape (r, num_cols) and stack vertically its rows
-    to form the matrix Bv = vec(M) with shape (num_cols*r,).
-    """
-    
-    for i in prange(0, r):
-        Bv[i*num_cols : (i+1)*num_cols] = M[i,:]
-        
-    return Bv
+def unfold1_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                s = i3*I1*I2 + i2*I1 + i1
+                Tl[:,s] = T[:, i1, i2, i3]
+    return Tl
 
 
-def prepare_data(m, n, p, r):
-    """
-    Initialize all necessary matrices to keep the values of several computations
-    during the program.
-    """
+@njit(nogil=True, parallel=True)
+def unfold2_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i0 in range(I0):
+                s = i3*I0*I2 + i2*I0 + i0
+                Tl[:,s] = T[i0, :, i2, i3]
+    return Tl
 
-    # Grammians
-    Gr_X = np.zeros((r,r), dtype = np.float64)
-    Gr_Y = np.zeros((r,r), dtype = np.float64)
-    Gr_Z = np.zeros((r,r), dtype = np.float64)
-    Gr_XY = np.zeros((r,r), dtype = np.float64)
-    Gr_XZ = np.zeros((r,r), dtype = np.float64)
-    Gr_YZ = np.zeros((r,r), dtype = np.float64)
-    
-    # V_X^T, V_Y^T, V_Z^T
-    V_Xt = np.zeros((r,m), dtype = np.float64)
-    V_Yt = np.zeros((r,n), dtype = np.float64)
-    V_Zt = np.zeros((r,p), dtype = np.float64)
 
-    # Initializations of matrices to receive the results of the computations.
-    V_Xt_dot_X = np.zeros((r,r), dtype = np.float64)
-    V_Yt_dot_Y = np.zeros((r,r), dtype = np.float64)
-    V_Zt_dot_Z = np.zeros((r,r), dtype = np.float64)
-    Gr_Z_V_Yt_dot_Y = np.zeros((r,r), dtype = np.float64)
-    Gr_Y_V_Zt_dot_Z = np.zeros((r,r), dtype = np.float64)
-    Gr_X_V_Zt_dot_Z = np.zeros((r,r), dtype = np.float64)
-    Gr_Z_V_Xt_dot_X = np.zeros((r,r), dtype = np.float64)
-    Gr_Y_V_Xt_dot_X = np.zeros((r,r), dtype = np.float64)
-    Gr_X_V_Yt_dot_Y = np.zeros((r,r), dtype = np.float64)    
-    X_dot_Gr_Z_V_Yt_dot_Y = np.zeros((r,r), dtype = np.float64)
-    X_dot_Gr_Y_V_Zt_dot_Z = np.zeros((r,r), dtype = np.float64)
-    Y_dot_Gr_X_V_Zt_dot_Z = np.zeros((r,r), dtype = np.float64)
-    Y_dot_Gr_Z_V_Xt_dot_X = np.zeros((r,r), dtype = np.float64)
-    Z_dot_Gr_Y_V_Xt_dot_X = np.zeros((r,r), dtype = np.float64)
-    Z_dot_Gr_X_V_Yt_dot_Y = np.zeros((r,r), dtype = np.float64)
-    
-    # Matrices for the diagonal block
-    Gr_YZ_V_Xt = np.zeros((m,r), dtype = np.float64)
-    Gr_XZ_V_Yt = np.zeros((n,r), dtype = np.float64)
-    Gr_XY_V_Zt = np.zeros((p,r), dtype = np.float64)
-    
-    # Final blocks
-    B_X_v = np.zeros(m*r, dtype = np.float64)
-    B_Y_v = np.zeros(n*r, dtype = np.float64)
-    B_Z_v = np.zeros(p*r, dtype = np.float64)
-    B_XY_v = np.zeros(m*r, dtype = np.float64)
-    B_XZ_v = np.zeros(m*r, dtype = np.float64)
-    B_YZ_v = np.zeros(n*r, dtype = np.float64)
-    B_XYt_v = np.zeros(n*r, dtype = np.float64)
-    B_XZt_v = np.zeros(p*r, dtype = np.float64) 
-    B_YZt_v = np.zeros(p*r, dtype = np.float64)
+@njit(nogil=True, parallel=True)
+def unfold3_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i1 in range(I1):
+            for i0 in range(I0):
+                s = i3*I0*I1 + i1*I0 + i0
+                Tl[:,s] = T[i0, i1, :, i3]
+    return Tl
 
-    # Matrices to use when constructing the Tikhonov matrix for regularization.
-    X_norms = np.zeros(r, dtype = np.float64)
-    Y_norms = np.zeros(r, dtype = np.float64)
-    Z_norms = np.zeros(r, dtype = np.float64)
-    gamma_X = np.zeros(r, dtype = np.float64)
-    gamma_Y = np.zeros(r, dtype = np.float64)
-    gamma_Z = np.zeros(r, dtype = np.float64)
-    Gamma = np.zeros(r*(m+n+p), dtype = np.float64)
 
-    # Arrays to be used in the Conjugated Gradient.
-    M = np.ones(r*(m+n+p), dtype = np.float64)
-    L = np.ones(r*(m+n+p), dtype = np.float64)    
-    residual_cg = np.zeros(r*(m+n+p), dtype = np.float64)
-    P = np.zeros(r*(m+n+p), dtype = np.float64)
-    Q = np.zeros(r*(m+n+p), dtype = np.float64)
-    z = np.zeros(r*(m+n+p), dtype = np.float64)
-    
-    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z   
+@njit(nogil=True, parallel=True)
+def unfold4_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i2 in prange(I2):
+        for i1 in range(I1):
+            for i0 in range(I0):
+                s = i2*I0*I1 + i1*I0 + i0
+                Tl[:,s] = T[i0, i1, i2, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    s = i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                    Tl[:,s] = T[:, i1, i2, i3, i4]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i0 in range(I0):
+                    s = i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                    Tl[:,s] = T[i0, :, i2, i3, i4]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                    Tl[:,s] = T[i0, i1, :, i3, i4]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                    Tl[:,s] = T[i0, i1, i2, :, i4]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                    Tl[:,s] = T[i0, i1, i2, i3, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        s = i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                        Tl[:,s] = T[:, i1, i2, i3, i4, i5]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i0 in range(I0):
+                        s = i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                        Tl[:,s] = T[i0, :, i2, i3, i4, i5]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                        Tl[:,s] = T[i0, i1, :, i3, i4, i5]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        Tl[:,s] = T[i0, i1, i2, :, i4, i5]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        Tl[:,s] = T[i0, i1, i2, i3, :, i5]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        Tl[:,s] = T[i0, i1, i2, i3, i4, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            s = i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                            Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i0 in range(I0):
+                            s = i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                            Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                            Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                s = i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i0 in range(I0):
+                                s = i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :, i7]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold8_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    s = i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                    Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i0 in range(I0):
+                                    s = i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                    Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :, i7, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold8_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, :, i8]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold9_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        s = i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                        Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                        Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold8_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold9_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold10_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            s = i10*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                            Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                            Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold8_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold9_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold10_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :, i10]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold11_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold1_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i2 in range(I2):
+                                            for i1 in range(I1):
+                                                s = i11*I1*I2*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                                Tl[:,s] = T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold2_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i2 in range(I2):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I2*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                                Tl[:,s] = T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold3_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold4_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold5_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold6_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold7_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold8_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold9_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I7*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold10_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I8*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :, i10, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold11_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, :, i11]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def unfold12_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                Tl[:,s] = T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, :]
+    return Tl
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i2 in prange(I2):
+        for i1 in range(I1):
+            s = i2*I1 + i1
+            T[:, i1, i2] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i2 in prange(I2):
+        for i0 in range(I0):
+            s = i2*I0 + i0
+            T[i0, :, i2] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order3(T, Tl, dims):
+    I0, I1, I2 = dims
+    for i1 in prange(I1):
+        for i0 in range(I0):
+            s = i1*I0 + i0
+            T[i0, i1, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                s = i3*I1*I2 + i2*I1 + i1
+                T[:, i1, i2, i3] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i0 in range(I0):
+                s = i3*I0*I2 + i2*I0 + i0
+                T[i0, :, i2, i3] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i3 in prange(I3):
+        for i1 in range(I1):
+            for i0 in range(I0):
+                s = i3*I0*I1 + i1*I0 + i0
+                T[i0, i1, :, i3] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order4(T, Tl, dims):
+    I0, I1, I2, I3 = dims
+    for i2 in prange(I2):
+        for i1 in range(I1):
+            for i0 in range(I0):
+                s = i2*I0*I1 + i1*I0 + i0
+                T[i0, i1, i2, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    s = i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                    T[:, i1, i2, i3, i4] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i0 in range(I0):
+                    s = i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                    T[i0, :, i2, i3, i4] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                    T[i0, i1, :, i3, i4] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i4 in prange(I4):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                    T[i0, i1, i2, :, i4] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order5(T, Tl, dims):
+    I0, I1, I2, I3, I4 = dims
+    for i3 in prange(I3):
+        for i2 in range(I2):
+            for i1 in range(I1):
+                for i0 in range(I0):
+                    s = i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                    T[i0, i1, i2, i3, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        s = i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                        T[:, i1, i2, i3, i4, i5] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i0 in range(I0):
+                        s = i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                        T[i0, :, i2, i3, i4, i5] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                        T[i0, i1, :, i3, i4, i5] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        T[i0, i1, i2, :, i4, i5] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i5 in prange(I5):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        T[i0, i1, i2, i3, :, i5] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order6(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5 = dims
+    for i4 in prange(I4):
+        for i3 in range(I3):
+            for i2 in range(I2):
+                for i1 in range(I1):
+                    for i0 in range(I0):
+                        s = i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                        T[i0, i1, i2, i3, i4, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            s = i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                            T[:, i1, i2, i3, i4, i5, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i0 in range(I0):
+                            s = i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                            T[i0, :, i2, i3, i4, i5, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                            T[i0, i1, :, i3, i4, i5, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            T[i0, i1, i2, :, i4, i5, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            T[i0, i1, i2, i3, :, i5, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i6 in prange(I6):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            T[i0, i1, i2, i3, i4, :, i6] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order7(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6 = dims
+    for i5 in prange(I5):
+        for i4 in range(I4):
+            for i3 in range(I3):
+                for i2 in range(I2):
+                    for i1 in range(I1):
+                        for i0 in range(I0):
+                            s = i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                            T[i0, i1, i2, i3, i4, i5, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                s = i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                T[:, i1, i2, i3, i4, i5, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i0 in range(I0):
+                                s = i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                T[i0, :, i2, i3, i4, i5, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                T[i0, i1, :, i3, i4, i5, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                T[i0, i1, i2, :, i4, i5, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                T[i0, i1, i2, i3, :, i5, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                T[i0, i1, i2, i3, i4, :, i6, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i7 in prange(I7):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                T[i0, i1, i2, i3, i4, i5, :, i7] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback8_order8(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7 = dims
+    for i6 in prange(I6):
+        for i5 in range(I5):
+            for i4 in range(I4):
+                for i3 in range(I3):
+                    for i2 in range(I2):
+                        for i1 in range(I1):
+                            for i0 in range(I0):
+                                s = i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                T[i0, i1, i2, i3, i4, i5, i6, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    s = i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                    T[:, i1, i2, i3, i4, i5, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i0 in range(I0):
+                                    s = i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                    T[i0, :, i2, i3, i4, i5, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, :, i3, i4, i5, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, :, i4, i5, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, i3, :, i5, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, i3, i4, :, i6, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, i3, i4, i5, :, i7, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback8_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i8 in prange(I8):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, i3, i4, i5, i6, :, i8] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback9_order9(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8 = dims
+    for i7 in prange(I7):
+        for i6 in range(I6):
+            for i5 in range(I5):
+                for i4 in range(I4):
+                    for i3 in range(I3):
+                        for i2 in range(I2):
+                            for i1 in range(I1):
+                                for i0 in range(I0):
+                                    s = i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                    T[i0, i1, i2, i3, i4, i5, i6, i7, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        s = i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                        T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                        T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback8_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback9_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i9 in prange(I9):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback10_order10(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9 = dims
+    for i8 in prange(I8):
+        for i7 in range(I7):
+            for i6 in range(I6):
+                for i5 in range(I5):
+                    for i4 in range(I4):
+                        for i3 in range(I3):
+                            for i2 in range(I2):
+                                for i1 in range(I1):
+                                    for i0 in range(I0):
+                                        s = i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                        T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            s = i10*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                            T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                            T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback8_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback9_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback10_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i10 in prange(I10):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :, i10] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback11_order11(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10 = dims
+    for i9 in prange(I9):
+        for i8 in range(I8):
+            for i7 in range(I7):
+                for i6 in range(I6):
+                    for i5 in range(I5):
+                        for i4 in range(I4):
+                            for i3 in range(I3):
+                                for i2 in range(I2):
+                                    for i1 in range(I1):
+                                        for i0 in range(I0):
+                                            s = i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                            T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, :] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback1_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i2 in range(I2):
+                                            for i1 in range(I1):
+                                                s = i11*I1*I2*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I1*I2*I3*I4*I5*I6*I7 + i7*I1*I2*I3*I4*I5*I6 + i6*I1*I2*I3*I4*I5 + i5*I1*I2*I3*I4 + i4*I1*I2*I3 + i3*I1*I2 + i2*I1 + i1
+                                                T[:, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback2_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i2 in range(I2):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I2*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I2*I3*I4*I5*I6*I7 + i7*I0*I2*I3*I4*I5*I6 + i6*I0*I2*I3*I4*I5 + i5*I0*I2*I3*I4 + i4*I0*I2*I3 + i3*I0*I2 + i2*I0 + i0
+                                                T[i0, :, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback3_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i3 in range(I3):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I3*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I3*I4*I5*I6*I7 + i7*I0*I1*I3*I4*I5*I6 + i6*I0*I1*I3*I4*I5 + i5*I0*I1*I3*I4 + i4*I0*I1*I3 + i3*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, :, i3, i4, i5, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback4_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i4 in range(I4):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I4*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I4*I5*I6*I7 + i7*I0*I1*I2*I4*I5*I6 + i6*I0*I1*I2*I4*I5 + i5*I0*I1*I2*I4 + i4*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, :, i4, i5, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback5_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i5 in range(I5):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I5*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I5*I6*I7 + i7*I0*I1*I2*I3*I5*I6 + i6*I0*I1*I2*I3*I5 + i5*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, :, i5, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback6_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i6 in range(I6):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I6*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I6*I7 + i7*I0*I1*I2*I3*I4*I6 + i6*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, :, i6, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback7_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i7 in range(I7):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I7*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I7 + i7*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, :, i7, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback8_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i8 in range(I8):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I8*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I8 + i8*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, i6, :, i8, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback9_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i9 in range(I9):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I9*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I7*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, i6, i7, :, i9, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback10_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i10 in range(I10):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I8*I10 + i10*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, i6, i7, i8, :, i10, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback11_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i11 in prange(I11):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i11*I0*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, :, i11] = Tl[:,s]
+    return T
+
+
+@njit(nogil=True, parallel=True)
+def foldback12_order12(T, Tl, dims):
+    I0, I1, I2, I3, I4, I5, I6, I7, I8, I9, I10, I11 = dims
+    for i10 in prange(I10):
+        for i9 in range(I9):
+            for i8 in range(I8):
+                for i7 in range(I7):
+                    for i6 in range(I6):
+                        for i5 in range(I5):
+                            for i4 in range(I4):
+                                for i3 in range(I3):
+                                    for i2 in range(I2):
+                                        for i1 in range(I1):
+                                            for i0 in range(I0):
+                                                s = i10*I0*I1*I2*I3*I4*I5*I6*I7*I8*I9 + i9*I0*I1*I2*I3*I4*I5*I6*I7*I8 + i8*I0*I1*I2*I3*I4*I5*I6*I7 + i7*I0*I1*I2*I3*I4*I5*I6 + i6*I0*I1*I2*I3*I4*I5 + i5*I0*I1*I2*I3*I4 + i4*I0*I1*I2*I3 + i3*I0*I1*I2 + i2*I0*I1 + i1*I0 + i0
+                                                T[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, :] = Tl[:,s]
+    return T
 
 
 @njit(nogil=True)
-def prepare_data_rmatvec(m, n, p, r):
-    """
-    This function creates several auxiliar matrices which will be used later 
-    to accelerate matrix-vector products.
-    """
-
-    M_X = np.zeros((n*p, r), dtype = np.float64)
+def tt_error_order4(T, G0, G1, G2, G3, dims, L):
+    a, b, c, d = dims
+    T_approx = empty(dims, dtype = float64)
     
-    M_Y = np.zeros((m*p, r), dtype = np.float64)
-    
-    M_Z = np.zeros((m*n,r), dtype = np.float64) 
-    
-    # B_X^T
-    w_Xt = np.zeros(n*p, dtype = np.float64)
-    Mw_Xt = np.zeros(r, dtype = np.float64)
-    Bu_Xt = np.zeros(r*m, dtype = np.float64) 
-    N_X = np.zeros((r, n*p), dtype = np.float64)
-    
-    # B_Y^T
-    w_Yt = np.zeros(m*p, dtype = np.float64)
-    Mw_Yt = np.zeros(r, dtype = np.float64)
-    Bu_Yt = np.zeros(r*n, dtype = np.float64) 
-    N_Y = np.zeros((r, m*p), dtype = np.float64)
-    
-    # B_Z^T
-    w_Zt = np.zeros((p,m*n), dtype = np.float64)
-    Bu_Zt = np.zeros(r*p, dtype = np.float64) 
-    Mu_Zt = np.zeros(r, dtype = np.float64)
-    N_Z = np.zeros((r, m*n), dtype = np.float64)
-        
-    return M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    A = G0[i0,:]
+                    B = dot(A, G1[:,i1,:])
+                    C = dot(B, G2[:,i2,:])
+                    T_approx[i0,i1,i2,i3] = dot(C, G3[:,i3])
+                
+    return T_approx
 
 
 @njit(nogil=True)
-def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z):
-    """
-    This function creates several auxiliar matrices which will be used later 
-    to accelerate matrix-vector products.
-    """
-
-    M_X = -khatri_rao(Y, Z, M_X)
-
-    M_Y = -khatri_rao(X, Z, M_Y)
-
-    M_Z = -khatri_rao(X, Y, M_Z) 
+def tt_error_order5(T, G0, G1, G2, G3, G4, dims, L):
+    a, b, c, d, e = dims
+    T_approx = empty(dims, dtype = float64)
     
-    return M_X, M_Y, M_Z
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        A = G0[i0,:]
+                        B = dot(A, G1[:,i1,:])
+                        C = dot(B, G2[:,i2,:])
+                        D = dot(C, G3[:,i3,:])  
+                        T_approx[i0,i1,i2,i3,i4] = dot(D, G4[:,i4])
+                
+    return T_approx
 
 
 @njit(nogil=True)
-def matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, v, m, n, p, r): 
-    """
-    Makes the matrix-vector computation (Dres.transpose*Dres)*v. 
-    """
-     
-    # Split v into three blocks, convert them into matrices and transpose them. 
-    # With this we have the matrices V_X^T, V_Y^T, V_Z^T.
-    V_Xt = v[0 : m*r].reshape(r, m)
-    V_Yt = v[m*r : r*(m+n)].reshape(r, n)
-    V_Zt = v[r*(m+n) : r*(m+n+p)].reshape(r, p)
-       
-    # Compute the products V_X^T*X, V_Y^T*Y, V_Z^T*Z
-    V_Xt_dot_X = np.dot(V_Xt, X)
-    V_Yt_dot_Y = np.dot(V_Yt, Y)
-    V_Zt_dot_Z = np.dot(V_Zt, Z)
+def tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L):
+    a, b, c, d, e, f = dims
+    T_approx = empty(dims, dtype = float64)
     
-    # Compute the Hadamard products
-    Gr_Z_V_Yt_dot_Y = hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y, r)
-    Gr_Y_V_Zt_dot_Z = hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z, r)
-    Gr_X_V_Zt_dot_Z = hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, r)
-    Gr_Z_V_Xt_dot_X = hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X, r)
-    Gr_Y_V_Xt_dot_X = hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X, r)
-    Gr_X_V_Yt_dot_Y = hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y, r)
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            A = G0[i0,:]
+                            B = dot(A, G1[:,i1,:])
+                            C = dot(B, G2[:,i2,:])
+                            D = dot(C, G3[:,i3,:])
+                            E = dot(D, G4[:,i4,:])
+                            T_approx[i0,i1,i2,i3,i4,i5] = dot(E, G5[:,i5])
+                
+    return T_approx
+
+
+@njit(nogil=True)
+def tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L):
+    a, b, c, d, e, f, g = dims
+    T_approx = empty(dims, dtype = float64)
     
-    # Compute the final products
-    X_dot_Gr_Z_V_Yt_dot_Y = np.dot(X, Gr_Z_V_Yt_dot_Y)
-    X_dot_Gr_Y_V_Zt_dot_Z = np.dot(X, Gr_Y_V_Zt_dot_Z)
-    Y_dot_Gr_X_V_Zt_dot_Z = np.dot(Y, Gr_X_V_Zt_dot_Z)
-    Y_dot_Gr_Z_V_Xt_dot_X = np.dot(Y, Gr_Z_V_Xt_dot_X)
-    Z_dot_Gr_Y_V_Xt_dot_X = np.dot(Z, Gr_Y_V_Xt_dot_X)
-    Z_dot_Gr_X_V_Yt_dot_Y = np.dot(Z, Gr_X_V_Yt_dot_Y)
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                A = G0[i0,:]
+                                B = dot(A, G1[:,i1,:])
+                                C = dot(B, G2[:,i2,:])
+                                D = dot(C, G3[:,i3,:])
+                                E = dot(D, G4[:,i4,:])
+                                F = dot(E, G5[:,i5,:])
+                                T_approx[i0,i1,i2,i3,i4,i5,i6] = dot(F, G6[:,i6])
+                
+    return T_approx
+
+
+@njit(nogil=True)
+def tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L):
+    a, b, c, d, e, f, g, h = dims
+    T_approx = empty(dims, dtype = float64)
     
-    # Diagonal block matrices
-    Gr_YZ_V_Xt = np.dot(Gr_YZ, V_Xt)
-    Gr_XZ_V_Yt = np.dot(Gr_XZ, V_Yt)
-    Gr_XY_V_Zt = np.dot(Gr_XY, V_Zt)
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                for i7 in range(h):
+                                    A = G0[i0,:]
+                                    B = dot(A, G1[:,i1,:])
+                                    C = dot(B, G2[:,i2,:])
+                                    D = dot(C, G3[:,i3,:])
+                                    E = dot(D, G4[:,i4,:])
+                                    F = dot(E, G5[:,i5,:])
+                                    G = dot(F, G6[:,i6,:])
+                                    T_approx[i0,i1,i2,i3,i4,i5,i6,i7] = dot(G, G7[:,i7])
+                
+    return T_approx
+
+
+@njit(nogil=True)
+def tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L):
+    a, b, c, d, e, f, g, h, i = dims
+    T_approx = empty(dims, dtype = float64)
     
-    # Vectorize the matrices to have the final vectors
-    B_X_v = vect(Gr_YZ_V_Xt, B_X_v, m, r)
-    B_Y_v = vect(Gr_XZ_V_Yt, B_Y_v, n, r)
-    B_Z_v = vect(Gr_XY_V_Zt, B_Z_v, p, r)
-    B_XY_v = vec(X_dot_Gr_Z_V_Yt_dot_Y, B_XY_v, m, r)
-    B_XZ_v = vec(X_dot_Gr_Y_V_Zt_dot_Z, B_XZ_v, m, r)
-    B_YZ_v = vec(Y_dot_Gr_X_V_Zt_dot_Z, B_YZ_v, n, r)
-    B_XYt_v = vec(Y_dot_Gr_Z_V_Xt_dot_X, B_XYt_v, n, r)
-    B_XZt_v = vec(Z_dot_Gr_Y_V_Xt_dot_X, B_XZt_v, p, r) 
-    B_YZt_v = vec(Z_dot_Gr_X_V_Yt_dot_Y, B_YZt_v, p, r)
-
-    return np.concatenate((B_X_v + B_XY_v + B_XZ_v, B_XYt_v + B_Y_v + B_YZ_v, B_XZt_v + B_YZt_v + B_Z_v)) 
-
-
-@njit(nogil=True)
-def rmatvec(u, w_Xt, Mw_Xt, Bu_Xt, M_X, w_Yt, Mw_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, Mu_Zt, M_Z, m, n, p, r):     
-    """    
-    Computes the matrix-vector product Dres.transpose*u.
-    """
- 
-    "B_Xt"
-    for i in range(0, m):
-        w_Xt = u[i*n*p : (i+1)*n*p] 
-        Mw_Xt = np.dot(w_Xt, M_X).transpose()
-        Bu_Xt[i + m*np.arange(0, r)] = Mw_Xt
-
-    "B_Yt"
-    for j in range(0, n):
-        for i in range(0, m):
-            w_Yt[i*p : (i+1)*p] = u[j*p + i*n*p : (j+1)*p + i*n*p] 
-        Mw_Yt = np.dot(w_Yt, M_Y).transpose()
-        Bu_Yt[j + n*np.arange(0, r)] = Mw_Yt
-
-    "B_Zt"
-    w_Zt = u.reshape(m*n, p).transpose()
-    for k in range(0, p):
-        Mu_Zt = np.dot(w_Zt[k,:], M_Z).transpose()
-        Bu_Zt[k + p*np.arange(0, r)] = Mu_Zt
-
-    return np.hstack((Bu_Xt, Bu_Yt, Bu_Zt))
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                for i7 in range(h):
+                                    for i8 in range(i):
+                                        A = G0[i0,:]
+                                        B = dot(A, G1[:,i1,:])
+                                        C = dot(B, G2[:,i2,:])
+                                        D = dot(C, G3[:,i3,:])
+                                        E = dot(D, G4[:,i4,:])
+                                        F = dot(E, G5[:,i5,:])
+                                        G = dot(F, G6[:,i6,:])
+                                        H = dot(G, G7[:,i7,:])
+                                        T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8] = dot(H, G8[:,i8])
+                
+    return T_approx
 
 
 @njit(nogil=True)
-def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r):
-    """
-    Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed
-    specifically to make Dres.transpose*Dres + Gamma diagonally dominant.
-    """
-        
-    for l in range(0, r):
-        X_norms[l] = np.sqrt( np.dot(X[:,l], X[:,l]) )
-        Y_norms[l] = np.sqrt( np.dot(Y[:,l], Y[:,l]) )
-        Z_norms[l] = np.sqrt( np.dot(Z[:,l], Z[:,l]) )
+def tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L):
+    a, b, c, d, e, f, g, h, i, j = dims
+    T_approx = empty(dims, dtype = float64)
     
-    max_XY = np.max(X_norms*Y_norms)
-    max_XZ = np.max(X_norms*Z_norms)
-    max_YZ = np.max(Y_norms*Z_norms)
-    max_all = max(max_XY, max_XZ, max_YZ)
-        
-    for l in range(0, r):
-        gamma_X[l] = Y_norms[l]*Z_norms[l]*max_all
-        gamma_Y[l] = X_norms[l]*Z_norms[l]*max_all
-        gamma_Z[l] = X_norms[l]*Y_norms[l]*max_all
-        
-    for l in range(0, r):
-        Gamma[l*m : (l+1)*m] = gamma_X[l]
-        Gamma[m*r+l*n : m*r+(l+1)*n] = gamma_Y[l]
-        Gamma[r*(m+n)+l*p : r*(m+n)+(l+1)*p] = gamma_Z[l]
-        
-    return Gamma
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                for i7 in range(h):
+                                    for i8 in range(i):
+                                        for i9 in range(j):
+                                            A = G0[i0,:]
+                                            B = dot(A, G1[:,i1,:])
+                                            C = dot(B, G2[:,i2,:])
+                                            D = dot(C, G3[:,i3,:])
+                                            E = dot(D, G4[:,i4,:])
+                                            F = dot(E, G5[:,i5,:])
+                                            G = dot(F, G6[:,i6,:])
+                                            H = dot(G, G7[:,i7,:])
+                                            I = dot(H, G8[:,i8,:])
+                                            T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9] = dot(I, G9[:,i9])
+                
+    return T_approx
 
 
 @njit(nogil=True)
-def precond(X, Y, Z, L, M, damp, m, n, p, r):
-    """
-    This function constructs a preconditioner in order to accelerate the Conjugate Gradient fucntion.
-    It is a diagonal preconditioner designed to make Dres.transpose*Dres + Gamma a unit diagonal matrix. Since 
-    the matrix is diagonally dominant, the result will be close to the identity matrix. Therefore, it will be
-    very well conditioned with its eigenvalues clustered together.
-    """
-    for l in range(0, r):
-        M[l*m : (l+1)*m] = np.dot(Y[:,l], Y[:,l])*np.dot(Z[:,l], Z[:,l]) + damp*L[l*m : (l+1)*m] 
-        M[m*r+l*n : m*r+(l+1)*n] = np.dot(X[:,l], X[:,l])*np.dot(Z[:,l], Z[:,l]) + damp*L[m*r+l*n : m*r+(l+1)*n] 
-        M[r*(m+n)+l*p : r*(m+n)+(l+1)*p] = np.dot(X[:,l], X[:,l])*np.dot(Y[:,l], Y[:,l]) + damp*L[r*(m+n)+l*p : r*(m+n)+(l+1)*p]    
-        
-    M = 1/np.sqrt(M)
-    return M
-
-
-def cg(X, Y, Z, data, data_rmatvec, y, g, b, m, n, p, r, damp, cg_maxiter, tol):
-    """
-    Conjugate gradient algorithm specialized to the tensor case.
-    """
-
-    # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
-    M_X, M_Y, M_Z, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z = data_rmatvec
+def tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L):
+    a, b, c, d, e, f, g, h, i, j, k = dims
+    T_approx = empty(dims, dtype = float64)
     
-    # Compute the values of all arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
-    N_X, N_Y, N_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
-    L = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
-    M = precond(X, Y, Z, L, M, damp, m, n, p, r)
-    const = 2 + int(cg_maxiter/5)
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                for i7 in range(h):
+                                    for i8 in range(i):
+                                        for i9 in range(j):
+                                            for i10 in range(k):
+                                                A = G0[i0,:]
+                                                B = dot(A, G1[:,i1,:])
+                                                C = dot(B, G2[:,i2,:])
+                                                D = dot(C, G3[:,i3,:])
+                                                E = dot(D, G4[:,i4,:])
+                                                F = dot(E, G5[:,i5,:])
+                                                G = dot(F, G6[:,i6,:])
+                                                H = dot(G, G7[:,i7,:])
+                                                I = dot(H, G8[:,i8,:])
+                                                J = dot(I, G9[:,i9,:])
+                                                T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10] = dot(J, G10[:,i10])
+                
+    return T_approx
+
+
+@njit(nogil=True)
+def tt_error_order12(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11, dims, L):
+    a, b, c, d, e, f, g, h, i, j, k, m = dims
+    T_approx = empty(dims, dtype = float64)
     
-    y = 0*y
-    
-    # g = Dres^T*res is the gradient of the error function E.    
-    g = rmatvec(b, w_Xt, Mw_Xt, Bu_Xt, N_X, w_Yt, Mw_Yt, Bu_Yt, N_Y, w_Zt, Bu_Zt, Mu_Zt, N_Z, m, n, p, r)
-    residual = M*g
-    P = residual
-    residualnorm = np.dot(residual, residual)
-    if residualnorm == 0.0:
-        residualnorm = 1e-6
-    residualnorm_new = 0.0
-    alpha = 0.0
-    beta = 0.0
-    residual_list = []
-        
-    for itn in range(0, cg_maxiter):
-        Q = M*P
-        z = matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
-        z = M*z
-        denominator = np.dot(P.T, z)
-        if denominator == 0.0:
-            denominator = 1e-6
-        alpha = residualnorm/denominator
-        y += alpha*P
-        residual = residual - alpha*z
-        residualnorm_new = np.dot(residual, residual)
-        beta = residualnorm_new/residualnorm
-        residualnorm = residualnorm_new
-        residual_list.append(residualnorm)
-        P = residual + beta*P
-        
-        # Stopping criteria.
-        if residualnorm < tol:
-            break   
-
-        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms from itn-const to itn.
-        if itn >= 2*const and itn%const == 0:  
-            if np.mean(residual_list[itn-2*const : itn-const]) < np.mean(residual_list[itn-const : itn]):
-                break
-    
-    return M*y, g, itn+1, residualnorm
-
-
-@njit(nogil=True)
-def unfold1_order4(T, T1, dims):
-    rows, a, b, c = dims
-    s = 0
-    for i3 in range(c):
-        for i2 in range(b):
-            for i1 in range(a):
-                T1[:,s] = T[:,i1,i2,i3]
-                s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order5(T, T1, dims):
-    rows, a, b, c, d = dims
-    s = 0
-    for i4 in range(d):
-        for i3 in range(c):
-            for i2 in range(b):
-                for i1 in range(a):
-                    T1[:,s] = T[:,i1,i2,i3,i4]
-                    s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order6(T, T1, dims):
-    rows, a, b, c, d, e = dims
-    s = 0
-    for i5 in range(e):
-        for i4 in range(d):
-            for i3 in range(c):
-                for i2 in range(b):
-                    for i1 in range(a):
-                        T1[:,s] = T[:,i1,i2,i3,i4,i5]
-                        s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order7(T, T1, dims):
-    rows, a, b, c, d, e, f = dims
-    s = 0
-    for i6 in range(f):
-        for i5 in range(e):
-            for i4 in range(d):
-                for i3 in range(c):
-                    for i2 in range(b):
-                        for i1 in range(a):
-                            T1[:,s] = T[:,i1,i2,i3,i4,i5,i6]
-                            s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order8(T, T1, dims):
-    rows, a, b, c, d, e, f, g = dims
-    s = 0
-    for i7 in range(g):
-        for i6 in range(f):
-            for i5 in range(e):
-                for i4 in range(d):
-                    for i3 in range(c):
-                        for i2 in range(b):
-                            for i1 in range(a):
-                                T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7]
-                                s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order9(T, T1, dims):
-    rows, a, b, c, d, e, f, g, h = dims
-    s = 0
-    for i8 in range(h):
-        for i7 in range(g):
-            for i6 in range(f):
-                for i5 in range(e):
-                    for i4 in range(d):
-                        for i3 in range(c):
-                            for i2 in range(b):
-                                for i1 in range(a):
-                                    T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8]
-                                    s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order10(T, T1, dims):
-    rows, a, b, c, d, e, f, g, h, i = dims
-    s = 0
-    for i9 in range(i):
-        for i8 in range(h):
-            for i7 in range(g):
-                for i6 in range(f):
-                    for i5 in range(e):
-                        for i4 in range(d):
-                            for i3 in range(c):
-                                for i2 in range(b):
-                                    for i1 in range(a):
-                                        T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9]
-                                        s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order11(T, T1, dims):
-    rows, a, b, c, d, e, f, g, h, i, j = dims
-    s = 0
-    for i10 in range(j):
-        for i9 in range(i):
-            for i8 in range(h):
-                for i7 in range(g):
-                    for i6 in range(f):
-                        for i5 in range(e):
-                            for i4 in range(d):
-                                for i3 in range(c):
-                                    for i2 in range(b):
-                                        for i1 in range(a):
-                                            T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10]
-                                            s += 1
-    return T1
-
-
-@njit(nogil=True)
-def unfold1_order12(T, T1, dims):
-    rows, a, b, c, d, e, f, g, h, i, j, k = dims
-    s = 0
-    for i11 in range(k):
-        for i10 in range(j):
-            for i9 in range(i):
-                for i8 in range(h):
-                    for i7 in range(g):
-                        for i6 in range(f):
-                            for i5 in range(e):
-                                for i4 in range(d):
-                                    for i3 in range(c):
-                                        for i2 in range(b):
-                                            for i1 in range(a):
-                                                T1[:,s] = T[:,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11]
-                                                s += 1
-    return T1
+    for i0 in range(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                for i3 in range(d):
+                    for i4 in range(e):
+                        for i5 in range(f):
+                            for i6 in range(g):
+                                for i7 in range(h):
+                                    for i8 in range(i):
+                                        for i9 in range(j):
+                                            for i10 in range(k):
+                                                for i11 in range(m):
+                                                    A = G0[i0,:]
+                                                    B = dot(A, G1[:,i1,:])
+                                                    C = dot(B, G2[:,i2,:])
+                                                    D = dot(C, G3[:,i3,:])
+                                                    E = dot(D, G4[:,i4,:])
+                                                    F = dot(E, G5[:,i5,:])
+                                                    G = dot(F, G6[:,i6,:])
+                                                    H = dot(G, G7[:,i7,:])
+                                                    I = dot(H, G8[:,i8,:])
+                                                    J = dot(I, G9[:,i9,:])
+                                                    K = dot(J, G10[:,i10,:])
+                                                    T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11] = dot(K, G11[:,i11])
+                
+    return T_approx
