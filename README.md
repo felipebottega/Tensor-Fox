@@ -12,7 +12,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 Multidimensional data structures are common these days, and to extract information from them in a meaningful is crucial to several applications. For bidimensional data structures (i.e., matrices), one can rely in decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
 
-![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/tensor-intuition.png)
+![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
 Given tensor and a given value which is expected to be the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of the tensor. The determination of the actual rank is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimatives. Although the value of the rank maybe a hard task, once we have its value, computing an approximation for the corresponding CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a Python (with Numpy and Numba as backend) solver which manages to use the dGN algorithm in a cheap way, being robust and competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
 
@@ -91,6 +91,36 @@ In order to have everything working properly, all files of Tensor Fox must be in
 Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS. That is all! Tensor Fox is read to go! 
 
 Let's start importing Tensor Fox and other necessary modules for now.
+
+![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
+
+### Creating Tensors and Getting Information 
+
+Let's create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) I use the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined above (the frontal slices of **T** are showed).
+
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
+
+Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions with an example of third order tensor. 
+
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
+
+There are a lot of questions we can make about a given tensor $T$. What are its maximum and minimum entries, what are the dimensions of $T$, the rank and multirank, etc. Even in the case of the simple tensor above we can't know all these answers in advance. The function **infotens** shows lots of information about $T$ for your convenience. This function is useful for small tensors, but remember that finding the rank is a NP-hard task, so don't abuse. 
+
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb4.png)
+
+### Computing the CPD
+
+Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. As the previous function hinted, **T** should have rank 3. We can compute the corresponding CPD with the function **cpd**.
+
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb5.png)
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb6.png)
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula2.png)
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb7.png)
+
+
+
+
 
 
 
