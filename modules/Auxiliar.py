@@ -1,20 +1,22 @@
 """
  Auxiliar Module
- 
- This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the user but most of them are just some piece of another (and more important) function. 
-
+ ===============
+ This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the 
+user to use directly, but most of them are  just some piece of another (and more important) function. 
 """ 
 
-
+# Python modules
 import numpy as np
+from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size
+from numpy.linalg import norm
 import sys
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from numba import jit, njit, prange
-import TensorFox as tfx
-import Construction as cnst
-import Conversion as cnv
+
+#Tensor Fox modules
 import Critical as crt
+import MultilinearAlgebra as mlinalg
 
 
 def consistency(r, dims, symm):
@@ -57,97 +59,6 @@ def consistency(r, dims, symm):
     return
 
 
-@njit(nogil=True)
-def multilin_mult(T, L, M, N, m, n, p):
-    """
-    This function computes (L,M,N)*T, the multilinear multiplication between
-    (L,M,N) and T.
-    
-    Inputs
-    ------
-    T: float 3-D ndarray
-    L: float 2-D ndarray with m columns
-    M: float 2-D ndarray with n columns
-    N: float 2-D ndarray with p columns
-    m, n, p: int
-        The dimensions of T.
-
-    Outputs
-    -------
-    LMNT: float 3-D ndarray
-        LMNT is the result of the multilinear multiplication (L,M,N)*T.
-    """
-    
-    # Define new tensors.
-    d1, d2, d3 = L.shape[0], M.shape[0], N.shape[0]
-    LT = np.zeros((d1, n, p), dtype = np.float64)
-    LMT = np.zeros((d1, d2, p), dtype = np.float64)
-    LMNT = np.zeros((d1, d2, d3), dtype = np.float64)
-    T1 = np.zeros((m, n*p), dtype = np.float64)
-    T2 = np.zeros((n, d1*p), dtype = np.float64)
-    T3 = np.zeros((p, d1*d2), dtype = np.float64)
-        
-    # Compute unfoldings and update the new tensors accordingly
-    T1 = cnv.unfold(T, T1, m, n, p, 1)
-    T1_new = np.dot(L, T1)
-    for k in range(0, p):
-        for j in range(0, n):
-            LT[:,j,k] = T1_new[:, k*n + j]
-     
-    T2 = cnv.unfold(LT, T2, d1, n, p, 2)
-    T2_new = np.dot(M, T2)
-    for k in range(0, p):
-        for i in range(0, d1):
-            LMT[i,:,k] = T2_new[:, k*d1 + i]
-    
-    T3 = cnv.unfold(LMT, T3, d1, d2, p, 3)
-    T3_new = np.dot(N, T3)
-    for j in range(0, d2):
-        for i in range(0, d1):
-            LMNT[i,j,:] = T3_new[:, j*d1 + i]
-            
-    return LMNT
-
-
-def multirank_approx(T, r1, r2, r3):
-    """
-    This function computes an approximation of T with multilinear rank = (r1,r2,r3).
-    Truncation the central tensor of the MLSVD doesn't gives the best low multirank
-    approximation, but gives very good approximations. 
-    
-    Inputs
-    ------
-    T: 3-D float ndarray
-    r1, r2, r3: int
-        (r1,r2,r3) is the desired low multilinear rank.
-        
-    Outputs
-    -------
-    T_approx: 3-D float ndarray
-        The approximating tensor with multilinear rank = (r1,r2,r3).
-    """
-    
-    # Compute dimensions and norm of T.
-    m, n, p = T.shape
-    Tsize = np.linalg.norm(T)
-    
-    # Compute the MLSVD of T.
-    trunc_dims = 0
-    level = 1
-    display = 0
-    r = min(m, n, p)
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = tfx.mlsvd(T, Tsize, r, trunc_dims, level, display)
-    U1 = U1[:,0:r1]
-    U2 = U2[:,0:r2]
-    U3 = U3[:,0:r3]
-    
-    # Trncate S to a smaller shape (r1,r2,r3) and construct the tensor T_approx = (U1,U2,U3)*S.
-    S = S[0:r1,0:r2,0:r3]                
-    T_approx = multilin_mult(S, U1, U2, U3, r1, r2, r3)
-    
-    return T_approx
-
-
 def tens2matlab(T):
     """ 
     This function creates a matlab file containing T and its dimensions. 
@@ -162,110 +73,11 @@ def tens2matlab(T):
     return
 
 
-@njit(nogil=True)
-def update_damp(damp, old_error, error, residualnorm):
-    """ 
-    Update rule of the damping parameter for the dGN function. 
-    """
- 
-    g = 2*(old_error - error)/(old_error - residualnorm)
-        
-    if g < 0.75:
-        damp = damp/2
-    elif g > 0.9:
-        damp = 1.5*damp
-    
-    return damp
-
-
-def normalize(factors, r):
-    """ 
-    Normalize the columns of the factors to have unit column norm and scale Lambda accordingly.
-    This function returns Lambda and the normalized factors. 
-    """
-
-    Lambda = np.zeros(r)
-    L = len(factors)
-    
-    for l in range(0,r):
-        norms = np.zeros(L)
-        for ll in range(L):
-            W = factors[ll]
-            # Save norm of the l-th column of the ll factor and normalize the current factor.
-            norms[ll] = np.linalg.norm(W[:,l]) 
-            W[:,l] = W[:,l]/norms[ll]
-            # Update factors accordingly.
-            factors[ll] = W 
-
-        Lambda[l] = np.prod(norms)
-        
-    return Lambda, factors
-
-
-def denormalize(Lambda, X, Y, Z):
-    """
-    By undoing the normalization of the factors this function makes it unnecessary the use
-    of the diagonal tensor Lambda. This is useful when one wants the CPD described only by
-    the triplet (X, Y, Z).
-    """
-
-    R = Lambda.size
-    X_new = np.zeros(X.shape)
-    Y_new = np.zeros(Y.shape)
-    Z_new = np.zeros(Z.shape)
-    for r in range(R):
-        if Lambda[r] >= 0:
-            a = Lambda[r]**(1/3)
-            X_new[:,r] = a*X[:,r]
-            Y_new[:,r] = a*Y[:,r]
-            Z_new[:,r] = a*Z[:,r]
-        else:
-            a = (-Lambda[r])**(1/3)
-            X_new[:,r] = -a*X[:,r]
-            Y_new[:,r] = a*Y[:,r]
-            Z_new[:,r] = a*Z[:,r]
-            
-    return X_new, Y_new, Z_new
-
-
-@njit(nogil=True)
-def equalize(X, Y, Z, r):
-    """ 
-    After a Gauss-Newton iteration we have an approximated CPD with factors 
-    X_l ⊗ Y_l ⊗ Z_l. They may have very differen magnitudes and this can have effect
-    on the convergence rate. To improve this we try to equalize their magnitudes by 
-    introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l)
-    and |a*X_l| = |b*Y_l| = |c*Z_l|. Notice that we must have a*b*c = 1.
-    
-    To find good values for a, b, c, we can search for critical points of the function 
-    f(a,b,c) = (|a*X_l|-|b*Y_l|)^2 + (|a*X_l|-|c*Z_l|)^2 + (|b*Y_l|-|c*Z_l|)^2.
-    Using Lagrange multipliers we find the solution 
-        a = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|X_l|,
-        b = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Y_l|,
-        c = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Z_l|.
-    
-    We can see that this solution satisfy the conditions mentioned above.
-    """
-    
-    for l in range(0, r):
-        X_nr = np.linalg.norm(X[:,l])
-        Y_nr = np.linalg.norm(Y[:,l])
-        Z_nr = np.linalg.norm(Z[:,l])
-        if (X_nr != 0) and (Y_nr != 0) and (Z_nr != 0) :
-            numerator = (X_nr*Y_nr*Z_nr)**(1/3)
-            X[:,l] = (numerator/X_nr)*X[:,l]
-            Y[:,l] = (numerator/Y_nr)*Y[:,l]
-            Z[:,l] = (numerator/Z_nr)*Z[:,l] 
-            
-    return X, Y, Z
-
-
 def sort_dims(T, m, n, p):
     """
     Consider the following identifications.
         "m = 0", "n = 1", "p = 2"
-    We will use them to reorder the dimensions of the tensor, in such a way
-    that we have m_new >= n_new >= p_new.
+    We will use them to reorder the dimensions of the tensor, in such a way that we have m_new >= n_new >= p_new.
     """
 
     if m >= n and n >= p:
@@ -289,10 +101,10 @@ def sort_dims(T, m, n, p):
  
     # Define m_s, n_s, p_s such that T_sorted.shape == m_s, n_s, p_s.
     m_s, n_s, p_s = T.shape[ordering[0]], T.shape[ordering[1]], T.shape[ordering[2]]
-    T_sorted = np.zeros((m_s, n_s, p_s), dtype = np.float64)
+    T_sorted = empty((m_s, n_s, p_s), dtype = float64)
 
     # In the function sort_T, inv_sort is such that T_sorted[inv_sort[i,j,k]] == T[i,j,k].
-    inv_sort = np.argsort(ordering)
+    inv_sort = argsort(ordering)
     T_sorted = sort_T(T, T_sorted, ordering, inv_sort, m_s, n_s, p_s)      
 
     return T_sorted, ordering
@@ -301,13 +113,12 @@ def sort_dims(T, m, n, p):
 @njit(nogil=True)
 def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
     """
-    Subroutine of the function sort_dims. Here the program deals with
-    the computationally costly part, which is the assignment of values
-    to the new tensor.
+    Subroutine of the function sort_dims. Here the program deals with the computationally costly part, which is the 
+    assignment of values to the new tensor.
     """
 
     # id receives the current triple (i,j,k) at each iteration.
-    idx = np.array([0,0,0])
+    idx = array([0,0,0])
     
     for i in range(0, m):
         for j in range(0, n):
@@ -318,396 +129,63 @@ def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
     return T_sorted
         
 
-def unsort_dims(X, Y, Z, U1, U2, U3, ordering):
+def unsort_dims(X, Y, Z, ordering):
     """
-    Put the CPD factors and orthogonal transformations to the 
-    original ordering of dimensions.
+    Put the CPD factors and orthogonal transformations to the original ordering of dimensions.
     """
 
     if ordering == [0,1,2]:
-        return X, Y, Z, U1, U2, U3,
+        return X, Y, Z
 
     elif ordering == [0,2,1]:        
-        return X, Z, Y, U1, U3, U2
+        return X, Z, Y
 
     elif ordering == [1,0,2]:        
-        return Y, X, Z, U2, U1, U3
+        return Y, X, Z
 
     elif ordering == [1,2,0]:        
-        return Z, X, Y, U3, U1, U2
+        return Z, X, Y
 
     elif ordering == [2,0,1]:        
-        return Y, Z, X, U2, U3, U1
+        return Y, Z, X
 
     elif ordering == [2,1,0]:        
-        return Z, Y, X, U3, U2, U1
+        return Z, Y, X
 
 
-def clean_compression(T, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage):
+def compute_error(T, Tsize, S, S1, U, dims):
     """
-    This function try different threshold values to truncate the mlsvd. The conditions to accept
-    a truncation are defined by the parameter level. Higher level means harder constraints, which
-    translates to bigger tensors after the truncation.
-
-    Inputs
-    ------
-    T: float 3-D ndarray
-    Tsize: float
-    S: float 3-D ndarray
-        Central tensor obtained by the mlsvd.
-    sigma1, sigma2, sigma3: float 1-D ndarrays
-        Each one of these array is an ordered list (ascendent) with the singular values of the respective
-    unfolding.
-    U1, U2, U3: float 2-D ndarrays
-    m, n, p, r: int   
-    level: 0, 1, 2, 3
-        0 means the stopping conditions are very weak, while 3  means the stopping conditions are very 
-    hard. 
-    stage: 1, 2
-        1 means we are at the first stage of cleaning. At this stage we can stop the program for a specific
-    condition. After that the function is called again to improve the truncation. The second time we have 
-    stage == 2, so the mentioned condition won't be verified anymore.
-
-    Outputs
-    -------
-    best_S: float 3-D ndarray
-        Best truncation of S obtained.
-    best_energy: float
-        Energy that best_S retained with respect to S.
-    best_R1, best_R2, best_R3: int
-        Dimensions of best_S.
-    best_U1, best_U2, best_U3: float 2-D ndarrays
-        Truncated versions of U1, U2, U3.
-    best_sigma1, best_sigma2, best_sigma3: float 1-D ndarrays
-        Truncated versions of sigma1, sigma2, sigma3.
-    mlsvd_stop: 0,1,2,3,4,5,6 or 7 
-    situation: str
-        There are three possibilities.
-        1) situation == 'random' means the function stopped with random truncation (mlsvd_stop == 4) 
-        2) situation == 'overfit' means the function stopped with because of overfit (mlsvd_stop == 5) 
-        3) situation == 'ok' means the function stopped normally, without random truncation or overfit     
+    Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
     """
 
-    # Define constraints.
-    energy_tol = set_constraints(m, n, p, level)
-
-    # Initialize the best results in the case none of the truncations work.
-    best_R1, best_R2, best_R3 = sigma1.size, sigma2.size, sigma3.size
-    best_S = S[:best_R1, :best_R2, :best_R3]
-    best_U1, best_U2, best_U3 = U1[:, :best_R1], U2[:, :best_R2], U3[:, :best_R3] 
-    best_sigma1, best_sigma2, best_sigma3 = sigma1[:best_R1], sigma2[:best_R2], sigma3[:best_R3]
-          
-    # Initialize relevant constants.
-    count = 0
-    num_cuts = 1 + int((m+n+p)/3)
-    S_energy = np.sum(best_sigma1**2) + np.sum(best_sigma2**2) + np.sum(best_sigma3**2)
-    R1_old, R2_old, R3_old = m, n, p
-    best_energy = 1
-    situation = 'ok'
-    sigma1_settled, sigma2_settled, sigma3_settled = False, False, False
-
-    # In the first stage we fix any dimension too small compared to the others.
-    if stage == 1:
-        if 500*n < m:
-            sigma2_settled, sigma3_settled = True, True
-            sigma2_new, sigma3_new = best_sigma2, best_sigma3
-            R2_new, R3_new = best_R2, best_R3
-            U2_new, U3_new = best_U2, best_U3
-        elif 500*p < n:
-            sigma3_settled = True
-            sigma3_new = best_sigma3
-            R3_new = best_R3
-            U3_new = best_U3
-        
-    # Create arrays with the points where to truncate in each array of singular values. These
-    # 'points of cut' are generated randomly.   
-    cut1, cut2, cut3 = generate_cuts(sigma1, sigma2, sigma3, num_cuts, r)
-       
-    # START ITERATIONS.
-
-    for i in range(num_cuts):        
-        # Updates.
-        if sigma1_settled == False:
-            sigma1_new, R1_new, U1_new = update_compression(sigma1, U1, sigma1[cut1[i]])
-        if sigma2_settled == False:
-            sigma2_new, R2_new, U2_new = update_compression(sigma2, U2, sigma2[cut2[i]])
-        if sigma3_settled == False:
-            sigma3_new, R3_new, U3_new = update_compression(sigma3, U3, sigma3[cut3[i]]) 
-        
-        # If the difference between two consecutive singular values is very large, we keep the
-        # current value for the rest of the iterations. 
-        if i > 1:      
-            sigma1_new, R1_new, U1_new, sigma1_settled = check_jump(sigma1_new, R1_new, U1_new, sigma1, U1, cut1, sigma1_settled, i)             
-            sigma2_new, R2_new, U2_new, sigma2_settled = check_jump(sigma2_new, R2_new, U2_new, sigma2, U2, cut2, sigma2_settled, i)            
-            sigma3_new, R3_new, U3_new, sigma3_settled = check_jump(sigma3_new, R3_new, U3_new, sigma3, U3, cut3, sigma3_settled, i)   
-                    
-        # Compute energy of compressed tensor.
-        total_energy = compute_energy(S_energy, sigma1_new, sigma2_new, sigma3_new) 
-                    
-        # STOPPING CONDITIONS.
-
-        # If all three cuts stopped iterating, we are done.
-        if sigma1_settled == True and sigma2_settled == True and sigma3_settled == True:
-             mlsvd_stop = 2
-             best_energy = total_energy
-             best_R1, best_R2, best_R3 = R1_new, R2_new, R3_new
-             best_sigma1, best_sigma2, best_sigma3 = sigma1_new, sigma2_new, sigma3_new
-             best_U1, best_U2, best_U3 = U1_new, U2_new, U3_new
-             best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
-             return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation 
-
-        # If the proccess is unable to compress at the very first iteration, then the tensor 
-        # singular values are equal or almost equal. In this case we can't truncate.
-        if (R1_new, R2_new, R3_new) == (m, n, p) and i == 0:  
-            mlsvd_stop = 3
-            best_R1, best_R2, best_R3 = m, n, p
-            best_U1, best_U2, best_U3 = np.eye(m), np.eye(n), np.eye(p)
-            best_sigma1, best_sigma2, best_sigma3 = np.ones(m), np.ones(n), np.ones(p)
-            return T, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation              
-            
-        # If no truncation was detected through almost all iterations, we may assume this tensor is random or
-        # has a lot of random noise (although it is also possible that the energy stop condition is too restrictive
-        # for this case). When this happens the program just choose some small truncation to work with. A good
-        # idea is to suppose the chosen rank is correct and use it to estimate the truncation size.
-        if stage == 1 and i == num_cuts-int(num_cuts/10): 
-            mlsvd_stop = 4
-            situation = 'random'
-            val1, val2, val3 = max(1, min(m, r) - 1), max(1, min(n, r) - 1), max(1, min(p, r) - 1)
-            if sigma1_settled == False:
-                best_sigma1, best_R1, best_U1 = update_compression(sigma1, U1, sigma1[val1])
-            if sigma2_settled == False:
-                best_sigma2, best_R2, best_U2 = update_compression(sigma2, U2, sigma2[val2])
-            if sigma3_settled == False:
-                best_sigma3, best_R3, best_U3 = update_compression(sigma3, U3, sigma3[val3]) 
-            best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
-            best_energy = compute_energy(S_energy, best_sigma1, best_sigma2, best_sigma3) 
-            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation  
-        
-        # Stop the program due to a probable overfit. In this case we stop and return the previous valid values.
-        if total_energy > 99.99 and r > min(R1_new*R2_new, R1_new*R3_new, R2_new*R3_new) and R1_new + R2_new + R3_new > 3:
-            mlsvd_stop = 5
-            situation = 'overfit'
-            best_energy = compute_energy(S_energy, best_sigma1, best_sigma2, best_sigma3)
-            return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation
-        
-        # CHECK QUALITY OF TRUNCATION.
-        
-        # If no overfit occurred, check the quality of the compression.
-        if total_energy > best_energy and r <= min(R1_new*R2_new, R1_new*R3_new, R2_new*R3_new) and R1_new + R2_new + R3_new > 3:                                   
-            # Update best results.
-            best_energy = total_energy
-            best_R1, best_R2, best_R3 = R1_new, R2_new, R3_new
-            best_sigma1, best_sigma2, best_sigma3 = sigma1_new, sigma2_new, sigma3_new
-            best_U1, best_U2, best_U3 = U1_new, U2_new, U3_new
-                                                                 
-            # Inner stopping condition.
-
-            if best_energy > energy_tol:
-                mlsvd_stop = 6
-                best_S = multilin_mult(T, best_U1.transpose(), best_U2.transpose(), best_U3.transpose(), m, n, p)
-                return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation 
-    
-        # Keep values of all dimensions to compare in the next iteration.
-        R1_old, R2_old, R3_old = R1_new, R2_new, R3_new
-
-    mlsvd_stop = 7
-    best_S = S[:best_R1, :best_R2, :best_R3]
-    best_U1, best_U2, best_U3 = U1[:, :best_R1], U2[:, :best_R2], U3[:, :best_R3] 
-    best_sigma1, best_sigma2, best_sigma3 = sigma1[:best_R1], sigma2[:best_R2], sigma3[:best_R3]
-    return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation
+    T_compress = mlinalg.multilin_mult(U, S, S1, dims)
+    error = norm(T - T_compress)/Tsize 
+    return error
 
 
-def update_compression(S, U, tol):
+def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, improv_main, improv_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine, options):
     """
-    This function ia a subroutine for the search_compression1 function. It computes the 
-    compressions of S and U, given some tolerance tol.
+    Constructs the class containing the information of all relevant outputs relative to the computation of a third order CPD.
     """
-    sigma = S[S >= tol]
-    if np.sum(sigma) == 0:
-        sigma = S
-        R = U.shape[1]  
+
+    if options.refine:
+        num_steps = size(step_sizes_main) + size(step_sizes_refine)
     else:
-        R = sigma.size
-        U = U[:, :R]
-                                    
-    return sigma, R, U 
+        num_steps = size(step_sizes_main)
 
+    rel_error = norm(T_orig - T_approx)/Tsize
 
-def compute_error(T, Tsize, S, R1, R2, R3, U1, U2, U3):
-    """
-    Compute relative error between T and (U1,U2,U3)*S.
-    """
-
-    T_compress = multilin_mult(S, U1, U2, U3, R1, R2, R3)
-    rel_error = np.linalg.norm(T - T_compress)/Tsize 
-    return rel_error
-
-
-def compute_energy(S_energy, sigma1, sigma2, sigma3):
-    """
-    Compute energy of compressed tensor.
-    """
-
-    best_energy = 100*(np.sum(sigma1**2) + np.sum(sigma2**2) + np.sum(sigma3**2))/S_energy   
-    return best_energy
-
-
-def check_jump(sigma_new, R_new, U_new, sigma, U, cut, sigma_settled, i):
-    """
-    Search for big jumps between the singular values of the unfoldings. If the difference 
-    between two consecutive sigmas is very large, we keep the current value for the rest 
-    of the iterations.
-    """
-
-    if (sigma[cut[i-1]] > 1e4*sigma[cut[i]]) and (sigma_settled == False):
-        best_sigma, best_R, best_U = update_compression(sigma, U, sigma[cut[i]])
-        sigma_settled = True
-        return best_sigma, best_R, best_U, sigma_settled
-    else:
-        return sigma_new, R_new, U_new, sigma_settled
-
-def set_constraints(m, n, p, level):
-    """
-    The level parameter is 0, 1, 2, 3 or 4. The larger is this value, the bigger is the
-    threshold value of the energy to stop truncating. Small level values means small
-    truncations, and big level values means bigger truncations. In particular, level = 4
-    means no truncation at all.
-    """
-
-    val = m*n*p
-
-    # Truncation is small.
-    if level == 0:
-        if val <= 1e5:
-            energy_tol = 99.9
-        if 1e5 < val and val <= 1e6:
-           energy_tol = 99
-        if 1e6 < val and val <= 1e7:
-            energy_tol = 98
-        if 1e7 < val:
-            energy_tol = 95
-    
-    # Normal truncation.
-    if level == 1:
-        if val <= 1e5:
-            energy_tol = 100 - 1e-7
-        if 1e5 < val and val <= 1e6:
-            energy_tol = 100 - 1e-3
-        if 1e6 < val and val <= 1e7:
-            energy_tol = 100 - 1e-1
-        if 1e7 < val:
-            energy_tol = 100 - 1
-
-    # Truncation is large.
-    if level == 2:
-        if val <= 1e5:
-            energy_tol = 100 - 1e-9
-        if 1e5 < val and val <= 1e6:
-            energy_tol = 100 - 1e-5
-        if 1e6 < val and val <= 1e7:
-            energy_tol = 100 - 1e-3
-        if 1e7 < val:
-            energy_tol = 100 - 1e-1
-
-    # Truncation is almost equal or equal to the original MLSVD.
-    if level == 3:
-        energy_tol = 100 - 1e-9
-
-    return energy_tol
-
-
-def generate_cuts(sigma1, sigma2, sigma3, num_cuts, r):
-    """
-    At iteration i of the function clean_compression, we will truncate the sigmas by considering
-    only the singular values bigger than cut[i]. Each cut is a random number between 0 and 100.
-    This means we will take num_cut points of each array of singular values.
-    """
-
-    sigma1 = sigma1[:min(r, sigma1.size)]
-    sigma2 = sigma2[:min(r, sigma2.size)]
-    sigma3 = sigma3[:min(r, sigma3.size)]
-
-    if r > 1:
-        cut1 = np.random.randint(1,sigma1.size, size=num_cuts)
-        cut1 = np.sort(cut1)
-        cut2 = np.random.randint(1,sigma2.size, size=num_cuts)
-        cut2 = np.sort(cut2)
-        cut3 = np.random.randint(1,sigma3.size, size=num_cuts)
-        cut3 = np.sort(cut3)
-    else:
-        cut1 = np.ones(num_cuts, dtype = np.int64)
-        cut2 = np.ones(num_cuts, dtype = np.int64)
-        cut3 = np.ones(num_cuts, dtype = np.int64)
-    
-    return cut1, cut2, cut3 
-
-
-def unfoldings_svd(T1, T2, T3, m, n, p):
-    """
-    Computes SVD's of all unfoldings, taking in account the sizes of the matrix in
-    in order to make computations faster.
-    """
-
-    # SVD of unfoldings.
-    if m < n*p:
-        sigma1, U1 = np.linalg.eigh( np.dot(T1, T1.transpose()) )
-        # Clean noise and compute the actual singular values.
-        sigma1[sigma1 <= 0] = 0
-        sigma1 = np.sqrt(sigma1)
-        Sigma1 = -np.sort(-sigma1)
-        new_col_order = np.argsort(-sigma1)
-        U1 = U1[:, new_col_order]
-    else:
-        u1, sigma1, v1h = np.linalg.svd(T1.transpose(), full_matrices=False)
-        sigma1[sigma1 <= 0] = 0
-        Sigma1 = -np.sort(-sigma1)
-        new_col_order = np.argsort(-sigma1)
-        v1h = v1h.transpose()
-        U1 = v1h[:, new_col_order]
-
-    if n < m*p:
-        sigma2, U2 = np.linalg.eigh( np.dot(T2, T2.transpose()) )
-        sigma2[sigma2 <= 0] = 0
-        sigma2 = np.sqrt(sigma2)
-        Sigma2 = -np.sort(-sigma2)
-        new_col_order = np.argsort(-sigma2)
-        U2 = U2[:, new_col_order]
-    else:
-        u2, sigma2, v2h = np.linalg.svd(T2.transpose(), full_matrices=False)
-        sigma2[sigma2 <= 0] = 0
-        Sigma2 = -np.sort(-sigma2)
-        new_col_order = np.argsort(-sigma2)
-        v2h = v2h.transpose()
-        U2 = v2h[:, new_col_order]
-
-    if p < m*n:
-        sigma3, U3 = np.linalg.eigh( np.dot(T3, T3.transpose()) )
-        sigma3[sigma3 <= 0] = 0
-        sigma3 = np.sqrt(sigma3)
-        Sigma3 = -np.sort(-sigma3)
-        new_col_order = np.argsort(-sigma3)
-        U3 = U3[:, new_col_order]
-    else:
-        u3, sigma3, v3h = np.linalg.svd(T3.transpose(), full_matrices=False)
-        sigma3[sigma3 <= 0] = 0
-        Sigma3 = -np.sort(-sigma3)
-        new_col_order = np.argsort(-sigma3)
-        v3h = v3h.transpose()
-        U3 = v3h[:, new_col_order]
-
-    return Sigma1, Sigma2, Sigma3, U1, U2, U3
-
-
-def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine):
-    class info:
-        rel_error = np.linalg.norm(T_orig - T_approx)/Tsize
-        step_sizes = [step_sizes_main, step_sizes_refine]
-        errors = [errors_main, errors_refine]
-        errors_diff = [np.concatenate(([errors_main[0]], np.abs(errors_main[0:-1] - errors_main[1:]))), np.concatenate(([errors_refine[0]], np.abs(errors_refine[0:-1] - errors_refine[1:])))]
-        gradients = [gradients_main, gradients_refine]
-        stop = [mlsvd_stop, stop_main, stop_refine]
-        num_steps = np.size(step_sizes_main) + np.size(step_sizes_refine)
-        accuracy = max(0, 100*(1 - rel_error))
+    class output:
+        def __init__(self):
+            self.num_steps = num_steps
+            self.rel_error = rel_error
+            self.accuracy = max(0, 100*(1 - rel_error))
+            self.step_sizes = [step_sizes_main, step_sizes_refine]
+            self.errors = [errors_main, errors_refine]
+            self.improv = [improv_main, improv_refine]
+            self.gradients = [gradients_main, gradients_refine]
+            self.stop = [mlsvd_stop, stop_main, stop_refine]
+            self.options = options
 
         def stop_msg(self):
             # mlsvd_stop message
@@ -723,13 +201,11 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
             if self.stop[0] == 4:
                 print('4 - Tensor probably is random or has a lot of noise.')
             if self.stop[0] == 5:
-                print('5 - Overfit was found and the user will have to try again or try a smaller rank.')
+                print('5 - The energy of the truncation is accepted because it is big enough.')
             if self.stop[0] == 6:
-                print('6 - The energy of the truncation is accepted because it is big enough.')
+                print('6 - None of the previous conditions were satisfied and we used the last truncation computed. This condition is only possible at the second stage.')
             if self.stop[0] == 7:
-                print('7 - None of the previous conditions were satisfied and we used the last truncation computed. This condition is only possible at the second stage.')
-            if self.stop[0] == 8:
-                print('1 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of the MLSVD) but without truncating it.')
+                print('7 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of the MLSVD) without truncating it.')
            
             # stop_main message
             print()
@@ -765,156 +241,253 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
             if self.stop[2] == 6:
                 print('6 - dGN diverged.')
 
-            return 
+            return ''
 
-    output = info()
+    output = output()
 
     return output
 
 
-def make_options(options):
-    # Default options
-    maxiter = 200  
-    tol = 1e-12  
-    maxiter_refine = 200
-    tol_refine = 1e-10
-    init = 'smart_random'
-    trunc_dims = 0
-    level = 1
-    refine = False
-    symm = False
-    low = 0
-    upp = 0
-    factor = 0
-    trials = 10
-    display = 0
+def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
+    """
+    Constructs the class containing the information of all relevant outputs relative to the computation of a high order CPD.
+    """
 
-    # User defined options
-    if 'maxiter' in dir(options):
-         maxiter = options.maxiter
-    if 'tol' in dir(options):
-         tol = options.tol
-    if 'maxiter_refine' in dir(options):
-         maxiter_refine = options.maxiter_refine
-    if 'tol_refine' in dir(options):
-         tol_refine = options.tol_refine
-    if 'init' in dir(options):
-         init = options.init
-    if 'trunc_dims' in dir(options):
-         trunc_dims = options.trunc_dims
-    if 'level' in dir(options):
-         level = options.level
-    if 'refine' in dir(options):
-         refine = options.refine
-    if 'symm' in dir(options):
-         symm = options.symm
-    if 'low' in dir(options):
-         low = options.low
-    if 'upp' in dir(options):
-         upp = options.upp
-    if 'factor' in dir(options):
-         factor = options.factor
-    if 'trials' in dir(options):
-         trials = options.trials
-    if 'display' in dir(options):
-         display = options.display
+    class temp_outputs:
+        def __init__(self):
+            self.num_steps = num_steps
+            self.rel_error = rel_error
+            self.accuracy = accuracy
+            self.cpd_output = outputs
+            self.options = options
 
-    return maxiter, tol, maxiter_refine, tol_refine, init, trunc_dims, level, refine, symm, low, upp, factor, trials, display
+    final_outputs = temp_outputs()
+   
+    return final_outputs
 
 
-def make_class_options(options, dims):
+def make_options(options, dims):
+    """
+    This function constructs the whole class of options based on the options the user requested. This is the format read by the program.
+    """
+
     L = len(dims)
 
     # Default options
     class temp_options:
-        maxiter = 200  
-        tol = 1e-12 * 10**(2*(3-L))
-        maxiter_refine = 200
-        tol_refine = 1e-10
-        init = 'smart_random'
-        trunc_dims = 0
-        level = 1
-        refine = False
-        symm = False
-        low = 0
-        upp = 0
-        factor = 0
-        trials = 10
-        display = 0
+        def __init__(self):
+            self.maxiter = 200  
+            self.tol = min(1e-2, (1e-12) * (10**(2*(3-L))) * prod(dims))
+            # method_parameters[0] == True indicates the program to use default parameters.
+            # method_parameters[1] is the method used to compute each iteration of the dGN function.
+            # method_parameters[2] is the maximum number of iterations for static methods, or the multiplying factor for randomized methods. 
+            # method_parameters[3] is the tolerance to stop the iterations of the method.
+            self.method_parameters = ['cg', 1, min(1e-2, (1e-12) * (10**(2*(3-L))) * prod(dims))] 
+            self.init_method = 'random'
+            self.trunc_dims = 0
+            self.level = 1
+            self.init_damp = 1
+            self.refine = False
+            self.symm = False
+            self.constraints = [0, 0, 0]
+            self.trials = 10
+            self.display = 0
+
+    temp_options = temp_options()
 
     # User defined options
     if 'maxiter' in dir(options):
-         temp_options.maxiter = options.maxiter
+        temp_options.maxiter = options.maxiter
     if 'tol' in dir(options):
-         temp_options.tol = options.tol * 10**(2*(3-L))
-    if 'maxiter_refine' in dir(options):
-         temp_options.maxiter_refine = options.maxiter_refine
-    if 'tol_refine' in dir(options):
-         temp_options.tol_refine = options.tol_refine * 10**(2*(3-L))
-    if 'init' in dir(options):
-         temp_options.init = options.init
+        temp_options.tol = min(1e-2, (options.tol) * (10**(2*(3-L))) * prod(dims))
+        temp_options.method_parameters[2] = temp_options.tol
+    if 'method' in dir(options):
+        temp_options.method_parameters[0] = options.method
+        # Set default maxiter for each possible algorithm.
+        if options.method == 'lsmr' or options.method == 'cg':
+            temp_options.method_parameters[1] = 1
+        elif options.method == 'lsmr_static' or options.method == 'cg_static':
+            temp_options.method_parameters[1] = 20
+    if 'method_maxiter' in dir(options):
+        temp_options.method_parameters[1] = options.method_maxiter   
+    if 'method_tol' in dir(options):
+        temp_options.method_parameters[2] = min(1e-2, (options.method_tol) * (10**(2*(3-L))) * prod(dims))  
+    if 'init_method' in dir(options):
+        temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
-         temp_options.trunc_dims = options.trunc_dims
+        temp_options.trunc_dims = options.trunc_dims
     if 'level' in dir(options):
-         temp_options.level = options.level
+        temp_options.level = options.level
+    if 'init_damp' in dir(options):
+        temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):
-         temp_options.refine = options.refine
+        temp_options.refine = options.refine
     if 'symm' in dir(options):
-         temp_options.symm = options.symm
+        temp_options.symm = options.symm
     if 'low' in dir(options):
-         temp_options.low = options.low
+        temp_options.constraints[0] = options.low
     if 'upp' in dir(options):
-         temp_options.upp = options.upp
+        temp_options.constraints[1] = options.upp
     if 'factor' in dir(options):
-         temp_options.factor = options.factor
+        temp_options.constraints[2] = options.factor
     if 'trials' in dir(options):
-         temp_options.trials = options.trials
+        temp_options.trials = options.trials
     if 'display' in dir(options):
-         temp_options.display = options.display
-
+        temp_options.display = options.display
+    
     return temp_options
 
 
-@jit(nogil=True)
-def clean_zeros(T, X, Y, Z):
+def complete_options(options, dims):
     """
-    Any null entry is set to a small random number.
-    """
-
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-    r = X.shape[1]
-
-    # Initialize the factors X, Y, Z with small noises to avoid null entries.
-    s = 1/np.linalg.norm(1 + T.flatten())**2
-
-    for i in range(m):
-        for l in range(r):
-            if X[i,l] == 0.0:
-                X[i,l] = s*np.random.randn() 
-    for j in range(n):
-        for l in range(r):
-            if Y[j,l] == 0.0:
-                Y[j,l] = s*np.random.randn() 
-    for k in range(p):
-        for l in range(r):
-            if Z[k,l] == 0.0:
-                Z[k,l] = s*np.random.randn() 
-
-    return X, Y, Z
-
-
-def compute_core(V, dims, r, l):
-    """
-    Computation of one core of the tensor train function (TT_cores).
+    This function constructs the whole class of options based on the options the user requested. This function is specific
+    to the stats, foxit and find_factor functions.
     """
 
-    V = V.reshape(r*dims[l], np.prod(dims[l+1:]), order='F')
+    L = len(dims)
+
+    # Default options
+    class temp_options:
+        def __init__(self):
+            self.maxiter = 200  
+            self.tol = 1e-12
+            self.method = 'cg'
+            self.method_maxiter = 1
+            self.method_tol = 1e-12
+            self.init_method = 'random'
+            self.trunc_dims = 0
+            self.level = 1
+            self.init_damp = 1
+            self.refine = False
+            self.symm = False
+            self.constraints = [0, 0, 0]
+            self.trials = 10
+            self.display = 0
+
+    temp_options = temp_options()
+
+    # User defined options
+    if 'maxiter' in dir(options):
+        temp_options.maxiter = options.maxiter
+    if 'tol' in dir(options):
+        temp_options.tol = options.tol
+        temp_options.method_tol = options.tol
+    if 'method' in dir(options):
+        temp_options.method = options.method
+    if 'method_maxiter' in dir(options):
+        temp_options.method_maxiter = options.method_maxiter
+    if 'method_tol' in dir(options):
+        temp_options.method_tol = options.method_tol
+    if 'init_method' in dir(options):
+        temp_options.init_method = options.init_method
+    if 'trunc_dims' in dir(options):
+        temp_options.trunc_dims = options.trunc_dims
+    if 'level' in dir(options):
+        temp_options.level = options.level
+    if 'init_damp' in dir(options):
+        temp_options.init_damp = options.init_damp
+    if 'refine' in dir(options):
+        temp_options.refine = options.refine
+    if 'symm' in dir(options):
+        temp_options.symm = options.symm
+    if 'low' in dir(options):
+        temp_options.constraints[0] = options.low
+    if 'upp' in dir(options):
+        temp_options.constraints[1] = options.upp
+    if 'factor' in dir(options):
+        temp_options.constraints[2] = options.factor
+    if 'trials' in dir(options):
+        temp_options.trials = options.trials
+    if 'display' in dir(options):
+        temp_options.display = options.display
+    
+    return temp_options
+
+
+def tt_core(V, dims, r, l):
+    """
+    Computation of one core of the CPD Tensor Train function (cpdtt).
+    """
+
+    V = V.reshape(r*dims[l], prod(dims[l+1:]), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:,:r]
     S = S[:r]
-    S = np.diag(S)
+    S = diag(S)
     V = V[:r,:]
-    V = np.dot(S, V)
+    V = dot(S, V)
     g = U.reshape(r, dims[l], r, order='F')    
     return V, g
+
+
+def tt_error(T, G, dims, L):
+    """
+    Given a tensor T and a computed CPD Tensor Train G = (G1,...,GL), this function computes the error between T and the 
+    tensor associated to G.
+    """
+
+    if L == 4:
+        G0, G1, G2, G3 = G
+        T_approx = crt.tt_error_order4(T, G0, G1, G2, G3, dims, L)
+    if L == 5:
+        G0, G1, G2, G3, G4 = G
+        T_approx = crt.tt_error_order5(T, G0, G1, G2, G3, G4, dims, L)
+    if L == 6:
+        G0, G1, G2, G3, G4, G5 = G
+        T_approx = crt.tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L)
+    if L == 7:
+        G0, G1, G2, G3, G4, G5, G6 = G
+        T_approx = crt.tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L)
+    if L == 8:
+        G0, G1, G2, G3, G4, G5, G6, G7 = G
+        T_approx = crt.tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L)
+    if L == 9:
+        G0, G1, G2, G3, G4, G5, G6, G7, G8 = G
+        T_approx = crt.tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L)
+    if L == 10:
+        G0, G1, G2, G3, G4, G5, G6, G7, G8, G9 = G
+        T_approx = crt.tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L)
+    if L == 11:
+        G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10 = G
+        T_approx = crt.tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L)
+    if L == 12:
+        G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11 = G
+        T_approx = crt.tt_error_order12(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11, dims, L)
+
+    error = norm(T - T_approx)/norm(T)
+    return error
+
+
+@njit(nogil=True, parallel=True)
+def rank1(X, Y, Z, m, n, p, r, k):
+    """
+    Compute each rank 1 term of the CPD given by X, Y, Z. Them this function converts these factors into a matrix, which 
+    is the first frontal slice of the tensor in coordinates obtained by this rank 1 term. By doing this for all r terms, 
+    we have a tensor with r slices, each one representing a rank-1 term of the original CPD.
+
+    Inputs
+    ------
+    X, Y, Z: 2-D float ndarray
+        The CPD factors of some tensor.
+    m, n, p, r: int
+    k: int
+        Slice we want to compute.
+
+    Outputs
+    -------
+    rank1_sections: 3-d float ndarray
+        Each matrix rank1_slices[:,:,l] is the k-th slices associated with the l-th factor in the CPD of some tensor. 
+    """
+    
+    # Each frontal slice of rank1_slices is the coordinate representation of a
+    # rank one term of the CPD given by (X,Y,Z)*Lambda.
+    rank1_slices = zeros((m,n,r), dtype = float64)
+    T_aux = zeros((m,n,p), dtype = float64)
+   
+    for l in prange(0,r):
+        for i in range(0,m):
+            for j in range(0,n):
+                rank1_slices[i,j,l] = X[i,l]*Y[j,l]*Z[k,l]
+                        
+    return rank1_slices
