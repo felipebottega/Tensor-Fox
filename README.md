@@ -53,7 +53,7 @@ Now let's turn to the most important tool of Tensor Fox, the computation of the 
 
 ## :fox_face: Structure of Tensor Fox
 
-In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this mission several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics exploration, rank estimation, automated plotting with CPD information, and many more. Below there is a brief description of each module of Tensor Fox and its main functions.
+In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this mission several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics analysis of tensors, rank estimation, automated plotting with CPD information, and many more. Below there is a brief description of each module of Tensor Fox and its main functions.
 
 |**TensorFox**|  |
 |---|---|
