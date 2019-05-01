@@ -16,7 +16,7 @@ Multidimensional data structures are common these days, and to extract informati
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
-Given tensor and a given value which is expected to be the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of the tensor. The determination of the actual rank is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimatives. Although the value of the rank maybe a hard task, once we have its value, computing an approximation for the corresponding CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a Python (with Numpy and Numba as backend) solver which manages to use the dGN algorithm in a cheap way, being robust and competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
+Consider a tensor and a value which is expected to be the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of the tensor. The determination of the actual rank is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimatse. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a Python (with Numpy and Numba as backend) solver which manages to use the dGN algorithm in a cheap way, being robust and competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
 
 ## :fox_face: Getting Started
 
@@ -93,9 +93,9 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
    
 | **GaussNewton**|   |
 |---|---|
-| dGN| the [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function. |
+| dGN| [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function adapated for the tensor problem.. |
 | cg| [conjugate gradient](https://en.wikipedia.org/wiki/Conjugate_gradient_method) function specifically made for the tensor problem. |
-| lsmr| the [LSMR](http://web.stanford.edu/group/SOL/software/lsmr/) function adapated for the tensor problem. |
+| lsmr| [LSMR](http://web.stanford.edu/group/SOL/software/lsmr/) function adapated for the tensor problem. |
 | regularization| computes the [Tikhonov matrix](https://en.wikipedia.org/wiki/Tikhonov_regularization) for the inner algorithm. |
 | precond| computes the [preconditioner matrix](https://en.wikipedia.org/wiki/Preconditioner) for the inner algorithm.  |
    
