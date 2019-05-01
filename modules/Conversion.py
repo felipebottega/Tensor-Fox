@@ -1,28 +1,29 @@
 """
  Conversion Module
- 
- This module, as the name indicates, cares about converting objects into another objects.
-
+ =================
+ This module cares about converting objects into another objects.
 """
 
+# Python modules
 import numpy as np
-import itertools
-import sys
-import scipy.io
-from numba import jit, njit, prange
-import Auxiliar as aux
+from numpy import empty, zeros, prod, float64, dot, log, exp
+from numpy.linalg import norm
+from numba import njit, prange
+
+# Tensor Fox modules
+import Conversion as cnv
 import Critical as crt
+import MultilinearAlgebra as mlinalg
 
 
 @njit(nogil=True)
 def x2cpd(x, X, Y, Z, m, n, p, r):   
     """
-    Given the point x (the flattened CPD), this function breaks it in parts, to
-    form the CPD of S. This program return the following arrays: 
+    Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD of S. This program return the 
+    following arrays: 
     X = [X_1,...,X_r],
     Y = [Y_1,...,Y_r],
-    Z = [Z_1,...,Z_r].
-    
+    Z = [Z_1,...,Z_r].    
     Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal r x r x r tensor.
     
     Inputs
@@ -54,15 +55,14 @@ def x2cpd(x, X, Y, Z, m, n, p, r):
         Z[:,l] = x[s:s+p]
         s = s+p
             
-    X, Y, Z = aux.equalize(X, Y, Z, r)
+    X, Y, Z = cnv.equalize(X, Y, Z, r)
           
     return X, Y, Z
 
 
-def cpd2tens(factors, dims):
+def cpd2tens(T_approx, factors, dims):
     """
-    Converts the factor matrices to tensor in coordinate format using
-    a Khatri-Rao product formula.
+    Converts the factor matrices to tensor in coordinate format using a Khatri-Rao product formula.
 
     Inputs
     ------
@@ -76,175 +76,133 @@ def cpd2tens(factors, dims):
     """
 
     L = len(dims)
-    prod_dims = np.prod(np.array(dims[1:]))
-    T1_approx = np.zeros((dims[0], prod_dims))
+    T1_approx = empty((dims[0], prod(dims[1:])), dtype = float64)
     M = factors[1]
    
     for l in range(2,L):
         a1, a2 = factors[l].shape
         b1, b2 = M.shape
-        N = np.zeros((a1*b1, a2))
-        M = crt.khatri_rao(factors[l], M, N)        
+        M = mlinalg.khatri_rao(factors[l], M)        
 
-    T1_approx = np.dot(factors[0], M.T)
-    T_approx = T1_approx.reshape(dims, order='F')
+    T1_approx = dot(factors[0], M.T)
+    T_approx = foldback(T1_approx, 1, dims)
     return T_approx
 
 
-@njit(nogil=True)
-def unfold(T, Tl, m, n, p, mode):   
+def unfold(T, mode, dims):
     """
-    Every tensor T of order 3 has 3 unfoldings, one for each "direction".
-    It is commom to denote the unfoldings by T_(1), T_(2), T(3). These 
-    unfoldings can be viewed as special kind of transformations of T. 
-    They are important for computing the MLSVD of T.
-    
-    Inputs
-    ------
-    T: float 3-D ndarray
-    m, n, p: int
-    mode: 1,2,3
-        mode == 1 commands the function to construc the unfolding-1 of T.
-    Similarly we can have mode == 2 or mode == 3.
-
-    Outputs
-    -------
-    This function returns a matrix of one of the following shapes: (m, n*p), 
-    (n, m*p) or (p, m*n). Each one is a possible unfolding of T.
-    """
- 
-    if mode == 1:
-        for i in range(0,m):
-            temp = T[i,:,:].T
-            Tl[i, :] = temp.ravel()
-    
-    if mode == 2:
-        for j in range(0,n):
-            temp = T[:,j,:].T
-            Tl[j, :] = temp.ravel()
-    
-    if mode == 3:
-        for k in range(0,p):
-            temp = T[:,:,k].T
-            Tl[k,:] = temp.ravel()
-
-    return Tl
-
-
-def high_unfold1_generic(T, T1, dims, l, idx, s):
-    """
-    Computes the first unfolding of a tensor with any high order. The first
-    call must initiate with l=L (the total number of modes), idx=() and s=0.
-    This function works with any order L but it is slow.
-    """
-
-    l -= 1
-    
-    if l < 0:
-        s = 0
-    
-    elif l > 0:
-        for i in range(dims[l]):
-            idx_temp = (i,) + idx
-            T1, s = high_unfold1_generic(T, T1, dims, l, idx_temp, s)
-                
-    else:
-        for i in range(dims[l]):
-            idx_temp = (i,) + idx
-            T1[i,s] = T[idx_temp]
-        s += 1
-        
-    return T1, s
-
-
-def high_unfold1(T, dims):
-    """
-    Computes the first unfolding of a tensor up to order L=12. 
+    Computes any unfolding of a tensor up to order L = 12. 
     """
  
     L = len(dims)
-    T1 = np.zeros((dims[0], np.prod(dims[1:])))
+    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
+    func_name = "unfold" + str(mode) + "_order" + str(L)
+    Tl = getattr(crt, func_name)(T, Tl, dims)
+    return Tl
 
-    if L == 4:
-        return crt.unfold1_order4(T, T1, dims)
-    if L == 5:
-        return crt.unfold1_order5(T, T1, dims)
-    if L == 6:
-        return crt.unfold1_order6(T, T1, dims)
-    if L == 7:
-        return crt.unfold1_order7(T, T1, dims)
-    if L == 8:
-        return crt.unfold1_order8(T, T1, dims)
-    if L == 9:
-        return crt.unfold1_order9(T, T1, dims)
-    if L == 10:
-        return crt.unfold1_order10(T, T1, dims)
-    if L == 11:
-        return crt.unfold1_order11(T, T1, dims)
-    if L == 12:
-        return crt.unfold1_order12(T, T1, dims)
 
-    return T1
+def foldback(Tl, mode, dims):
+    """
+    Computes the tensor with dimension dims given an unfolding with its mode. Attention: dims are the dimensions of the 
+    output tensor, not the input.
+    """
+ 
+    L = len(dims)
+    T = empty(dims, order='F')
+    func_name = "foldback" + str(mode) + "_order" + str(L)
+    T = getattr(crt, func_name)(T, Tl, dims)
+    
+    return T
+
+
+def normalize(factors):
+    """ 
+    Normalize the columns of the factors to have unit column norm and scale Lambda accordingly. This function returns 
+    Lambda and the normalized factors. 
+    """
+
+    r = factors[0].shape[1]
+    Lambda = zeros(r)
+    L = len(factors)
+    
+    for l in range(0,r):
+        norms = zeros(L)
+        for ll in range(L):
+            W = factors[ll]
+            # Save norm of the l-th column of the ll factor and normalize the current factor.
+            norms[ll] = norm(W[:,l]) 
+            W[:,l] = W[:,l]/norms[ll]
+            # Update factors accordingly.
+            factors[ll] = W 
+
+        Lambda[l] = prod(norms)
+        
+    return Lambda, factors
+
+
+def denormalize(Lambda, X, Y, Z):
+    """
+    By undoing the normalization of the factors this function makes it unnecessary the use of the diagonal tensor Lambda. 
+    This is useful when one wants the CPD described only by the triplet (X, Y, Z).
+    """
+
+    R = Lambda.size
+    X_new = zeros(X.shape)
+    Y_new = zeros(Y.shape)
+    Z_new = zeros(Z.shape)
+    for r in range(R):
+        if Lambda[r] >= 0:
+            a = Lambda[r]**(1/3)
+            X_new[:,r] = a*X[:,r]
+            Y_new[:,r] = a*Y[:,r]
+            Z_new[:,r] = a*Z[:,r]
+        else:
+            a = (-Lambda[r])**(1/3)
+            X_new[:,r] = -a*X[:,r]
+            Y_new[:,r] = a*Y[:,r]
+            Z_new[:,r] = a*Z[:,r]
+            
+    return X_new, Y_new, Z_new
 
 
 @njit(nogil=True)
-def foldback(A, m, n, p, mode):
+def equalize(X, Y, Z, r):
     """ 
-    Given an unfolding A of T and the mode l, we construct the tensor 
-    T such that T_(l) = A.
+    After a Gauss-Newton iteration we have an approximated CPD with factors X_l ⊗ Y_l ⊗ Z_l. They may have very differen 
+    magnitudes and this can have effect on the convergence rate. To improve this we try to equalize their magnitudes by 
+    introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l) and |a*X_l| = |b*Y_l| = |c*Z_l|. 
+    Notice that we must have a*b*c = 1.
     
-    Inputs
-    ------
-    A: float 2-D ndarray
-        There are three possibilites which must be respected:
-        1) A has shape (m,np) and we have mode == 1.
-        2) A has shape (n,mp) and we have mode == 2.
-        3) A has shape (p,mn) and we have mode == 3.
-    m, n, p: int
-    mode: 1,2,3
-
-    Outputs
-    -------
-    T: float 3-D ndarray
-        The reconstructed tensor.
+    To find good values for a, b, c, we can search for critical points of the function 
+    f(a,b,c) = (|a*X_l|-|b*Y_l|)^2 + (|a*X_l|-|c*Z_l|)^2 + (|b*Y_l|-|c*Z_l|)^2.
+    Using Lagrange multipliers we find the solution 
+        a = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|X_l|,
+        b = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Y_l|,
+        c = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Z_l|.    
+    We can see that this solution satisfy the conditions mentioned.
     """
     
-    T = np.zeros((m,n,p), dtype = np.float64)
-    At = A.transpose()
-    
-    if mode == 1:
-        s = 0
-        for k in range(0,p):
-            for j in range(0,n): 
-                T[:,j,k] = At[s,:]
-                s += 1
-                
-    if mode == 2:
-        s = 0
-        for k in range(0,p):
-            for i in range(0,m): 
-                T[i,:,k] = At[s,:]
-                s += 1
-                
-    if mode == 3:
-        s = 0
-        for j in range(0,n):
-            for i in range(0,m): 
-                T[i,j,:] = At[s,:]
-                s += 1
-     
-    return T
+    for l in range(0, r):
+        X_nr = norm(X[:,l])
+        Y_nr = norm(Y[:,l])
+        Z_nr = norm(Z[:,l])
+        if (X_nr != 0) and (Y_nr != 0) and (Z_nr != 0) :
+            numerator = (X_nr*Y_nr*Z_nr)**(1/3)
+            X[:,l] = (numerator/X_nr)*X[:,l]
+            Y[:,l] = (numerator/Y_nr)*Y[:,l]
+            Z[:,l] = (numerator/Z_nr)*Z[:,l] 
+            
+    return X, Y, Z
 
 
 @njit(nogil=True)
 def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
     """
-    Depending on the choice of the user, this function can project the entries of X, Y, Z
-    in a given interval (this is very useful with we have constraints at out disposal), it 
-    can make the corresponding tensor symmetric or non-negative.
-    It is advisable to transform the tensor so that its entries have mean zero and variance
-    1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that
-    it is always better to choose low and upp such that low = -upp.
+    Depending on the choice of the user, this function can project the entries of X, Y, Z in a given interval (this is 
+    very useful with we have constraints at out disposal), it can make the corresponding tensor symmetric or non-negative.
+    It is advisable to transform the tensor so that its entries have mean zero and variance 1, this way choosing low=-1 
+    and upp=1 works the best way possible. We also remark that it is always better to choose low and upp such that 
+    low = -upp.
     
     Inputs
     ------
@@ -266,11 +224,11 @@ def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
 
     if a != 0 and b != 0:
         eps = 0.02
-        B =   np.log( (b-a)/eps - 1 )/( factor*(b-a)/2 - eps )
+        B =   log( (b-a)/eps - 1 )/( factor*(b-a)/2 - eps )
         A = -B*(a+b)/2
-        X = a + (b-a) * 1/( 1 + np.exp(-A-B*X) )
-        Y = a + (b-a) * 1/( 1 + np.exp(-A-B*Y) )
-        Z = a + (b-a) * 1/( 1 + np.exp(-A-B*Z) )
+        X = a + (b-a) * 1/( 1 + exp(-A-B*X) )
+        Y = a + (b-a) * 1/( 1 + exp(-A-B*Y) )
+        Z = a + (b-a) * 1/( 1 + exp(-A-B*Z) )
         
     if symm:
         X = (X+Y+Z)/3
@@ -278,3 +236,29 @@ def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
         Z = X
     
     return X, Y, Z
+
+
+@njit(nogil=True, parallel=True)
+def vec(M, Bv, num_rows, r):
+    """ 
+    Take a matrix M with shape (num_rows, r) and stack vertically its columns to form the matrix Bv = vec(M) with shape 
+    (num_rows*r,).
+    """
+    
+    for j in prange(0, r):
+        Bv[j*num_rows : (j+1)*num_rows] = M[:,j]
+        
+    return Bv
+
+
+@njit(nogil=True, parallel=True)
+def vect(M, Bv, num_cols, r):
+    """ 
+    Take a matrix M with shape (r, num_cols) and stack vertically its rows to form the matrix Bv = vec(M) with shape 
+    (num_cols*r,).
+    """
+    
+    for i in prange(0, r):
+        Bv[i*num_cols : (i+1)*num_cols] = M[i,:]
+        
+    return Bv
