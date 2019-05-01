@@ -6,7 +6,9 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 * :fox_face:  [Motivation](#motivation)
 * :fox_face:  [Getting Started](#getting-started)
 * :fox_face:  [Structure of Tensor Fox](#structure-of-tensor-fox)
-* :fox_face:  [First Steps](#first-steps)
+* :fox_face:  [Author](#author)
+* :fox_face:  [License](#license)
+* :fox_face:  [References](#references)
 
 ## :fox_face: Motivation
 
@@ -43,16 +45,11 @@ Since Numpy's convention is different from ours with regard to third order tenso
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
 
-There are a lot of questions we can make about a given tensor $T$. What are its maximum and minimum entries, what are the dimensions of $T$, the rank and multirank, etc. Even in the case of the simple tensor above we can't know all these answers in advance. The function **infotens** shows lots of information about $T$ for your convenience. This function is useful for small tensors, but remember that finding the rank is a NP-hard task, so don't abuse. 
-
-![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
-![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb4.png)
-
 ### Computing the CPD
 
 Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. As the previous function hinted, **T** should have rank 3. We can compute the corresponding CPD with the function **cpd**.
 
-![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb5.png)
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
 
 ## :fox_face: Structure of Tensor Fox
 
@@ -115,16 +112,29 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | khatri_rao| computes the [Khatri-Rao product](https://en.wikipedia.org/wiki/Kronecker_product#Khatri%E2%80%93Rao_product) between two matrices. |
 | hadamard| computes the [Hadamar product](https://en.wikipedia.org/wiki/Hadamard_product_(matrices)) between two matrices. |
 
+## Author
 
+* Felipe B. Diniz: https://github.com/felipebottega
+* Contact email: felipebottega@gmail.com
+* Linkedin: https://www.linkedin.com/in/felipe-diniz-4a212163/?locale=en_US
+* Kaggle: https://www.kaggle.com/felipebottega
 
+## License
 
-
-
+This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE.md](https://github.com/felipebottega/Tensor-Fox/blob/master/LICENSE) file for details.
     
 
-**References:**<br />
+## References:
 
-Tensors: Geometry and Applications. Author: J. M. Landsberg<br />
-Most tensor problems are NP-hard. Authors: Christopher Hillar, Lek-Heng Lim<br />
-https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm<br />
-https://pdfs.semanticscholar.org/1deb/b5581b538e75dbee8fd07bda36382baea977.pdf
+ * P. Comon, X. Luciani, and A. L. F. de Almeida, *Tensor Decompositions, Alternating Least Squares and other Tales*, Journal of Chemometrics, Wiley, 2009.   
+ * T. G. Kolda and B. W. Bader, *Tensor Decompositions and Applications*, SIAM Review, 51:3, in press (2009).   
+ * J. M. Landsberg, *Tensors: Geometry and Applications*, AMS, Providence, RI, 2012.   
+ * B. Savas, and Lars Eldén, *Handwritten Digit Classification Using Higher Order Singular Value Decomposition*, Pattern Recognition Society, vol. 40, no. 3, pp. 993-1003, 2007.
+ * C. J. Hillar, and L.-H. Lim. *Most tensor problems are NP-hard*, Journal of the ACM, 60(6):45:1-45:39, November 2013. ISSN 0004-5411. doi: 10.1145/2512329.
+ * A. Shashua, and T. Hazan, *Non-negative Tensor Factorization with Applications to Statistics and Computer Vision*, Proceedings of the 22nd International Conference on Machine Learning (ICML), 22 (2005), pp. 792-799.
+ * S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
+ * A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC}, SIAM Journal on Matrix Analysis and Applications*, 34 (1), 126-147 (2013).
+ * L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
+ * https://www.tensorlab.net/
+ * http://www.sandia.gov/~tgkolda/TensorToolbox/
+ * https://github.com/tensorly/
