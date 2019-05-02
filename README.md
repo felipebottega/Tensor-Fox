@@ -12,11 +12,11 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Motivation
 
-Multidimensional data structures are common these days, and to extract information from them in a meaningful is crucial to several applications. For bidimensional data structures (i.e., matrices), one can rely in decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
+Multidimensional data structures are common these days, and to extract useful information from them is crucial for several applications. For bidimensional data structures (i.e., matrices), one can rely in decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
-Consider a tensor and a value which is expected to be the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of the tensor. The determination of the actual rank is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimatse. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a Python (with Numpy and Numba as backend) solver which manages to use the dGN algorithm in a cheap way, being robust and competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
+Consider a tensor and a value which is expected to be the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of the tensor. The determination of the actual rank is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimatse. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
 
 ## :fox_face: Getting Started
 
@@ -47,19 +47,19 @@ Since Numpy's convention is different from ours with regard to third order tenso
 
 ### Computing the CPD
 
-Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. As the previous function hinted, **T** should have rank 3. We can compute the corresponding CPD with the function **cpd**.
+Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD with simply calling the function **cpd** with the tensor and the rank as arguments.
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
 
 ## :fox_face: Structure of Tensor Fox
 
-In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this mission several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics exploration, rank estimation, automated plotting with CPD information, and many more. Below there is a brief description of each module of Tensor Fox and its main functions.
+In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this mission several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics analysis of tensors, rank estimation, automated plotting with CPD information, and many more. Below we present the modules of Tensor Fox and gives a brief description of their main functions.
 
 |**TensorFox**|  |
 |---|---|
-| cpd| computes the CPD of a tensor *T* with rank *R*. |
+| cpd| computes the CPD of a tensor **T** with rank *R*. |
 | rank| estimates the rank of a tensor.|
-| stats| given a tensor *T* and a rank *R*, this fucntions computes some statistics regarding the CPD computation. |
+| stats| given a tensor **T** and a rank *R*, this fucntions computes some statistics regarding the CPD computation. |
 | foxit| does the same job as the *cpd* function but at the end it prints and plots relevant information. |
    
 |**Auxiliar**|  |
@@ -107,7 +107,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **MultilinearAlgebra**| |
 |---|---|
 | multilin_mult| performs the multilinear multiplication. |
-| multirank_approx| given a tensor *T* and a prescribed multirank (R1, ..., Rm), this function tries to find the (almost) best approximation of *T* with multirank (R1, ..., Rm). |
+| multirank_approx| given a tensor **T** and a prescribed multirank (R1, ..., Rm), this function tries to find the (almost) best approximation of **T** with multirank (R1, ..., Rm). |
 | kronecker| computes the [Kronecker product](https://en.wikipedia.org/wiki/Kronecker_product) between two matrices. |
 | khatri_rao| computes the [Khatri-Rao product](https://en.wikipedia.org/wiki/Kronecker_product#Khatri%E2%80%93Rao_product) between two matrices. |
 | hadamard| computes the [Hadamar product](https://en.wikipedia.org/wiki/Hadamard_product_(matrices)) between two matrices. |
@@ -133,7 +133,7 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  * C. J. Hillar, and L.-H. Lim. *Most tensor problems are NP-hard*, Journal of the ACM, 60(6):45:1-45:39, November 2013. ISSN 0004-5411. doi: 10.1145/2512329.
  * A. Shashua, and T. Hazan, *Non-negative Tensor Factorization with Applications to Statistics and Computer Vision*, Proceedings of the 22nd International Conference on Machine Learning (ICML), 22 (2005), pp. 792-799.
  * S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
- * A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC}, SIAM Journal on Matrix Analysis and Applications*, 34 (1), 126-147 (2013).
+ * A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC*, SIAM Journal on Matrix Analysis and Applications, 34 (1), 126-147 (2013).
  * L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
  * https://www.tensorlab.net/
  * http://www.sandia.gov/~tgkolda/TensorToolbox/
