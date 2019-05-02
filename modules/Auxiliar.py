@@ -40,13 +40,13 @@ def consistency(r, dims, symm):
     if L == 3:
         m, n, p = dims[0], dims[1], dims[2]
         if r > min(m*n, m*p, n*p):
-            msg = 'Rank must be satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
+            msg = 'Rank must satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
             sys.exit(msg)
 
     # Check if rank is well defined in the higher order case.
     if L > 3:
         if r > min(dims) or r < 2:
-            msg = 'Rank must be satisfy 2 <= r <= min' + str(dims) + ' = ' + str(min(dims)) + '.'
+            msg = 'Rank must satisfy 2 <= r <= min' + str(dims) + ' = ' + str(min(dims)) + '.'
             sys.exit(msg)
 
     if symm:
