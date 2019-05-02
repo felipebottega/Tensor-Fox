@@ -276,10 +276,8 @@ def highcpd(T, r, options):
     # Factors 2 to L-2
     for l in range(0, L-2):
         factors.append(cpd_list[l][1])
-    # Last factor
-    A = pinv(best_Z)
-    B = dot(A, G[-1])
-    factors.append( B.T )
+    B = dot(G[-1].T, best_Z)
+    factors.append( B )
 
     if display > 2:
         G_approx = [G[0]]
