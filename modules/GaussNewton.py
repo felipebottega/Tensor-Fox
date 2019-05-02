@@ -78,12 +78,20 @@ def dGN(T, X, Y, Z, r, options):
         6: dGN diverged. 
     """  
 
-    # Verify if X should be fixed or not.
-    fix_X = False
+    # Verify if some factor should be fixed or not.
+    fix_mode = -1
     if type(X) == list:
-        fix_X = True
+        fix_mode = 0
         X_orig = copy(X[0])
         X = X[0]
+    elif type(Y) == list:
+        fix_mode = 1
+        Y_orig = copy(Y[0])
+        Y = Y[0]
+    elif type(Z) == list:
+        fix_mode = 2
+        Z_orig = copy(Z[0])
+        Z = Z[0]
     
     # INITIALIZE RELEVANT VARIABLES 
 
@@ -163,8 +171,12 @@ def dGN(T, X, Y, Z, r, options):
         # Compute factors X, Y, Z.
         X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
         X, Y, Z = cnv.transform(X, Y, Z, m, n, p, r, low, upp, factor, symm)
-        if fix_X == True:
+        if fix_mode == 0:
             X = copy(X_orig)
+        elif fix_mode == 1:
+            Y = copy(Y_orig)
+        elif fix_mode == 2:
+            Z = copy(Z_orig)
                                           
         # Compute error. 
         T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p)) 
