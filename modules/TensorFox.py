@@ -24,7 +24,7 @@ features of Tensor Fox are the following:
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, empty, array, nanargmin, log10, diag, arange
+from numpy import inf, copy, dot, zeros, empty, array, nanargmin, log10, diag, arange, prod
 from numpy.linalg import norm, pinv
 import sys
 import time
@@ -117,6 +117,8 @@ def cpd(T, r, options=False):
     
     # Set options
     options = aux.make_options(options, dims)
+    display = options.display
+    level = options.level
                    
     # Test consistency of dimensions and rank.
     aux.consistency(r, dims, options.symm)  
@@ -127,16 +129,60 @@ def cpd(T, r, options=False):
         X, Y, Z, T_approx, output = tricpd(T, r, options)
         return [X, Y, Z], T_approx, output   
     
-    # TENSOR TRAIN COMPUTATIONS
+    # START COMPUTATIONS
     
     if L > 3:
-        factors, T_approx, outputs = highcpd(T, r, options)  
+
+        # COMPRESSION STAGE
+
+        if display > 0 or display < -1:
+            print('-----------------------------------------------------------------------------------------------')
+            print('Computing MLSVD')
+
+        # Compute compressed version of T with the MLSVD. We have that T = (U_1,...,U_L)*S.
+        if display > 2 or display < -1:
+            S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, best_error = cmpr.mlsvd(T, Tsize, r, options)
+        else: 
+            S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
+
+        if display > 0 or display < -1:
+            if level == 4:
+                print('    Compression without truncation requested by user')
+                print('    Compressing from', T.shape, 'to', S.shape)
+            elif prod(array(best_dims) == array(dims)):
+                if level == 5:
+                    print('    No compression and no truncation requested by user')
+                    print('    Working with dimensions', T.shape) 
+                else:
+                    print('    No compression detected')
+                    print('    Working with dimensions', T.shape)                         
+            else:
+                print('    Compression detected')
+                print('    Compressing from', T.shape, 'to', S.shape)
+                a = float('%.5e' % Decimal(best_energy))
+                print('   ', a, '% of the energy was retained')
+            if display > 2 or display < -1:
+                print('    Compression relative error = {:5e}'.format(best_error))
+            print()
+
+        # For higher order tensors the trunc_dims options is only valid for the original tensor and its MLSVD.
+        options.trunc_dims = 0
+
+        # TENSOR TRAIN AND DAMPED GAUSS-NEWTON STAGE
+
+        factors, S_approx, outputs = highcpd(S, r, options)  
+
+        # Use the orthogonal transformations to work in the original space.
+        for l in range(L):
+            factors[l] = dot(U[l], factors[l])
     
     # FINAL WORKS
 
     num_steps = 0
     for output in outputs:
             num_steps += output.num_steps
+    T_approx = zeros(dims)
+    T_approx = cnv.cpd2tens(T_approx, factors, dims)
     rel_error = norm(T_orig - T_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
     
@@ -211,7 +257,7 @@ def highcpd(T, r, options):
             if display > 0:
                 print()
                 print('CPD', l)
-            X, Y, Z, T_approx, output = bicpd(G[l], r, fixed_X, options)
+            X, Y, Z, T_approx, output = bicpd(G[l], r, [fixed_X,0], options)
             if output.rel_error < best_error:
                 best_output = output
                 best_error = output.rel_error
@@ -437,7 +483,7 @@ def tricpd(T, r, options):
     return X, Y, Z, T_approx, output
 
 
-def bicpd(T, r, fixed_X, options):
+def bicpd(T, r, fixed_factor, options):
     """
     Practically the same as tricpd, but this function keeps the first factor fixed during all the computations. 
     """
@@ -507,9 +553,16 @@ def bicpd(T, r, fixed_X, options):
     else:  
         X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, ordering, options)
 
-    # Discard the X computed in start_point and use the previous one. Then project it on the compressed space.
-    X = dot(U1.T, fixed_X)
-    X = [X]
+    # Discard the factor computed in start_point and use the previous one. Then project it on the compressed space.
+    if fixed_factor[1] == 0:
+        X = dot(U1.T, fixed_factor[0])
+        X = [X, 0]
+    elif fixed_factor[1] == 1:
+        Y = dot(U2.T, fixed_factor[0])
+        Y = [Y, 1]
+    elif fixed_factor[1] == 2:
+        Z = dot(U3.T, fixed_factor[0])
+        Z = [Z, 2]
     
     if display > 0:
         print('-----------------------------------------------------------------------------------------------')        
@@ -519,7 +572,12 @@ def bicpd(T, r, fixed_X, options):
             print('Type of initialization: fixed +', init_method)
         if display > 2:
             S_init = empty((R1, R2, R3))
-            S_init = cnv.cpd2tens(S_init, [X[0], Y, Z], (R1, R2, R3))
+            if fixed_factor[1] == 0:
+                S_init = cnv.cpd2tens(S_init, [X[0], Y, Z], (R1, R2, R3))
+            elif fixed_factor[1] == 1:
+                S_init = cnv.cpd2tens(S_init, [X, Y[0], Z], (R1, R2, R3))
+            elif fixed_factor[1] == 2:
+                S_init = cnv.cpd2tens(S_init, [X, Y, Z[0]], (R1, R2, R3))
             S1_init = cnv.unfold(S_init, 1, (R1, R2, R3))
             rel_error = aux.compute_error(T, Tsize, S_init, S1_init, [U1, U2, U3], (R1, R2, R3))
             print('    Initial guess relative error = {:5e}'.format(rel_error))           
@@ -536,12 +594,24 @@ def bicpd(T, r, fixed_X, options):
     # FINAL WORKS
     
     # Use the orthogonal transformations to obtain the CPD of T.
-    Y = dot(U2, Y)
-    Z = dot(U3, Z)
+    if fixed_factor[1] == 0:               
+        Y = dot(U2, Y)
+        Z = dot(U3, Z)
+    elif fixed_factor[1] == 1:               
+        X = dot(U1, X)
+        Z = dot(U3, Z)
+    elif fixed_factor[1] == 2:               
+        X = dot(U1, X)
+        Y = dot(U2, Y)
     
     # Compute coordinate representation of the CPD of T.
     T_approx = empty((m, n, p))
-    T_approx = cnv.cpd2tens(T_approx, [fixed_X, Y, Z], (m, n, p))
+    if fixed_factor[1] == 0:
+        T_approx = cnv.cpd2tens(T_approx, [fixed_factor[0], Y, Z], (m, n, p))
+    elif fixed_factor[1] == 1:
+        T_approx = cnv.cpd2tens(T_approx, [X, fixed_factor[0], Z], (m, n, p))
+    elif fixed_factor[1] == 2:
+        T_approx = cnv.cpd2tens(T_approx, [X, Y, fixed_factor[0]], (m, n, p))
     
     # Save and display final informations.
     step_sizes_refine = array([0])
