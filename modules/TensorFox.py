@@ -112,6 +112,7 @@ def cpd(T, r, options=False):
 
     # Compute dimensions and norm of T.
     dims = T.shape
+    L = len(dims)
     Tsize = norm(T)
     T_orig = copy(T)
     
@@ -119,6 +120,12 @@ def cpd(T, r, options=False):
     options = aux.make_options(options, dims)
     display = options.display
     level = options.level
+    level = options.level
+    if type(level) == list:
+        if L > 3:
+            level = level[0]
+        else:
+            level = level[1]
                    
     # Test consistency of dimensions and rank.
     aux.consistency(r, dims, options.symm)  
@@ -133,9 +140,17 @@ def cpd(T, r, options=False):
     
     if L > 3:
 
+        # Increase dimensions if r > min(dims).
+        if r > min(dims):
+            inflate_status = True
+            T, orig_dims, dims = cnv.inflate(T, r, dims)
+        else:
+            inflate_status = False
+            orig_dims = dims
+
         # COMPRESSION STAGE
 
-        if display > 0 or display < -1:
+        if display != 0:
             print('-----------------------------------------------------------------------------------------------')
             print('Computing MLSVD')
 
@@ -144,8 +159,8 @@ def cpd(T, r, options=False):
             S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, best_error = cmpr.mlsvd(T, Tsize, r, options)
         else: 
             S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
-
-        if display > 0 or display < -1:
+        
+        if display != 0:
             if level == 4:
                 print('    Compression without truncation requested by user')
                 print('    Compressing from', T.shape, 'to', S.shape)
@@ -183,6 +198,7 @@ def cpd(T, r, options=False):
             num_steps += output.num_steps
     T_approx = zeros(dims)
     T_approx = cnv.cpd2tens(T_approx, factors, dims)
+    T_approx = cnv.deflate(T_approx, orig_dims, dims, inflate_status)
     rel_error = norm(T_orig - T_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
     
@@ -220,7 +236,8 @@ def highcpd(T, r, options):
     # Compute cores of the tensor train of T
     G = cpdtt(T, r)
     L = len(G)   
-    if display > 2:
+    if display > 2 or display < -1:
+        print('===============================================================================================')
         print('SVD Tensor train error = ', aux.tt_error(T, G, dims, L))
         print('===============================================================================================')
         print() 
@@ -246,8 +263,8 @@ def highcpd(T, r, options):
                 break
     outputs.append(best_output)
     cpd_list.append([best_X, best_Y, best_Z])
-    if display == -1:
-        print('1 ) CPD error =', best_error)
+    if display < 0:
+        print('CPD 1 error =', best_error)
     
     # Compute third order CPD's of cores G[2] to G[L-2]
     for l in range(2, L-1):
@@ -266,8 +283,8 @@ def highcpd(T, r, options):
                     break
         outputs.append(best_output)
         cpd_list.append([fixed_X, best_Y, best_Z])
-        if display == -1:
-            print(l,') CPD error =', best_error)
+        if display < 0:
+            print('CPD', l, 'error =', best_error)
                 
     # Compute of factors of T
     factors = []
@@ -279,7 +296,7 @@ def highcpd(T, r, options):
     B = dot(G[-1].T, best_Z)
     factors.append( B )
 
-    if display > 2:
+    if display > 2 or display < -1:
         G_approx = [G[0]]
         for l in range(1,L-1):
             temp_factors = cpd_list[l-1]
@@ -344,8 +361,10 @@ def tricpd(T, r, options):
     display = options.display
     refine = options.refine
     symm = options.symm
-    level = options.level
     display = options.display
+    level = options.level
+    if type(level) == list:
+        level = level[1]
 
     # Set the other variables.
     m_orig, n_orig, p_orig = T.shape
@@ -494,8 +513,10 @@ def bicpd(T, r, fixed_factor, options):
     display = options.display
     refine = options.refine
     symm = options.symm
-    level = options.level
     display = options.display
+    level = options.level
+    if type(level) == list:
+        level = level[1]
 
     # Set the other variables.
     m, n, p = T.shape
