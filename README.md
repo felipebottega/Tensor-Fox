@@ -56,7 +56,17 @@ Now let's turn to the most important tool of Tensor Fox, the computation of the 
 
 In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab, Tensor Toolbox and Tensorly. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
 
- * *Swimmer tensor*: 
+ 1) *Swimmer*: This tensor was constructed in [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/6-first_problem.ipynb) tutorial lesson. It is a set of 256 images of dimensions 32 x 32 representing a swimmer. Each image contains a torso (the invariant part) of 12 pixels in the center and four limbs of 6 pixels that can be in one of 4 positions. We proposed to use a rank R = 50 tensor to approximate it.
+ 
+ 2) *Handwritten digits*: This is a classic tensor in machine learning, it is the [MNIST](http://yann.lecun.com/exdb/mnist/}) database of handwritten digits. Each slice is a image of dimensions 20 x 20 of a handwritten digit. Also, each 500 consecutive slices correspond to the same digit, so the first 500 slices correspond to the digit 0, the slices 501 to 1000 correspond to the digit 1, and so on. We choose R = 150 as a good rank to construct the approximating CPD to this tensor.
+ 
+ 3) *Border rank*: The phenomenon of [border rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Border_rank) can make the CPD computation a challenging problem. The article [1] has a great discussion on this subject. In the same article they show a tensor of rank 3 and border rank 2. We choose to compute a CPD of rank R = 2 to see how the algorithms behaves when we try to approximate a problematic tensor by tensor with low rank. In theory it is possible to have arbitrarily good approximations. 
+			
+ 4) *Matrix multiplication*: Matrix multiplication between square n x n matrices can be seen as a tensor of shape n² x n² x n². Since [Strassen](https://en.wikipedia.org/wiki/Strassen_algorithm) it is known that these multiplications can be made with less operations. For the purpose of testing we choose the small value n = 5 and the rank R = 92. However note that this is probably not the exact rank of the tensor (it is lower), so this test is about a strict low rank approximation of a difficult tensor.
+ 
+ For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller tha *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, \ldots, 900, 950, 1000$, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them.
+ 
+ 
 
 ## :fox_face: Structure of Tensor Fox
 
@@ -133,6 +143,7 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
 
 ## References:
 
+ * V. de Silva, and L.-H. Lim, *Tensor Rank and the Ill-Posedness of the Best Low-Rank Approximation Problem*, SIAM Journal on Matrix Analysis and Applications, 30 (2008), pp. 1084-1127. 
  * P. Comon, X. Luciani, and A. L. F. de Almeida, *Tensor Decompositions, Alternating Least Squares and other Tales*, Journal of Chemometrics, Wiley, 2009.   
  * T. G. Kolda and B. W. Bader, *Tensor Decompositions and Applications*, SIAM Review, 51:3, in press (2009).   
  * J. M. Landsberg, *Tensors: Geometry and Applications*, AMS, Providence, RI, 2012.   
