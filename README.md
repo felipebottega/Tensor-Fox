@@ -5,6 +5,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 ## Table of Contents
 * :fox_face:  [Motivation](#motivation)
 * :fox_face:  [Getting Started](#getting-started)
+* :fox_face:  [Performance](#performance)
 * :fox_face:  [Structure of Tensor Fox](#structure-of-tensor-fox)
 * :fox_face:  [Author](#author)
 * :fox_face:  [License](#license)
@@ -50,6 +51,12 @@ Since Numpy's convention is different from ours with regard to third order tenso
 Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD with simply calling the function **cpd** with the tensor and the rank as arguments. This is just the tip of the iceberg of Tensor Fox, to know more check out the [tutorial](https://github.com/felipebottega/Tensor-Fox/tree/master/tutorial) and the [examples of applications](https://github.com/felipebottega/Tensor-Fox/tree/master/examples). 
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
+
+## :fox_face: Performance
+
+In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab, Tensor Toolbox and Tensorly. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
+
+ * *Swimmer tensor*: 
 
 ## :fox_face: Structure of Tensor Fox
 
