@@ -85,7 +85,7 @@ In the following we compare the performances of Tensor Fox and other known tenso
   
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png)
 
- Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before.
+ Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. The routine to generate theses kind of tensors can be found [here](https://github.com/felipebottega/Tensor-Fox/blob/master/tests/gen_rand_tensor.py).
  
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png)
 
