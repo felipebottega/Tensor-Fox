@@ -6,8 +6,9 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, zeros, prod, float64, dot, log, exp
+from numpy import empty, zeros, prod, float64, int64, dot, log, exp, median
 from numpy.linalg import norm
+from numpy.random import randn
 from numba import njit, prange
 
 # Tensor Fox modules
@@ -262,3 +263,41 @@ def vect(M, Bv, num_cols, r):
         Bv[i*num_cols : (i+1)*num_cols] = M[i,:]
         
     return Bv
+
+
+def inflate(T, r, dims):
+    """
+    Let T be a tensor of shape dims. If rank > dims[l], this function increases T dimensions such that each new dimension
+    satisfies new_dims[l] = r. The new entries are all zeros. 
+    """
+
+    L = len(dims)
+    new_dims = zeros(L, int64)
+    slices = []
+
+    for l in range(L):
+        slices.append(slice(dims[l]))
+        if dims[l] >= r:
+            new_dims[l] = dims[l]
+        else:
+            new_dims[l] = r
+            
+    new_T = zeros(new_dims)
+    new_T[tuple(slices)] = T
+    
+    return new_T, dims, new_dims
+
+
+def deflate(T_approx, orig_dims, dims, inflate_status):
+    """
+    If T was inflated by the function 'inflate', this function restores T to its original shape by truncating it.
+    """
+
+    if inflate_status == False:
+        return T_approx
+
+    else:
+        L = len(orig_dims) 
+        slices = [ slice(orig_dims[l]) for l in range(L) ]
+        T_approx = T_approx[tuple(slices)]
+        return T_approx
