@@ -58,15 +58,36 @@ In the following we compare the performances of Tensor Fox and other known tenso
 
  1) *Swimmer*: This tensor was constructed in [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/6-first_problem.ipynb) tutorial lesson. It is a set of 256 images of dimensions 32 x 32 representing a swimmer. Each image contains a torso (the invariant part) of 12 pixels in the center and four limbs of 6 pixels that can be in one of 4 positions. We proposed to use a rank R = 50 tensor to approximate it.
  
- 2) *Handwritten digits*: This is a classic tensor in machine learning, it is the [MNIST](http://yann.lecun.com/exdb/mnist/}) database of handwritten digits. Each slice is a image of dimensions 20 x 20 of a handwritten digit. Also, each 500 consecutive slices correspond to the same digit, so the first 500 slices correspond to the digit 0, the slices 501 to 1000 correspond to the digit 1, and so on. We choose R = 150 as a good rank to construct the approximating CPD to this tensor.
+ 2) *Handwritten digits*: This is a classic tensor in machine learning, it is the [MNIST](http://yann.lecun.com/exdb/mnist/}) database of handwritten digits. Each slice is a image of dimensions 20 x 20 of a handwritten digit. Also, each 500 consecutive slices correspond to the same digit, so the first 500 slices correspond to the digit 0, the slices 501 to 1000 correspond to the digit 1, and so on. We choose R = 150 as a good rank to construct the approximating CPD to this tensor. This tensor is also used [here](https://github.com/felipebottega/Tensor-Fox/blob/master/examples/handwritten_digit.ipynb), where we present a tensor learning technique for the problem of classification. 
  
  3) *Border rank*: The phenomenon of [border rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Border_rank) can make the CPD computation a challenging problem. The article [1] has a great discussion on this subject. In the same article they show a tensor of rank 3 and border rank 2. We choose to compute a CPD of rank R = 2 to see how the algorithms behaves when we try to approximate a problematic tensor by tensor with low rank. In theory it is possible to have arbitrarily good approximations. 
 			
  4) *Matrix multiplication*: Matrix multiplication between square n x n matrices can be seen as a tensor of shape n² x n² x n². Since [Strassen](https://en.wikipedia.org/wiki/Strassen_algorithm) it is known that these multiplications can be made with less operations. For the purpose of testing we choose the small value n = 5 and the rank R = 92. However note that this is probably not the exact rank of the tensor (it is lower), so this test is about a strict low rank approximation of a difficult tensor.
  
- For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller tha *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, \ldots, 900, 950, 1000$, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them.
+ For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller tha *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, \ldots, 900, 950, 1000$, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them. We used random initilization in all tests. The results are showed below.
  
+ ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png)
  
+ The are using the following abbreviations for the algorithms:
+ 
+  * NLS: Tensorlab NLS without refinement
+  * NLSr: Tensorlab NLS with refinement
+  * TlabALS: Tensorlab ALS withou refinement
+  * TlabALSr: Tensorlab ALS with refinement
+  * MINF: Tensorlab MINF without refinement
+  * MINFr: Tensorlab MINF with refinement
+  * TlyALS: Tensorly ALS
+  * OPT: Tensor Toolbox OPT (with 'lbfgs' algorithm)
+  
+  Now we consider another round of tests, by instead of fixed tensors we use a family of tensors. More precisely, we consider random tensors of shape *n* x *n* ... x *n* and rank R = 5, where the entries of each factor matrix are drawn from the normal distribution (mean 0 and variance 1). First we consider fourth tensors with shape *n* x *n* x *n* x *n*, for *n* = 10, 20, 30, 40, 50, 60, 70, 80. Since the Tensorlab's NLS performed very well in the previous texts, we start with this algorithm, making 20 computations for each dimension *n* and avering the errors and time. After that we run the other algorithm adjusting their tolerance in order to match the NLS results. 
+  
+ In all tests we tried to choose the options in order to speed up the algorithms without losing accuracy. For example, we noticed that it was unnecessary to use compression, detection of structure and refinement for the NLS algorithm. These routines are very expensive and didn't bring much extra precision, so they were disabled in order to make the NLS computations faster. Similarly we used the initialization 'svd' for Tensorly because it proved to be faster than 'random', and we used the algorithm 'lbfgs' for Tensor Toolbox OPT. Finally, for Tensor Fox we just decreased its tolerance in order to match the precision given by the NLS algorithm. The results are showed below. 
+  
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png)
+
+ Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to order 8. In other words, we consider random rank 5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, until 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10.
+ 
+![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png)
 
 ## :fox_face: Structure of Tensor Fox
 
@@ -143,16 +164,16 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
 
 ## References:
 
- * V. de Silva, and L.-H. Lim, *Tensor Rank and the Ill-Posedness of the Best Low-Rank Approximation Problem*, SIAM Journal on Matrix Analysis and Applications, 30 (2008), pp. 1084-1127. 
- * P. Comon, X. Luciani, and A. L. F. de Almeida, *Tensor Decompositions, Alternating Least Squares and other Tales*, Journal of Chemometrics, Wiley, 2009.   
- * T. G. Kolda and B. W. Bader, *Tensor Decompositions and Applications*, SIAM Review, 51:3, in press (2009).   
- * J. M. Landsberg, *Tensors: Geometry and Applications*, AMS, Providence, RI, 2012.   
- * B. Savas, and Lars Eldén, *Handwritten Digit Classification Using Higher Order Singular Value Decomposition*, Pattern Recognition Society, vol. 40, no. 3, pp. 993-1003, 2007.
- * C. J. Hillar, and L.-H. Lim. *Most tensor problems are NP-hard*, Journal of the ACM, 60(6):45:1-45:39, November 2013. ISSN 0004-5411. doi: 10.1145/2512329.
- * A. Shashua, and T. Hazan, *Non-negative Tensor Factorization with Applications to Statistics and Computer Vision*, Proceedings of the 22nd International Conference on Machine Learning (ICML), 22 (2005), pp. 792-799.
- * S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
- * A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC*, SIAM Journal on Matrix Analysis and Applications, 34 (1), 126-147 (2013).
- * L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
- * https://www.tensorlab.net/
- * http://www.sandia.gov/~tgkolda/TensorToolbox/
- * https://github.com/tensorly/
+ 1) V. de Silva, and L.-H. Lim, *Tensor Rank and the Ill-Posedness of the Best Low-Rank Approximation Problem*, SIAM Journal on Matrix Analysis and Applications, 30 (2008), pp. 1084-1127. 
+ 2) P. Comon, X. Luciani, and A. L. F. de Almeida, *Tensor Decompositions, Alternating Least Squares and other Tales*, Journal of Chemometrics, Wiley, 2009.   
+ 3) T. G. Kolda and B. W. Bader, *Tensor Decompositions and Applications*, SIAM Review, 51:3, in press (2009).   
+ 4) J. M. Landsberg, *Tensors: Geometry and Applications*, AMS, Providence, RI, 2012.   
+ 5) B. Savas, and Lars Eldén, *Handwritten Digit Classification Using Higher Order Singular Value Decomposition*, Pattern Recognition Society, vol. 40, no. 3, pp. 993-1003, 2007.
+ 6) C. J. Hillar, and L.-H. Lim. *Most tensor problems are NP-hard*, Journal of the ACM, 60(6):45:1-45:39, November 2013. ISSN 0004-5411. doi: 10.1145/2512329.
+ 7) A. Shashua, and T. Hazan, *Non-negative Tensor Factorization with Applications to Statistics and Computer Vision*, Proceedings of the 22nd International Conference on Machine Learning (ICML), 22 (2005), pp. 792-799.
+ 8) S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
+ 9) A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC*, SIAM Journal on Matrix Analysis and Applications, 34 (1), 126-147 (2013).
+ 10) L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
+ 11) https://www.tensorlab.net/
+ 12) http://www.sandia.gov/~tgkolda/TensorToolbox/
+ 13) https://github.com/tensorly/
