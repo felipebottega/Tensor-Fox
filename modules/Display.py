@@ -335,7 +335,7 @@ def test_tensors(tensors_list, options_list, trials, display):
         
     make_plots(names, trials, errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings)
     
-    return errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad
+    return errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings
 
 
 def make_plots(names, trials, errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings):
