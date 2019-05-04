@@ -10,6 +10,7 @@ import numpy as np
 from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size
 from numpy.linalg import norm
 import sys
+import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from numba import jit, njit, prange
@@ -21,13 +22,17 @@ import MultilinearAlgebra as mlinalg
 
 def consistency(r, dims, symm):
     """ 
-    This function checks some invalid cases before anything is done in the program. 
+    This function checks the validity of rank and dimensions before anything is done in the program. 
     """
 
     L = len(dims)
 
+    # Check if order is not higher than 12.
+    if L > 12:
+        sys.exit('Tensor Fox does not work with tensors of order higher than 12.')
+
     # If some dimension is equal to 1, the user may just use classical SVD with numpy.
-    # We won't address these situations here.
+    # We won't address this situation here.
     for i in range(L):  
         if dims[i] == 1:
             sys.exit('At least one dimension is equal to 1. This situation not supported by Tensor Fox.')
@@ -43,11 +48,8 @@ def consistency(r, dims, symm):
             msg = 'Rank must satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
             sys.exit(msg)
 
-    # Check if rank is well defined in the higher order case.
-    if L > 3:
-        if r > min(dims) or r < 2:
-            msg = 'Rank must satisfy 2 <= r <= min' + str(dims) + ' = ' + str(min(dims)) + '.'
-            sys.exit(msg)
+    if L > 3 and r > min(dims):
+        warnings.warn('For tensors of order higher than 3 it is advisible that the rank is smaller or equal than at least one of the dimensions of the tensor. The ideal would to be smaller or equal than all dimensions. In the case this condition is not met the computations can be slower and the program may not converge to a good solution.', category=Warning, stacklevel=3)
 
     if symm:
         for i in range(L):
@@ -61,14 +63,11 @@ def consistency(r, dims, symm):
 
 def tens2matlab(T):
     """ 
-    This function creates a matlab file containing T and its dimensions. 
+    This function creates a matlab file containing the tensor T. 
     """
     
-    # Compute dimensions of T.
-    m, n, p = T.shape
-    
     # Save the tensor in matlab format.
-    scipy.io.savemat('T_data.mat', dict(T=T, m=m, n=n, p=p))
+    scipy.io.savemat('tensor.mat', dict(T=T))
     
     return
 
@@ -277,12 +276,12 @@ def make_options(options, dims):
     class temp_options:
         def __init__(self):
             self.maxiter = 200  
-            self.tol = min(1e-2, (1e-12) * (10**(2*(3-L))) * prod(dims))
+            self.tol = 1e-6
             # method_parameters[0] == True indicates the program to use default parameters.
             # method_parameters[1] is the method used to compute each iteration of the dGN function.
             # method_parameters[2] is the maximum number of iterations for static methods, or the multiplying factor for randomized methods. 
             # method_parameters[3] is the tolerance to stop the iterations of the method.
-            self.method_parameters = ['cg', 1, min(1e-2, (1e-12) * (10**(2*(3-L))) * prod(dims))] 
+            self.method_parameters = ['cg', 1, 1e-6] 
             self.init_method = 'random'
             self.trunc_dims = 0
             self.level = 1
@@ -299,7 +298,7 @@ def make_options(options, dims):
     if 'maxiter' in dir(options):
         temp_options.maxiter = options.maxiter
     if 'tol' in dir(options):
-        temp_options.tol = min(1e-2, (options.tol) * (10**(2*(3-L))) * prod(dims))
+        temp_options.tol = options.tol
         temp_options.method_parameters[2] = temp_options.tol
     if 'method' in dir(options):
         temp_options.method_parameters[0] = options.method
@@ -311,7 +310,7 @@ def make_options(options, dims):
     if 'method_maxiter' in dir(options):
         temp_options.method_parameters[1] = options.method_maxiter   
     if 'method_tol' in dir(options):
-        temp_options.method_parameters[2] = min(1e-2, (options.method_tol) * (10**(2*(3-L))) * prod(dims))  
+        temp_options.method_parameters[2] = options.method_tol  
     if 'init_method' in dir(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
@@ -350,10 +349,10 @@ def complete_options(options, dims):
     class temp_options:
         def __init__(self):
             self.maxiter = 200  
-            self.tol = 1e-12
+            self.tol = 1e-6
             self.method = 'cg'
             self.method_maxiter = 1
-            self.method_tol = 1e-12
+            self.method_tol = 1e-6
             self.init_method = 'random'
             self.trunc_dims = 0
             self.level = 1
