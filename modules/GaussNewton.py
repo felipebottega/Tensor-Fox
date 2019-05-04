@@ -230,7 +230,7 @@ def dGN(T, X, Y, Z, r, options):
             if improv[it] < tol:
                 stop = 1
                 break
-            if gradients[it] < sqrt(tol):
+            if gradients[it] < tol:
                 stop = 2
                 break 
             # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol, then 
@@ -362,8 +362,15 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, atol=0, btol=0, maxiter=100):
     maxiter = min(maxiter, r*(m+n+p))
 
     # Update data for the next Gauss-Newton iteration.
-    w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt = data
+    w_X, Bv_X, M_X, \
+    w_Y, Mw_Y, Bv_Y, M_Y, \
+    w_Z, Bv_Z, M_Z, \
+    w_Xt, Bu_Xt, \
+    w_Yt, Bu_Yt, \
+    w_Zt, Bu_Zt = data
+
     M_X, M_Y, M_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
+
     damp = 0
     
     # Initialize arrays.
@@ -374,7 +381,10 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, atol=0, btol=0, maxiter=100):
 
     if beta > 0:
         u = (1 / beta) * u
-        v = rmatvec(u, w_Xt, Bu_Xt, M_X, w_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, M_Z, m, n, p, r)
+        v = rmatvec(u, w_Xt, Bu_Xt, M_X, \
+                       w_Yt, Bu_Yt, M_Y, \
+                       w_Zt, Bu_Zt, M_Z, \
+                       m, n, p, r)
         alpha = norm(v)
 
     if alpha > 0:
@@ -433,12 +443,18 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, atol=0, btol=0, maxiter=100):
         #         beta*u  =  a*v   -  alpha*u,
         #        alpha*v  =  A'*u  -  beta*v.
 
-        u = lsmr_matvec(X, Y, v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p, r) - alpha * u
+        u = lsmr_matvec(X, Y, v, w_X, Bv_X, M_X, \
+                                 w_Y, Mw_Y, Bv_Y, M_Y, \
+                                 w_Z, Bv_Z, M_Z, \
+                                 m, n, p, r) - alpha * u
         beta = norm(u)
 
         if beta > 0:
             u = (1 / beta) * u
-            v = rmatvec(u, w_Xt, Bu_Xt, M_X, w_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, M_Z, m, n, p, r) - beta * v
+            v = rmatvec(u, w_Xt, Bu_Xt, M_X, \
+                           w_Yt, Bu_Yt, M_Y, \
+                           w_Zt, Bu_Zt, M_Z, \
+                           m, n, p, r) - beta * v
             alpha = norm(v)
             if alpha > 0:
                 v = (1 / alpha) * v
@@ -662,20 +678,44 @@ def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, damp, maxiter, tol):
     maxiter = min(maxiter, r*(m+n+p))
     
     # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z = data
+    Gr_X, Gr_Y, Gr_Z, \
+    Gr_XY, Gr_XZ, Gr_YZ, \
+    V_Xt, V_Yt, V_Zt, \
+    V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+    Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+    Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+    X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+    Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+    Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+    B_X_v, B_Y_v, B_Z_v, \
+    B_XY_v, B_XZ_v, B_YZ_v, \
+    B_XYt_v, B_XZt_v, B_YZt_v, \
+    X_norms, Y_norms, Z_norms, \
+    gamma_X, gamma_Y, gamma_Z, Gamma, \
+    M, L, residual_cg, P, Q, z = data
+
     M_X, M_Y, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt = data_rmatvec
     
     # Compute the values of all arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ)
+    Gr_X, Gr_Y, Gr_Z, \
+    Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z, \
+                                   Gr_X, Gr_Y, Gr_Z, \
+                                   Gr_XY, Gr_XZ, Gr_YZ)
     M_X, M_Y, M_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
-    L = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r)
+    L = regularization(X, Y, Z, \
+                       X_norms, Y_norms, Z_norms, \
+                       gamma_X, gamma_Y, gamma_Z, Gamma, \
+                       m, n, p, r)
     M = precond(X, Y, Z, L, M, damp, m, n, p, r)
     const = 2 + int(maxiter/5)
     
     y = 0*y
     
     # grad = Dres^T*res is the gradient of the error function E.    
-    grad = rmatvec(b, w_Xt, Bu_Xt, M_X, w_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, M_Z, m, n, p, r)
+    grad = rmatvec(b, w_Xt, Bu_Xt, M_X, \
+                      w_Yt, Bu_Yt, M_Y, \
+                      w_Zt, Bu_Zt, M_Z, \
+                      m, n, p, r)
     residual = M*grad
     P = residual
     residualnorm = dot(residual, residual)
@@ -688,7 +728,20 @@ def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, damp, maxiter, tol):
        
     for itn in range(maxiter):
         Q = M*P
-        z = matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, Q, m, n, p, r) + damp*L*Q
+        z = matvec(X, Y, Z, \
+                   Gr_X, Gr_Y, Gr_Z, \
+                   Gr_XY, Gr_XZ, Gr_YZ, \
+                   V_Xt, V_Yt, V_Zt, \
+                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+                   X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+                   Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+                   B_X_v, B_Y_v, B_Z_v, \
+                   B_XY_v, B_XZ_v, B_YZ_v, \
+                   B_XYt_v, B_XZt_v, B_YZt_v, \
+                   Q, m, n, p, r) + damp*L*Q
         z = M*z
         denominator = dot(P.T, z)
         if denominator == 0.0:
@@ -781,8 +834,24 @@ def prepare_data(m, n, p, r):
     P = empty(r*(m+n+p), dtype = float64)
     Q = empty(r*(m+n+p), dtype = float64)
     z = empty(r*(m+n+p), dtype = float64)
+
+    data = [Gr_X, Gr_Y, Gr_Z, \
+    Gr_XY, Gr_XZ, Gr_YZ, \
+    V_Xt, V_Yt, V_Zt, \
+    V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+    Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+    Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+    X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+    Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+    Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+    B_X_v, B_Y_v, B_Z_v, \
+    B_XY_v, B_XZ_v, B_YZ_v, \
+    B_XYt_v, B_XZt_v, B_YZt_v, \
+    X_norms, Y_norms, Z_norms, \
+    gamma_X, gamma_Y, gamma_Z, Gamma, \
+    M, L, residual_cg, P, Q, z]
     
-    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, M, L, residual_cg, P, Q, z   
+    return data 
 
 
 def prepare_data_rmatvec(m, n, p, r):
@@ -805,8 +874,10 @@ def prepare_data_rmatvec(m, n, p, r):
     # B_Z^T
     w_Zt = empty((p,m*n), dtype = float64)
     Bu_Zt = empty(r*p, dtype = float64)
+
+    data_rmatvec = [M_X, M_Y, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt]
         
-    return M_X, M_Y, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt
+    return data_rmatvec
 
 
 def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z):
@@ -837,7 +908,20 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
 
 
 @njit(nogil=True)
-def matvec(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ, V_Xt, V_Yt, V_Zt, V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, B_X_v, B_Y_v, B_Z_v, B_XY_v, B_XZ_v, B_YZ_v, B_XYt_v, B_XZt_v, B_YZt_v, v, m, n, p, r): 
+def matvec(X, Y, Z, \
+          Gr_X, Gr_Y, Gr_Z, \
+          Gr_XY, Gr_XZ, Gr_YZ, \
+          V_Xt, V_Yt, V_Zt, \
+          V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+          Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+          Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+          X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+          Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+          Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+          B_X_v, B_Y_v, B_Z_v, \
+          B_XY_v, B_XZ_v, B_YZ_v, \
+          B_XYt_v, B_XZt_v, B_YZt_v, \
+          v, m, n, p, r): 
     """
     Makes the matrix-vector computation (Dres.transpose*Dres)*v. 
     """
@@ -921,8 +1005,10 @@ def lsmr_prepare_data(X, Y, Z, m, n, p, r):
     "B_Z^T"
     w_Zt = empty((p,m*n), dtype = np.float64)
     Bu_Zt = empty(r*p, dtype = np.float64) 
+
+    lsmr_data = [w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt]
            
-    return w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt
+    return lsmr_data
 
 
 @njit(nogil=True)
