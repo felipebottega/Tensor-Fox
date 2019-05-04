@@ -26,17 +26,22 @@ def mlsvd(T, Tsize, r, options):
     the list of the transposes of U.
     """
 
-    # INITIALIZE RELEVANT VARIABLES.
+    # INITIALIZE RELEVANT VARIABLES.    
 
-    # Extract all variable from the class of options.
-    trunc_dims = options.trunc_dims
-    level = options.level
-    display = options.display
-
-    # Set the other variables.
+    # Set the main variables about T.
     dims = T.shape
     L = len(dims)
 
+    # Extract all variable from the class of options.
+    trunc_dims = options.trunc_dims
+    display = options.display
+    level = options.level
+    if type(level) == list:
+        if L > 3:
+            level = level[0]
+        else:
+            level = level[1]
+    
     if L == 3:
         return trimlsvd(T, Tsize, r, trunc_dims, level, display)
 
@@ -142,7 +147,7 @@ def mlsvd(T, Tsize, r, options):
     if display > 2 or display < -1:
         S1 = cnv.unfold(S, 1, best_dims)
         best_error = aux.compute_error(T, Tsize, S, S1, U, best_dims)
-        return S, best_energy, dims, U, UT, sigmas, mlsvd_stop, best_error
+        return S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, best_error
 
     # Compute (U_1^T,...,U_L^T)*T = S.
     S = mlinalg.multilin_mult(UT, T, T1, dims)
