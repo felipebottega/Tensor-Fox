@@ -8,7 +8,7 @@
 import numpy as np
 from numpy import empty, zeros, prod, float64, int64, dot, log, exp, median
 from numpy.linalg import norm
-from numpy.random import randn
+from numpy.random import randn, randint
 from numba import njit, prange
 
 # Tensor Fox modules
@@ -282,7 +282,7 @@ def inflate(T, r, dims):
         else:
             new_dims[l] = r
             
-    new_T = zeros(new_dims)
+    new_T = 1e-12*randn(*new_dims)
     new_T[tuple(slices)] = T
     
     return new_T, dims, new_dims
