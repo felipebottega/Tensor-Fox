@@ -48,7 +48,7 @@ Since Numpy's convention is different from ours with regard to third order tenso
 
 ### Computing the CPD
 
-Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD with simply calling the function **cpd** with the tensor and the rank as arguments. This is just the tip of the iceberg of Tensor Fox, to know more check out the [tutorial](https://github.com/felipebottega/Tensor-Fox/tree/master/tutorial) and the [examples of applications](https://github.com/felipebottega/Tensor-Fox/tree/master/examples). 
+Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD simply calling the function **cpd** with the tensor and the rank as arguments. This is just the tip of the iceberg of Tensor Fox, to know more check out the [tutorial](https://github.com/felipebottega/Tensor-Fox/tree/master/tutorial) and the [examples of applications](https://github.com/felipebottega/Tensor-Fox/tree/master/examples). 
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
 
