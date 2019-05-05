@@ -64,13 +64,15 @@ In the following we compare the performances of Tensor Fox and other known tenso
 			
  4) *Matrix multiplication*: Matrix multiplication between square n x n matrices can be seen as a tensor of shape n² x n² x n². Since [Strassen](https://en.wikipedia.org/wiki/Strassen_algorithm) it is known that these multiplications can be made with less operations. For the purpose of testing we choose the small value n = 5 and the rank R = 92. However note that this is probably not the exact rank of the tensor (it is lower), so this test is about a strict low rank approximation of a difficult tensor.
  
-**PS**: Tensor Fox relies on Numba, which makes compilations [just in time](http://numba.pydata.org/) (JIT). This means that the first run will compile the functions and this take some time. From the second time on there is no more compilations and the program should take much less time to finish the computations. Any measurement of performance should be made after the compilations are done. Additionally, be warned that changing the order of the tensor, the method of initialization or the method of the inner algorithm also triggers more compilations. Before running Tensor Fox for real we recommend to run it on a small tensor, just to make the compilations.  
+ **PS**: Tensor Fox relies on Numba, which makes compilations [just in time](http://numba.pydata.org/) (JIT). This means that the first run will compile the functions and this take some time. From the second time on there is no more compilations and the program should take much less time to finish the computations. Any measurement of performance should be made after the compilations are done. Additionally, be warned that changing the order of the tensor, the method of initialization or the method of the inner algorithm also triggers more compilations. Before running Tensor Fox for real we recommend to run it on a small tensor, just to make the compilations.
  
- For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller that *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running time. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, ..., 900, 950, 1000, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them. We used random initilization in all tests. The results are showed below.
+ ### Procedure  
  
- ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png)
+ For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller that *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running time. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, ..., 900, 950, 1000, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them. We used random initilization in all tests. 
  
- The are using the following abbreviations for the algorithms:
+ ### Results
+ 
+ We are using the following abbreviations for the algorithms:
  
   * NLS: Tensorlab NLS without refinement
   * NLSr: Tensorlab NLS with refinement
@@ -80,6 +82,10 @@ In the following we compare the performances of Tensor Fox and other known tenso
   * MINFr: Tensorlab MINF with refinement
   * TlyALS: Tensorly ALS
   * OPT: Tensor Toolbox OPT (with 'lbfgs' algorithm)
+ 
+ The first round of our benchmarks is showed below.
+ 
+ ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png)
   
   Now we consider another round of tests, by instead of fixed tensors we use a family of tensors. More precisely, we consider random tensors of shape *n* x *n* x ... x *n* and rank R = 5, where the entries of each factor matrix are drawn from the normal distribution (mean 0 and variance 1). First we consider fourth tensors with shape *n* x *n* x *n* x *n*, for *n* = 10, 20, 30, 40, 50, 60, 70, 80. Since the Tensorlab's NLS performed very well in the previous texts, we start with this algorithm, making 20 computations for each dimension *n* and avering the errors and time. After that we run the other algorithm adjusting their tolerance in order to match the NLS results. 
   
