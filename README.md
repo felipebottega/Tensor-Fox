@@ -3,13 +3,13 @@
 Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD).
 
 ## Table of Contents
-* [ :fox_face: Motivation](#:fox_face:-motivation)
-* [ :fox_face: Getting Started](#:fox_face:-getting-started)
-* [ :fox_face: Performance](#:fox_face:-performance)
-* [ :fox_face: Structure of Tensor Fox](#:fox_face:-structure-of-tensor-fox)
-* [ :fox_face: Author](#:fox_face: author)
-* [ :fox_face: License](#:fox_face:-license)
-* [ :fox_face: References](#:fox_face:-references)
+* [ :fox_face: Motivation](#motivation)
+* [ :fox_face: Getting Started](#:fox_face:getting-started)
+* [ :fox_face: Performance](#performance)
+* [ :fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
+* [ :fox_face: Author](#author)
+* [ :fox_face: License](#license)
+* [ :fox_face: References](#references)
 
 ## :fox_face: Motivation
 
