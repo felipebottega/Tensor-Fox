@@ -72,34 +72,34 @@ In the following we compare the performances of Tensor Fox and other known tenso
  
  ### Results
  
- We are using the following abbreviations for the algorithms:
+ We are using the following algorithms in this benchmark:
  
   * NLS: Tensorlab NLS without refinement
   * NLSr: Tensorlab NLS with refinement
-  * TlabALS: Tensorlab ALS withou refinement
-  * TlabALSr: Tensorlab ALS with refinement
+  * Tlab-ALS: Tensorlab ALS withou refinement
+  * Tlab-ALSr: Tensorlab ALS with refinement
   * MINF: Tensorlab MINF without refinement
   * MINFr: Tensorlab MINF with refinement
-  * TlyALS: Tensorly ALS
+  * Tly-ALS: Tensorly ALS
   * OPT: Tensor Toolbox OPT (with 'lbfgs' algorithm)
  
  The first round of our benchmarks is showed below.
  
  ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png)
   
-  Now we consider another round of tests, by instead of fixed tensors we use a family of tensors. More precisely, we consider random tensors of shape *n* x *n* x ... x *n* and rank R = 5, where the entries of each factor matrix are drawn from the normal distribution (mean 0 and variance 1). First we consider fourth tensors with shape *n* x *n* x *n* x *n*, for *n* = 10, 20, 30, 40, 50, 60, 70, 80. Since the Tensorlab's NLS performed very well in the previous texts, we start with this algorithm, making 20 computations for each dimension *n* and avering the errors and time. After that we run the other algorithm adjusting their tolerance in order to match the NLS results. 
+  Now we consider another round of tests, but instead of fixed tensors we use a family of tensors. More precisely, we consider random tensors of shape *n* x *n* x ... x *n* and rank R = 5, where the entries of each factor matrix are drawn from the normal distribution (mean 0 and variance 1). First we consider fourth order tensors with shape *n* x *n* x *n* x *n*, for *n* = 10, 20, 30, 40, 50, 60, 70, 80. Since the Tensorlab's NLS performed very well in the previous texts, we use only this one for Tensorlab and start with this algorithm, making 20 computations for each dimension *n* and avering the errors and time. After that we run the other algorithms adjusting their tolerance in order to match the NLS results. 
   
  In all tests we tried to choose the options in order to speed up the algorithms without losing accuracy. For example, we noticed that it was unnecessary to use compression, detection of structure and refinement for the NLS algorithm. These routines are very expensive and didn't bring much extra precision, so they were disabled in order to make the NLS computations faster. Similarly we used the initialization 'svd' for Tensorly because it proved to be faster than 'random', and we used the algorithm 'lbfgs' for Tensor Toolbox OPT. Finally, for Tensor Fox we just decreased its tolerance in order to match the precision given by the NLS algorithm. The results are showed below. 
   
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png)
 
- Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. The routine to generate theses kind of tensors can be found [here](https://github.com/felipebottega/Tensor-Fox/blob/master/tests/gen_rand_tensor.py).
+ Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. For anyone interested in reproducing these tests, the routine to generate these kind of tensors can be found [here](https://github.com/felipebottega/Tensor-Fox/blob/master/tests/gen_rand_tensor.py).
  
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png)
 
 ## :fox_face: Structure of Tensor Fox
 
-In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this mission several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics analysis of tensors, rank estimation, automated plotting with CPD information, and many more. Below we present the modules of Tensor Fox and gives a brief description of their main functions.
+In this section we summarize all the features Tensor Fox has to offer. As already mentioned, computing the CPD is the main goal of Tensor Fox, but in order to accomplish this goal several 'sub-goals' had to be overcome first. Many of these sub-goals ended up being important routines of multilinear algebra. Besides that, during the development of this project several convenience routines were added, such as statistics analysis of tensors, rank estimation, automated plotting with CPD information, and many more. Below we present the modules of Tensor Fox and gives a brief description of their main functions.
 
 |**TensorFox**|  |
 |---|---|
@@ -110,7 +110,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
    
 |**Auxiliar**|  |
 |---|---|
-| tens2matlab| given a tensor, this function creates a Matlab file containing the tensor and its dimensions. |
+| tens2matlab| given a tensor, this function saves the tensor in a file in Matlab format. |
 | sort_dims| given a tensor, this function sort its dimensions in descending order and returns the sorted tensor. |
 | rank1| given the factors of a CPD, this function converts them into a matrix, which is the first frontal slice of the tensor in coordinates obtained by this rank-1 term. |
    
@@ -121,7 +121,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
    
 | **Conversion**|  |
 |---|---|
-| cpd2tens| converts the factor matrices to tensor in coordinate format. |
+| cpd2tens| converts the factor matrices to the corresponding tensor in coordinate format. |
 | unfold| given a tensor and a choice of a mode, this function computes the unfolding of the tensor with respect of that mode.  |
 | foldback| given a matrix representing a unfolding of some mode and the dimensions of the original tensor, this function retrieves the original tensor from its unfolding. |
 | normalize| normalize the columns of the factors to have unit column norm and introduce a central tensor with the scaling factors. |
@@ -139,16 +139,16 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
    
 | **GaussNewton**|   |
 |---|---|
-| dGN| [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function adapated for the tensor problem.. |
-| cg| [conjugate gradient](https://en.wikipedia.org/wiki/Conjugate_gradient_method) function specifically made for the tensor problem. |
-| lsmr| [LSMR](http://web.stanford.edu/group/SOL/software/lsmr/) function adapated for the tensor problem. |
+| dGN| [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function adapted for the tensor problem.. |
+| cg| [conjugate gradient](https://en.wikipedia.org/wiki/Conjugate_gradient_method) function adapted for the tensor problem. |
+| lsmr| [LSMR](http://web.stanford.edu/group/SOL/software/lsmr/) function adapted for the tensor problem. |
 | regularization| computes the [Tikhonov matrix](https://en.wikipedia.org/wiki/Tikhonov_regularization) for the inner algorithm. |
 | precond| computes the [preconditioner matrix](https://en.wikipedia.org/wiki/Preconditioner) for the inner algorithm.  |
    
 | **Initialization**|  |
 |---|---|
 | starting_point| main function to generates the starting point. There are four possible methods of initialization, 'random', 'smart_random', 'smart', or you can provide your own starting point. |
-| find_factor| if the user introduce constraints to the entries of the solution, a projection is made at each step of the dGN. This projection is based on three parameters, where the least clear is the *factor* parameter. This function helps the user to find the best factor for the starting point. For more information, see this notebook. |
+| find_factor| if the user introduce constraints for the entries of the solution, a projection is made at each step of the dGN. This projection is based on three parameters, where the least clear is the *factor* parameter. This function helps the user to find the best factor for the starting point. For more information, see [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/3-advanced_options.ipynb) notebook. |
    
 | **MultilinearAlgebra**| |
 |---|---|
