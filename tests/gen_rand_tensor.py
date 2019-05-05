@@ -30,7 +30,7 @@ def gen_rand_tensor(dims, R):
     orig_factors = []
 
     for l in range(L):
-        M = np.random.randn(dims[l], r)
+        M = np.random.randn(dims[l], R)
         orig_factors.append(M)
 
     T = np.zeros(dims)
