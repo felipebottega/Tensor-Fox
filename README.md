@@ -3,13 +3,13 @@
 Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD).
 
 ## Table of Contents
-* :fox_face:  [Motivation](#motivation)
-* :fox_face:  [Getting Started](#getting-started)
-* :fox_face:  [Performance](#performance)
-* :fox_face:  [Structure of Tensor Fox](#structure-of-tensor-fox)
-* :fox_face:  [Author](#author)
-* :fox_face:  [License](#license)
-* :fox_face:  [References](#references)
+* [:fox_face: Motivation](#motivation)
+* [:fox_face: Getting Started](#getting-started)
+* [:fox_face: Performance](#performance)
+* [:fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
+* [:fox_face: Author](#author)
+* [:fox_face: License](#license)
+* [:fox_face: References](#references)
 
 ## :fox_face: Motivation
 
@@ -63,6 +63,8 @@ In the following we compare the performances of Tensor Fox and other known tenso
  3) *Border rank*: The phenomenon of [border rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Border_rank) can make the CPD computation a challenging problem. The article [1] has a great discussion on this subject. In the same article they show a tensor of rank 3 and border rank 2. We choose to compute a CPD of rank R = 2 to see how the algorithms behaves when we try to approximate a problematic tensor by tensor with low rank. In theory it is possible to have arbitrarily good approximations. 
 			
  4) *Matrix multiplication*: Matrix multiplication between square n x n matrices can be seen as a tensor of shape n² x n² x n². Since [Strassen](https://en.wikipedia.org/wiki/Strassen_algorithm) it is known that these multiplications can be made with less operations. For the purpose of testing we choose the small value n = 5 and the rank R = 92. However note that this is probably not the exact rank of the tensor (it is lower), so this test is about a strict low rank approximation of a difficult tensor.
+ 
+**PS**: Tensor Fox relies on Numba, which makes [just in time compilations](http://numba.pydata.org/) (JIT). This means that the first run will compile the functions and this take some time. From the second time on there is no more compilations and the program should take much less time to finish the computations. Be warn that changing the order, the tensor and the method of initialization or the method of the inner algorithm also triggers more compilations. Before running Tensor Fox for real we recommend to run it on a small tensor, just to make the compilations.  
  
  For each tensor we make 100 runs of the Tensor Fox's CPD and keep the best solution (smallest error). Now let ALG be any other algorithm. First we set the tolerance option to a very small value so the algorithm don't stop because of tolerance conditions. After that we set the maximum number of iterations to *maxiter* = 5 and run ALG with these options 100 times. We only accept the solutions with relative error smaller that *error + error/100*, where *error* is the relative error obtained with Tensor Fox. Between all accepted solutions we select that one with the smallest running time. If no solution is found with these number of iterations, we increase it to *maxiter* = 10 and repeat. We try the values *maxiter* = 5, 10, 50, 100, 150, 200, 250, ..., 900, 950, 1000, until there is an accepted solution. Otherwise we consider that ALG failed. Note that these procedures favors all algorithms against Tensor Fox since we are trying to use the small possible number of iterations for them. We used random initilization in all tests. The results are showed below.
  
@@ -162,7 +164,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE.md](https://github.com/felipebottega/Tensor-Fox/blob/master/LICENSE) file for details.
     
 
-## References:
+## References
 
  1) V. de Silva, and L.-H. Lim, *Tensor Rank and the Ill-Posedness of the Best Low-Rank Approximation Problem*, SIAM Journal on Matrix Analysis and Applications, 30 (2008), pp. 1084-1127. 
  2) P. Comon, X. Luciani, and A. L. F. de Almeida, *Tensor Decompositions, Alternating Least Squares and other Tales*, Journal of Chemometrics, Wiley, 2009.   
