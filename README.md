@@ -4,7 +4,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## Table of Contents
 * [ :fox_face: Motivation](#motivation)
-* [ :fox_face: Getting Started](#:fox_face:getting-started)
+* [ :fox_face: Getting Started](#started)
 * [ :fox_face: Performance](#performance)
 * [ :fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
 * [ :fox_face: Author](#author)
