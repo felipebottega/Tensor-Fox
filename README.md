@@ -182,6 +182,6 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  8) S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
  9) A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC*, SIAM Journal on Matrix Analysis and Applications, 34 (1), 126-147 (2013).
  10) L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
- 11) https://www.tensorlab.net/
- 12) http://www.sandia.gov/~tgkolda/TensorToolbox/
- 13) https://github.com/tensorly/
+ 11) Tensorlab - https://www.tensorlab.net/
+ 12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
+ 13) Tensorly - https://github.com/tensorly/
