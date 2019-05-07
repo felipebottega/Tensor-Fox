@@ -102,6 +102,7 @@ def dGN(T, X, Y, Z, r, options):
     symm = options.symm 
     display = options.display
     low, upp, factor = options.constraints
+    c = options.constant_norm
     method_info = options.method_parameters
                 
     # Set the other variables.
@@ -170,7 +171,7 @@ def dGN(T, X, Y, Z, r, options):
         
         # Compute factors X, Y, Z.
         X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
-        X, Y, Z = cnv.transform(X, Y, Z, m, n, p, r, low, upp, factor, symm)
+        X, Y, Z = cnv.transform(X, Y, Z, m, n, p, r, low, upp, factor, symm, c)
         if fix_mode == 0:
             X = copy(X_orig)
         elif fix_mode == 1:

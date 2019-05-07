@@ -289,6 +289,7 @@ def make_options(options, dims):
             self.refine = False
             self.symm = False
             self.constraints = [0, 0, 0]
+            self.constant_norm = 0
             self.trials = 10
             self.display = 0
 
@@ -329,6 +330,8 @@ def make_options(options, dims):
         temp_options.constraints[1] = options.upp
     if 'factor' in dir(options):
         temp_options.constraints[2] = options.factor
+    if 'constant_norm' in dir(options):
+        temp_options.constant_norm = options.constant_norm
     if 'trials' in dir(options):
         temp_options.trials = options.trials
     if 'display' in dir(options):
@@ -360,6 +363,7 @@ def complete_options(options, dims):
             self.refine = False
             self.symm = False
             self.constraints = [0, 0, 0]
+            self.constant_norm = 0
             self.trials = 10
             self.display = 0
 
@@ -393,6 +397,8 @@ def complete_options(options, dims):
         temp_options.constraints[0] = options.low
     if 'upp' in dir(options):
         temp_options.constraints[1] = options.upp
+    if 'constant_norm' in dir(options):
+        temp_options.constant_norm = options.constant_norm
     if 'factor' in dir(options):
         temp_options.constraints[2] = options.factor
     if 'trials' in dir(options):

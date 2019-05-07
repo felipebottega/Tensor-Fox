@@ -61,6 +61,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, ordering, options):
     level = options.level
     init_method = options.init_method
     low, upp, factor = options.constraints
+    c = options.constant_norm
     symm = options.symm
     display = options.display
     
@@ -95,7 +96,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, r, R1, R2, R3, ordering, options):
     X, Y, Z = cnv.equalize(X, Y, Z, r)
 
     # Apply additional transformations if requested.
-    X, Y, Z = cnv.transform(X, Y, Z, R1, R2, R3, r, low, upp, factor, symm)
+    X, Y, Z = cnv.transform(X, Y, Z, R1, R2, R3, r, low, upp, factor, symm, c)
     
     if display > 2:
         # Computation of relative error associated with the starting point given.
