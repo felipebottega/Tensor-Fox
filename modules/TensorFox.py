@@ -859,10 +859,9 @@ def cpdtt(T, r):
     low_rank = min(T1.shape[0], T1.shape[1])
     U, S, V = rand_svd(T1, low_rank, n_iter=0)
     U = U[:,:r]
-    S = S[:r]
     S = diag(S)
-    V = V[:r,:]
     V = dot(S, V)
+    V = V[:r,:]
     G.append(U)
     
     # Compute remaining cores, except for the last one

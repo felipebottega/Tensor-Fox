@@ -49,7 +49,10 @@ def consistency(r, dims, symm):
             sys.exit(msg)
 
     if L > 3 and r > min(dims):
-        warnings.warn('For tensors of order higher than 3 it is advisible that the rank is smaller or equal than at least one of the dimensions of the tensor. The ideal would to be smaller or equal than all dimensions. In the case this condition is not met the computations can be slower and the program may not converge to a good solution.', category=Warning, stacklevel=3)
+        warnings.warn('For tensors of order higher than 3 it is advisible that the rank is smaller or equal than at' 
+                      ' least one of the dimensions of the tensor. The ideal would to be smaller or equal than all' 
+                      ' dimensions. In the case this condition is not met the computations can be slower and the'
+                      ' program may not converge to a good solution.', category=Warning, stacklevel=3)
 
     if symm:
         for i in range(L):
@@ -162,9 +165,16 @@ def compute_error(T, Tsize, S, S1, U, dims):
     return error
 
 
-def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, improv_main, improv_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine, options):
+def output_info(T_orig, Tsize, T_approx, 
+                step_sizes_main, step_sizes_refine, 
+                errors_main, errors_refine, 
+                improv_main, improv_refine, 
+                gradients_main, gradients_refine, 
+                mlsvd_stop, stop_main, stop_refine, 
+                options):
     """
-    Constructs the class containing the information of all relevant outputs relative to the computation of a third order CPD.
+    Constructs the class containing the information of all relevant outputs relative to the computation of a 
+    third order CPD.
     """
 
     if options.refine:
@@ -194,17 +204,21 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
             if self.stop[0] == 1:
                 print('1 - User choose level = 5, that is, to work with the original tensor.')
             if self.stop[0] == 2:
-                print('2 - When testing the truncations a big gap between singular values were detected and the program lock the size of the truncation.')
+                print('2 - When testing the truncations a big gap between singular values were detected and the program' 
+                      ' lock the size of the truncation.')
             if self.stop[0] == 3:
-                print('3 - The program was unable to truncate at the very first attempt. In this case the MLSVD singular values are equal or almost equal. The program stops the truncation process when this happens.')
+                print('3 - The program was unable to truncate at the very first attempt. In this case the MLSVD singular' 
+                      ' values are equal or almost equal. The program stops the truncation process when this happens.')
             if self.stop[0] == 4:
                 print('4 - Tensor probably is random or has a lot of noise.')
             if self.stop[0] == 5:
                 print('5 - The energy of the truncation is accepted because it is big enough.')
             if self.stop[0] == 6:
-                print('6 - None of the previous conditions were satisfied and we used the last truncation computed. This condition is only possible at the second stage.')
+                print('6 - None of the previous conditions were satisfied and we used the last truncation computed.' 
+                      ' This condition is only possible at the second stage.')
             if self.stop[0] == 7:
-                print('7 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of the MLSVD) without truncating it.')
+                print('7 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of' 
+                      ' the MLSVD) without truncating it.')
            
             # stop_main message
             print()
@@ -249,7 +263,8 @@ def output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, err
 
 def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     """
-    Constructs the class containing the information of all relevant outputs relative to the computation of a high order CPD.
+    Constructs the class containing the information of all relevant outputs relative to the computation of a 
+    high order CPD.
     """
 
     class temp_outputs:
@@ -267,7 +282,8 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
 
 def make_options(options, dims):
     """
-    This function constructs the whole class of options based on the options the user requested. This is the format read by the program.
+    This function constructs the whole class of options based on the options the user requested. 
+    This is the format read by the program.
     """
 
     L = len(dims)
@@ -279,7 +295,8 @@ def make_options(options, dims):
             self.tol = 1e-6
             # method_parameters[0] == True indicates the program to use default parameters.
             # method_parameters[1] is the method used to compute each iteration of the dGN function.
-            # method_parameters[2] is the maximum number of iterations for static methods, or the multiplying factor for randomized methods. 
+            # method_parameters[2] is the maximum number of iterations for static methods, or the multiplying factor for 
+            # randomized methods. 
             # method_parameters[3] is the tolerance to stop the iterations of the method.
             self.method_parameters = ['cg', 1, 1e-6] 
             self.init_method = 'random'
@@ -342,8 +359,8 @@ def make_options(options, dims):
 
 def complete_options(options, dims):
     """
-    This function constructs the whole class of options based on the options the user requested. This function is specific
-    to the stats, foxit and find_factor functions.
+    This function constructs the whole class of options based on the options the user requested. This function is 
+    specific to the stats, foxit and find_factor functions.
     """
 
     L = len(dims)
@@ -418,10 +435,9 @@ def tt_core(V, dims, r, l):
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:,:r]
-    S = S[:r]
     S = diag(S)
-    V = V[:r,:]
     V = dot(S, V)
+    V = V[:r,:]
     g = U.reshape(r, dims[l], r, order='F')    
     return V, g
 
