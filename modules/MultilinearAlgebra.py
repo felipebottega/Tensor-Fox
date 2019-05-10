@@ -44,13 +44,13 @@ def multilin_mult(U, T, T1, dims):
 
     L = len(dims)
     # dims_out are the dimensions of the output tensor.
-    dims_out = [] 
+    dims_out = list(dims)
     
     unfolding1 = T1    
     for l in range(L):
         unfolding2 = dot(U[l], unfolding1)
         # Update the current dimension of dims_out.
-        dims_out.append(U[l].shape[0])
+        dims_out[l] = U[l].shape[0]
         S = cnv.foldback(unfolding2, l+1, dims_out)
         if l < L-1:            
             unfolding1 = cnv.unfold(S, l+2, S.shape)
