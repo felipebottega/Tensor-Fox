@@ -16,21 +16,41 @@ import Conversion as cnv
 import Critical as crt
 
 
+def multilin_mult_cpd(U, W, dims):
+    """    
+    Performs the multilinear multiplication (U[0],...,U[L-1])*(W[0], ..., W[L-1])*I = (U[0]*W[0],...,U[L-1]*W[L-1])*I, 
+    where I.shape = dims = (W[0].shape[0],...,W[L-1].shape[0]) are the size of the columns of the W's. 
+    """
+
+    L = len(dims)
+    # dims_out are the dimensions of the output tensor.
+    dims_out = [] 
+    W_new = []
+    
+    for l in range(L):
+        W_new.append( dot(U[l], W[l]) )
+        dims_out.append(W_new[l].shape[0])
+    
+    S = np.zeros(dims_out)
+    S = tfx.cnv.cpd2tens(S, W_new, dims_out)
+    return S
+
+
 def multilin_mult(U, T, T1, dims):
     """    
-    Performs the multilinear multiplication (U[0],...,U[L-1])*T, where T.shape == dims. We need the first unfolding T1 of 
+    Performs the multilinear multiplication (U[0],...,U[L-1])*T, where dims = T.shape. We need the first unfolding T1 of 
     T to start the computations.
     """
 
     L = len(dims)
     # dims_out are the dimensions of the output tensor.
-    dims_out = [dim for dim in dims] 
-    unfolding1 = T1
+    dims_out = [] 
     
+    unfolding1 = T1    
     for l in range(L):
         unfolding2 = dot(U[l], unfolding1)
         # Update the current dimension of dims_out.
-        dims_out[l] = U[l].shape[0] 
+        dims_out.append(U[l].shape[0])
         S = cnv.foldback(unfolding2, l+1, dims_out)
         if l < L-1:            
             unfolding1 = cnv.unfold(S, l+2, S.shape)
