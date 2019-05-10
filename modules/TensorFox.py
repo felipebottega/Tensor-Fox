@@ -654,7 +654,7 @@ def bicpd(T, r, fixed_factor, options):
     return X, Y, Z, T_approx, output
            
 
-def rank(T, plot=True):
+def rank(T, options=False, plot=True):
     """
     This function computes several approximations of T for r = 1...max rank. These computations will be used to determine 
     the (most probable) rank of T. The function also returns an array `errors_per_rank` with the relative errors for each 
@@ -677,10 +677,10 @@ def rank(T, plot=True):
     
     # Compute norm of T.
     Tsize = norm(T)
+    dims = T.shape
 
-    # Set random initialization (works more generally)
-    class options:
-        init_method = 'random' 
+    # Set options
+    options = aux.complete_options(options, dims) 
 
     # START THE PROCCESS OF FINDING THE RANK
 
