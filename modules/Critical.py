@@ -2349,12 +2349,12 @@ def foldback12_order12(T, Tl, dims):
     return T
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order4(T, G0, G1, G2, G3, dims, L):
     a, b, c, d = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2366,12 +2366,12 @@ def tt_error_order4(T, G0, G1, G2, G3, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order5(T, G0, G1, G2, G3, G4, dims, L):
     a, b, c, d, e = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2385,12 +2385,12 @@ def tt_error_order5(T, G0, G1, G2, G3, G4, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L):
     a, b, c, d, e, f = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2406,12 +2406,12 @@ def tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L):
     a, b, c, d, e, f, g = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2429,12 +2429,12 @@ def tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L):
     a, b, c, d, e, f, g, h = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2454,12 +2454,12 @@ def tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L):
     a, b, c, d, e, f, g, h, i = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2481,12 +2481,12 @@ def tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L):
     a, b, c, d, e, f, g, h, i, j = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2510,12 +2510,12 @@ def tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L):
     a, b, c, d, e, f, g, h, i, j, k = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
@@ -2541,12 +2541,12 @@ def tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L):
     return T_approx
 
 
-@njit(nogil=True)
+@njit(nogil=True, parallel=True)
 def tt_error_order12(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11, dims, L):
     a, b, c, d, e, f, g, h, i, j, k, m = dims
     T_approx = empty(dims, dtype = float64)
     
-    for i0 in range(a):
+    for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
