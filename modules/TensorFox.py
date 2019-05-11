@@ -849,24 +849,15 @@ def cpdtt(T, r):
     L = dims.size
     Tsize = norm(T)
     
-    # Compute first unfolding of T 
-    T1 = cnv.unfold(T, 1, dims)
-    
     # List of cores
     G = []
     
-    # Compute first core
-    low_rank = min(T1.shape[0], T1.shape[1])
-    U, S, V = rand_svd(T1, low_rank, n_iter=0)
-    U = U[:,:r]
-    S = diag(S)
-    V = dot(S, V)
-    V = V[:r,:]
-    G.append(U)
-    
     # Compute remaining cores, except for the last one
-    for l in range(1,L-1):
-        V, g = aux.tt_core(V, dims, r, l)
+    r1, r2 = 1, r
+    V = T
+    for l in range(0, L-1):
+        V, g = aux.tt_core(V, dims, r1, r2, l)
+        r1, r2 = r, r
         G.append(g)
         
     # Last core

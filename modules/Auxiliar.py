@@ -426,19 +426,22 @@ def complete_options(options, dims):
     return temp_options
 
 
-def tt_core(V, dims, r, l):
+def tt_core(V, dims, r1, r2, l):
     """
     Computation of one core of the CPD Tensor Train function (cpdtt).
     """
 
-    V = V.reshape(r*dims[l], prod(dims[l+1:]), order='F')
+    V = V.reshape(r1*dims[l], prod(dims[l+1:]), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
-    U = U[:,:r]
+    U = U[:,:r2]
     S = diag(S)
     V = dot(S, V)
-    V = V[:r,:]
-    g = U.reshape(r, dims[l], r, order='F')    
+    V = V[:r2,:]
+    if r1 == 1:
+        g = U.reshape(dims[l], r2, order='F') 
+    else:
+        g = U.reshape(r1, dims[l], r2, order='F')   
     return V, g
 
 
