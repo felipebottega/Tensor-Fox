@@ -140,14 +140,6 @@ def cpd(T, r, options=False):
     
     if L > 3:
 
-        # Increase dimensions if r > min(dims).
-        if r > min(dims):
-            inflate_status = True
-            T, orig_dims, dims = cnv.inflate(T, r, dims)
-        else:
-            inflate_status = False
-            orig_dims = dims
-
         # COMPRESSION STAGE
 
         if display != 0:
@@ -180,12 +172,21 @@ def cpd(T, r, options=False):
                 print('    Compression relative error = {:5e}'.format(best_error))
             print()
 
+        # Increase dimensions if r > min(S.shape).
+        S_orig_dims = S.shape
+        if r > min(S_orig_dims):
+            inflate_status = True
+            S = cnv.inflate(S, r, S_orig_dims)
+        else:
+            inflate_status = False
+
         # For higher order tensors the trunc_dims options is only valid for the original tensor and its MLSVD.
         options.trunc_dims = 0
 
         # TENSOR TRAIN AND DAMPED GAUSS-NEWTON STAGE
 
         factors, S_approx, outputs = highcpd(S, r, options)  
+        factors = cnv.deflate(factors, S_orig_dims, inflate_status)
 
         # Use the orthogonal transformations to work in the original space.
         for l in range(L):
@@ -198,7 +199,6 @@ def cpd(T, r, options=False):
             num_steps += output.num_steps
     T_approx = zeros(dims)
     T_approx = cnv.cpd2tens(T_approx, factors, dims)
-    T_approx = cnv.deflate(T_approx, orig_dims, dims, inflate_status)
     rel_error = norm(T_orig - T_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
     
@@ -844,15 +844,15 @@ def cpdtt(T, r):
     the format dims[0] x r -> r x dims[1] x r -> ... -> r x dims[L-2] x r -> r x dims[L-1].
     """
 
-    # Compute dimensions and norm of T
+    # Compute dimensions and norm of T.
     dims = array(T.shape)
     L = dims.size
     Tsize = norm(T)
     
-    # List of cores
+    # List of cores.
     G = []
     
-    # Compute remaining cores, except for the last one
+    # Compute remaining cores, except for the last one.
     r1, r2 = 1, r
     V = T
     for l in range(0, L-1):
@@ -860,7 +860,7 @@ def cpdtt(T, r):
         r1, r2 = r, r
         G.append(g)
         
-    # Last core
+    # Last core.
     G.append(V)
     
     return G
