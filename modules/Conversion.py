@@ -197,7 +197,7 @@ def equalize(X, Y, Z, r):
 
 
 @njit(nogil=True)
-def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
+def transform(X, Y, Z, m, n, p, r, a, b, factor, symm, c):
     """
     Depending on the choice of the user, this function can project the entries of X, Y, Z in a given interval (this is 
     very useful with we have constraints at out disposal), it can make the corresponding tensor symmetric or non-negative.
@@ -235,6 +235,11 @@ def transform(X, Y, Z, m, n, p, r, a, b, factor, symm):
         X = (X+Y+Z)/3
         Y = X
         Z = X
+
+    if c > 0:
+        X = c * (1/norm(X)) * X
+        Y = c * (1/norm(Y)) * Y
+        Z = c * (1/norm(Z)) * Z
     
     return X, Y, Z
 
@@ -268,7 +273,7 @@ def vect(M, Bv, num_cols, r):
 def inflate(T, r, dims):
     """
     Let T be a tensor of shape dims. If rank > dims[l], this function increases T dimensions such that each new dimension
-    satisfies new_dims[l] = r. The new entries are all random number very close to zero. 
+    satisfies new_dims[l] = r. The new entries are all zeros. 
     """
 
     L = len(dims)
@@ -285,19 +290,18 @@ def inflate(T, r, dims):
     new_T = 1e-12*randn(*new_dims)
     new_T[tuple(slices)] = T
     
-    return new_T, dims, new_dims
+    return new_T
 
 
-def deflate(T_approx, orig_dims, dims, inflate_status):
+def deflate(factors, orig_dims, inflate_status):
     """
-    If T was inflated by the function 'inflate', this function restores T to its original shape by truncating it.
+    If the tensor was inflated, this function restores the factors to their original shape by truncating them.
     """
 
     if inflate_status == False:
-        return T_approx
+        return factors
 
     else:
         L = len(orig_dims) 
-        slices = [ slice(orig_dims[l]) for l in range(L) ]
-        T_approx = T_approx[tuple(slices)]
-        return T_approx
+        factors = [ factors[l][:orig_dims[l],:] for l in range(L) ]
+        return factors
