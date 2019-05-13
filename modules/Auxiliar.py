@@ -48,6 +48,10 @@ def consistency(r, dims, symm):
             msg = 'Rank must satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
             sys.exit(msg)
 
+    if L > 3 and r == 1:
+        msg = 'Rank must be greater than 1 for tensor with order greater than 3.'
+        sys.exit(msg)
+
     if L > 3 and r > min(dims):
         warnings.warn('For tensors of order higher than 3 it is advisible that the rank is smaller or equal than at' 
                       ' least one of the dimensions of the tensor. The ideal would to be smaller or equal than all' 
