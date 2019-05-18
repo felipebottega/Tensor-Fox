@@ -87,17 +87,17 @@ def als(T, X, Y, Z, r, options):
         fix_mode = 0
         X_orig = copy(X[0])
         X = X[0]
-        method_info = options.bicpd_method_parameters
+        method_info = options.bi_method_parameters
     elif type(Y) == list:
         fix_mode = 1
         Y_orig = copy(Y[0])
         Y = Y[0]
-        method_info = options.bicpd_method_parameters
+        method_info = options.bi_method_parameters
     elif type(Z) == list:
         fix_mode = 2
         Z_orig = copy(Z[0])
         Z = Z[0]
-        method_info = options.bicpd_method_parameters
+        method_info = options.bi_method_parameters
                 
     # Set the other variables.
     m, n, p = T.shape

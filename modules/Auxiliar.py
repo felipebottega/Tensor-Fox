@@ -612,7 +612,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bi(G[l], r, [fixed_X,0], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_X,0], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
@@ -636,7 +636,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bi(G[l], r, [fixed_Z,2], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_Z,2], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
