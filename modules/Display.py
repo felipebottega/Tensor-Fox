@@ -260,7 +260,7 @@ def test_tensors(tensors_list, options_list, trials, display):
     names = []
 
     i = 0
-    df = pd.DataFrame(columns = ['Tensor name', 'Maxiter', 'Tolerance', 'Initialization', 'Inner algorithm options', '# Success', '# Fail'])
+    df = pd.DataFrame(columns = ['Tensor name', 'Maxiter', 'Tolerance', 'Initialization', 'Inner algorithm options', 'Bi-CPD inner algorithm options', '# Success', '# Fail'])
     
     for element in tensors_list:
         if len(element) == 4:
@@ -324,8 +324,12 @@ def test_tensors(tensors_list, options_list, trials, display):
         maxiter = output.options.maxiter
         tol = output.options.tol
         init = output.options.init_method
-        temp = output.options.method_parameters
-        df.loc[i] = [name, maxiter, tol, init, [temp[0], temp[1], temp[2]], int(num_good_print), int(num_bad_print)]
+        temp1 = output.options.method_parameters
+        if T.ndim > 3:
+            temp2 = output.options.bicpd_method_parameters
+        else:
+            temp2 = '          '
+        df.loc[i] = [name, maxiter, tol, init, [temp1[0], temp1[1], temp1[2]], [temp2[0], temp2[1], temp2[2]], int(num_good_print), int(num_bad_print)]
         i += 1
         
         if display:

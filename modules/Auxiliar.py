@@ -7,8 +7,8 @@ user to use directly, but most of them are  just some piece of another (and more
 
 # Python modules
 import numpy as np
-from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size
-from numpy.linalg import norm
+from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size, inf
+from numpy.linalg import norm, pinv
 import sys
 import warnings
 import scipy.io
@@ -18,6 +18,7 @@ from numba import jit, njit, prange
 #Tensor Fox modules
 import Critical as crt
 import MultilinearAlgebra as mlinalg
+import TensorFox as tfx
 
 
 def consistency(r, dims, symm):
@@ -303,6 +304,7 @@ def make_options(options, dims):
             # randomized methods. 
             # method_parameters[3] is the tolerance to stop the iterations of the method.
             self.method_parameters = ['cg', 1, 1e-6] 
+            self.bi_method_parameters = ['als', 500, 1e-6] 
             self.init_method = 'random'
             self.trunc_dims = 0
             self.level = 1
@@ -313,6 +315,7 @@ def make_options(options, dims):
             self.constant_norm = 0
             self.trials = 10
             self.display = 0
+            self.epochs = 1
 
     temp_options = temp_options()
 
@@ -322,6 +325,7 @@ def make_options(options, dims):
     if 'tol' in dir(options):
         temp_options.tol = options.tol
         temp_options.method_parameters[2] = temp_options.tol
+        
     if 'method' in dir(options):
         temp_options.method_parameters[0] = options.method
         # Set default maxiter for each possible algorithm.
@@ -329,10 +333,27 @@ def make_options(options, dims):
             temp_options.method_parameters[1] = 1
         elif options.method == 'lsmr_static' or options.method == 'cg_static':
             temp_options.method_parameters[1] = 20
+        elif options.method == 'als':
+            temp_options.method_parameters[1] = 500
     if 'method_maxiter' in dir(options):
         temp_options.method_parameters[1] = options.method_maxiter   
     if 'method_tol' in dir(options):
-        temp_options.method_parameters[2] = options.method_tol  
+        temp_options.method_parameters[2] = options.method_tol 
+        
+    if 'bi_method' in dir(options):
+        temp_options.bi_method_parameters[0] = options.bi_method
+        # Set default maxiter for each possible algorithm (bi).
+        if options.bi_method == 'lsmr' or options.bi_method == 'cg':
+            temp_options.bi_method_parameters[1] = 1
+        elif options.bi_method == 'lsmr_static' or options.bi_method == 'cg_static':
+            temp_options.bi_method_parameters[1] = 20
+        elif options.bi_method == 'als':
+            temp_options.bi_method_parameters[1] = 500
+    if 'bi_method_maxiter' in dir(options):
+        temp_options.bi_method_parameters[1] = options.bi_method_maxiter   
+    if 'bi_method_tol' in dir(options):
+        temp_options.bi_method_parameters[2] = options.bi_method_tol    
+        
     if 'init_method' in dir(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
@@ -357,6 +378,8 @@ def make_options(options, dims):
         temp_options.trials = options.trials
     if 'display' in dir(options):
         temp_options.display = options.display
+    if 'epochs' in dir(options):
+        temp_options.epochs = options.epochs
     
     return temp_options
 
@@ -377,6 +400,9 @@ def complete_options(options, dims):
             self.method = 'cg'
             self.method_maxiter = 1
             self.method_tol = 1e-6
+            self.bi_method = 'als'
+            self.bi_method_maxiter = 500
+            self.bi_method_tol = 1e-6
             self.init_method = 'random'
             self.trunc_dims = 0
             self.level = 1
@@ -387,7 +413,8 @@ def complete_options(options, dims):
             self.constant_norm = 0
             self.trials = 10
             self.display = 0
-
+            self.epochs = 1
+            
     temp_options = temp_options()
 
     # User defined options
@@ -396,12 +423,21 @@ def complete_options(options, dims):
     if 'tol' in dir(options):
         temp_options.tol = options.tol
         temp_options.method_tol = options.tol
+        
     if 'method' in dir(options):
         temp_options.method = options.method
     if 'method_maxiter' in dir(options):
         temp_options.method_maxiter = options.method_maxiter
     if 'method_tol' in dir(options):
         temp_options.method_tol = options.method_tol
+        
+    if 'bi_method' in dir(options):
+        temp_options.bi_method = options.bi_method
+    if 'bi_method_maxiter' in dir(options):
+        temp_options.bi_method_maxiter = options.bi_method_maxiter
+    if 'bi_method_tol' in dir(options):
+        temp_options.bi_method_tol = options.bi_method_tol    
+        
     if 'init_method' in dir(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
@@ -426,6 +462,9 @@ def complete_options(options, dims):
         temp_options.trials = options.trials
     if 'display' in dir(options):
         temp_options.display = options.display
+    if 'epochs' in dir(options):
+        temp_options.epochs = options.epochs
+    
     
     return temp_options
 
@@ -519,3 +558,97 @@ def rank1(X, Y, Z, m, n, p, r, k):
                 rank1_slices[i,j,l] = X[i,l]*Y[j,l]*Z[k,l]
                         
     return rank1_slices
+
+
+def cpd_cores(G, max_trials, epochs, r, display, options):
+    
+    L = len(G)
+    
+    # The number of epochs is increased in 1 if necessary to be odd.
+    if epochs%2 == 0:
+        epochs += 1
+    
+    # List of CPD's.
+    cpd_list = [l for l in range(L-2)]
+    
+    # Outputs is a list containing the output class of each CPD.
+    outputs = [l for l in range(L-2)]
+    
+    if display < 0 and epochs > 1:
+        print('Epoch ', 1)
+        
+    # Compute cpd of second core.
+    best_error = inf
+    for trial in range(max_trials):
+        if display > 0:
+            print()
+            print('CPD 1')
+        X, Y, Z, T_approx, output = tfx.tricpd(G[1], r, options)
+        if output.rel_error < best_error:
+            best_output = output
+            best_error = output.rel_error
+            best_X, best_Y, best_Z = X, Y, Z
+            if best_error < 1e-4:
+                break
+                
+    outputs[0] = best_output
+    cpd_list[0] = [best_X, best_Y, best_Z]
+        
+    if display < 0:
+        print('CPD 1 error =', best_error)
+                
+    for epoch in range(epochs):
+        
+        if display < 0 and epoch > 0:
+            print()
+            print('Epoch ', epoch+1)
+    
+        # Following the tensor train from G[1] to G[L-2].
+        if epoch%2 == 0:        
+            for l in range(2, L-1):
+                best_error = inf
+                fixed_X = pinv(best_Z.T)
+                for trial in range(max_trials):
+                    if display > 0:
+                        print()
+                        print('CPD', l)
+                    X, Y, Z, T_approx, output = tfx.bi(G[l], r, [fixed_X,0], options)
+                    if output.rel_error < best_error:
+                        best_output = output
+                        best_error = output.rel_error
+                        best_X, best_Y, best_Z = fixed_X, Y, Z
+                        if best_error < 1e-4:
+                            break
+                
+                if epoch == epochs-1:
+                    outputs[l-1] = best_output
+                    cpd_list[l-1] = [fixed_X, best_Y, best_Z]
+                    
+                if display < 0:
+                    print('CPD', l, 'error =', best_error)
+
+        # Following the tensor train backwards, from G[L-2] to G[L].
+        else:
+            for l in reversed(range(1, L-2)):
+                best_error = inf
+                fixed_Z = pinv(best_X.T)
+                for trial in range(max_trials):
+                    if display > 0:
+                        print()
+                        print('CPD', l)
+                    X, Y, Z, T_approx, output = tfx.bi(G[l], r, [fixed_Z,2], options)
+                    if output.rel_error < best_error:
+                        best_output = output
+                        best_error = output.rel_error
+                        best_X, best_Y, best_Z = X, Y, fixed_Z
+                        if best_error < 1e-4:
+                            break
+                            
+                if epoch == epochs-2:
+                    outputs[l-1] = best_output
+                    cpd_list[l-1] = [best_X, best_Y, fixed_Z]
+                            
+                if display < 0:
+                    print('CPD', l, 'error =', best_error)
+                   
+    return cpd_list, outputs, best_Z

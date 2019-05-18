@@ -1,21 +1,18 @@
 """
  Gauss-Newton Module
  ===================
- This module implement the 'damped Gauss-Newton' algorithm, with iterations performed with aid of the conjugate gradient 
+ This module implement the damped Gauss-Newton algorithm, with iterations performed with aid of the conjugate gradient 
 method.
 """
 
 # Python modules
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, arange, hstack, identity, diag
-from numpy.linalg import norm, lstsq, LinAlgError
-from numpy.linalg import solve as numpy_solve
+from numpy.linalg import norm
 from numpy.random import randn, randint
-from scipy.linalg import solve
 from decimal import Decimal
 import sys
 from numba import njit, prange
-import matplotlib.pyplot as plt
 
 # Tensor Fox modules
 import Auxiliar as aux
@@ -50,10 +47,8 @@ def dGN(T, X, Y, Z, r, options):
     
     Outputs
     -------
-    x: float 1-D ndarray with r+3*r*n entries 
-        Each entry represents the components of the approximating tensor in the CPD form. More precisely, x is a flattened 
-        version of the CPD, which is given by
-    x = [X[1,1],...,X[m,1],...,X[1,r],...,X[m,r],Y[1,1],...,Z[p,r]].
+    X, Y, Z: 2-D ndarray
+        The factor matrices of the CPD of T.
     step_sizes: float 1-D ndarray 
         Distance between the computed points at each iteration.
     errors: float 1-D ndarray 
@@ -67,7 +62,7 @@ def dGN(T, X, Y, Z, r, options):
         This value indicates why the dGN function stopped. Below we summarize the cases.
         0: step_sizes[it] < tol. This means the steps are too small.
         1: improv < tol. This means the improvement in the error is too small.
-        2: gradients[it] < sqrt(tol). This means the gradient is close enough to 0.
+        2: gradients[it] < tol. This means the gradient is close enough to 0.
         3: mean(abs(errors[it-k : it] - errors[it-k-1 : it-1]))/Tsize < 10*tol. This means the average of the last k 
            relative errors is too small. Keeping track of the averages is useful when the errors improvements are just a 
            little above the threshold for a long time. We want them above the threshold indeed, but not too close for a 
@@ -77,24 +72,9 @@ def dGN(T, X, Y, Z, r, options):
         program can't give a stopping condition in the refinement stage).
         6: dGN diverged. 
     """  
-
-    # Verify if some factor should be fixed or not.
-    fix_mode = -1
-    if type(X) == list:
-        fix_mode = 0
-        X_orig = copy(X[0])
-        X = X[0]
-    elif type(Y) == list:
-        fix_mode = 1
-        Y_orig = copy(Y[0])
-        Y = Y[0]
-    elif type(Z) == list:
-        fix_mode = 2
-        Z_orig = copy(Z[0])
-        Z = Z[0]
     
     # INITIALIZE RELEVANT VARIABLES 
-
+    
     # Extract all variable from the class of options.
     init_damp = options.init_damp
     maxiter = options.maxiter 
@@ -104,6 +84,24 @@ def dGN(T, X, Y, Z, r, options):
     low, upp, factor = options.constraints
     c = options.constant_norm
     method_info = options.method_parameters
+    
+    # Verify if some factor should be fixed or not. This nnly happens in the bi function.
+    fix_mode = -1
+    if type(X) == list:
+        fix_mode = 0
+        X_orig = copy(X[0])
+        X = X[0]
+        method_info = options.bi_method_parameters
+    elif type(Y) == list:
+        fix_mode = 1
+        Y_orig = copy(Y[0])
+        Y = Y[0]
+        method_info = options.bi_method_parameters
+    elif type(Z) == list:
+        fix_mode = 2
+        Z_orig = copy(Z[0])
+        Z = Z[0]
+        method_info = options.bi_method_parameters
                 
     # Set the other variables.
     m, n, p = T.shape
@@ -163,8 +161,8 @@ def dGN(T, X, Y, Z, r, options):
                        
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
-        # A = Dres(x) and b = -res(x). 
-        y, grad, itn, residualnorm = compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, grad, res, m, n, p, r, damp, method_info, it)  
+        # A = Dres(x) and b = -res(x).
+        y, grad, itn, residualnorm = compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, grad, res, m, n, p, r, fix_mode, damp, method_info, it)  
                                      
         # Update point obtained by the iteration.         
         x = x + y
@@ -255,31 +253,32 @@ def dGN(T, X, Y, Z, r, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, grad, res, m, n, p, r, damp, method_info, it):
+def compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, grad, res, m, n, p, r, fix_mode, damp, method_info, it):
     """    
     This function uses the adequate method to compute the step based on the user choice, otherwise the default
-    (lsmr for small tensors and cg for big ones) is used.
+    is used.
     """
     
+    # Parameters for the inner method of tri CPD's.
     method, method_maxiter, method_tol = method_info   
     inner_maxiter = 1 + int( method_maxiter * randint(1 + it**0.4, 2 + it**0.9) )
     inner_tol = method_tol
     
     if method == 'cg': 
-        y, grad, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, grad, -res, m, n, p, r, damp, inner_maxiter, inner_tol)
+        y, grad, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, grad, -res, m, n, p, r, fix_mode, damp, inner_maxiter, inner_tol)
     elif method == 'cg_static':
-        y, grad, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, grad, -res, m, n, p, r, damp, method_maxiter, inner_tol)
+        y, grad, itn, residualnorm = cg(X, Y, Z, data, data_rmatvec, y, grad, -res, m, n, p, r, fix_mode, damp, method_maxiter, inner_tol)
     elif method == 'lsmr':
-        y, grad, itn, residualnorm = lsmr(X, Y, Z, -res, lsmr_data, m, n, p, r, atol=inner_tol, btol=inner_tol, maxiter=inner_maxiter)
+        y, grad, itn, residualnorm = lsmr(X, Y, Z, -res, lsmr_data, m, n, p, r, fix_mode, inner_tol, inner_tol, inner_maxiter)
     elif method == 'lsmr_static':
-        y, grad, itn, residualnorm = lsmr(X, Y, Z, -res, lsmr_data, m, n, p, r, atol=inner_tol, btol=inner_tol, maxiter=method_maxiter)
+        y, grad, itn, residualnorm = lsmr(X, Y, Z, -res, lsmr_data, m, n, p, r, fix_mode, inner_tol, inner_tol, method_maxiter)
     else:
         sys.exit('Wrong method parameter specification.')
-
+            
     return y, grad, itn, residualnorm
 
 
-def lsmr(X, Y, Z, b, data, m, n, p, r, atol=0, btol=0, maxiter=100):
+def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
     """
     LSMR stands for 'least squares with minimal residual'. This LSMR function is an 
     adaptation of the scipy's LSMR function. You can see the original in the link below:
@@ -390,6 +389,13 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, atol=0, btol=0, maxiter=100):
 
     if alpha > 0:
         v = (1 / alpha) * v
+        
+    if fix_mode == 0:
+        v[:r*m] = zeros(r*m)
+    elif fix_mode == 1:
+        v[r*m : r*(m+n)] = zeros(r*n)
+    elif fix_mode == 2:
+        v[r*(m+n) : r*(m+n+p)] = zeros(r*p)
 
     grad = copy(v)
 
@@ -671,7 +677,7 @@ def update_damp(damp, old_error, error, residualnorm):
     return damp
 
 
-def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, damp, maxiter, tol):
+def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, fix_mode, damp, maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
@@ -718,7 +724,7 @@ def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, damp, maxiter, tol):
                       w_Zt, Bu_Zt, M_Z, \
                       m, n, p, r)
     residual = M*grad
-    P = residual
+    P = residual    
     residualnorm = dot(residual, residual)
     if residualnorm == 0.0:
         residualnorm = 1e-6
@@ -726,6 +732,7 @@ def cg(X, Y, Z, data, data_rmatvec, y, grad, b, m, n, p, r, damp, maxiter, tol):
     alpha = 0.0
     beta = 0.0
     residualnorm_list = []
+    
        
     for itn in range(maxiter):
         Q = M*P
@@ -907,7 +914,7 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
             
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
-
+    
 @njit(nogil=True)
 def matvec(X, Y, Z, \
           Gr_X, Gr_Y, Gr_Z, \

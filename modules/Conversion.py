@@ -273,7 +273,7 @@ def vect(M, Bv, num_cols, r):
 def inflate(T, r, dims):
     """
     Let T be a tensor of shape dims. If rank > dims[l], this function increases T dimensions such that each new dimension
-    satisfies new_dims[l] = r. The new entries are all random number very close to zero. 
+    satisfies new_dims[l] = r. The new entries are all random number very close to zero.
     """
 
     L = len(dims)

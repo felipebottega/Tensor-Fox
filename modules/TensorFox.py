@@ -25,7 +25,7 @@ features of Tensor Fox are the following:
 # Python modules
 import numpy as np
 from numpy import inf, copy, dot, zeros, empty, array, nanargmin, log10, diag, arange, prod
-from numpy.linalg import norm, pinv
+from numpy.linalg import norm
 import sys
 import time
 import copy as cp
@@ -34,6 +34,7 @@ import matplotlib.pyplot as plt
 from sklearn.utils.extmath import randomized_svd as rand_svd
 
 # Tensor Fox modules
+import Alternating_Least_Squares as als
 import Auxiliar as aux
 import Compression as cmpr
 import Conversion as cnv
@@ -224,73 +225,33 @@ def highcpd(T, r, options):
     In particular, the rank r must be smaller than all dimensions of T.
     """     
 
-    # Create relevant values
+    # Create relevant values.
     dims = T.shape
     display = options.display
     max_trials = options.trials
     options.refine = False
+    epochs = options.epochs
 
-    # Outputs is a list containing the output class of each cpd
-    outputs = []
-
-    # Compute cores of the tensor train of T
+    # Compute cores of the tensor train of T.
     G = cpdtt(T, r)
     L = len(G)   
     if display > 2 or display < -1:
         print('===============================================================================================')
         print('SVD Tensor train error = ', aux.tt_error(T, G, dims, L))
         print('===============================================================================================')
-        print() 
+        print()     
     
-    # List of CPD's
-    cpd_list = []
-    
-    # Compute cpd of second core
     if display != 0:
         print('Total of', L-2, 'third order CPDs to be computed:')
         print('===============================================================================================')
-    best_error = inf
-    for trial in range(max_trials):
-        if display > 0:
-            print()
-            print('CPD 1')
-        X, Y, Z, T_approx, output = tricpd(G[1], r, options)
-        if output.rel_error < best_error:
-            best_output = output
-            best_error = output.rel_error
-            best_X, best_Y, best_Z = X, Y, Z
-            if best_error < 1e-4:
-                break
-    outputs.append(best_output)
-    cpd_list.append([best_X, best_Y, best_Z])
-    if display < 0:
-        print('CPD 1 error =', best_error)
-    
-    # Compute third order CPD's of cores G[2] to G[L-2]
-    for l in range(2, L-1):
-        best_error = inf
-        fixed_X = pinv(best_Z.T)
-        for trial in range(max_trials):
-            if display > 0:
-                print()
-                print('CPD', l)
-            X, Y, Z, T_approx, output = bicpd(G[l], r, [fixed_X,0], options)
-            if output.rel_error < best_error:
-                best_output = output
-                best_error = output.rel_error
-                best_X, best_Y, best_Z = X, Y, Z
-                if best_error < 1e-4:
-                    break
-        outputs.append(best_output)
-        cpd_list.append([fixed_X, best_Y, best_Z])
-        if display < 0:
-            print('CPD', l, 'error =', best_error)
+   
+    cpd_list, outputs, best_Z = aux.cpd_cores(G, max_trials, epochs, r, display, options)            
                 
-    # Compute of factors of T
+    # Compute of factors of T.
     factors = []
     # First factor
     factors.append(dot(G[0], cpd_list[0][0]))
-    # Factors 2 to L-2
+    # Factors 2 to L-2.
     for l in range(0, L-2):
         factors.append(cpd_list[l][1])
     B = dot(G[-1].T, best_Z)
@@ -363,6 +324,7 @@ def tricpd(T, r, options):
     symm = options.symm
     display = options.display
     level = options.level
+    method = options.method_parameters[0]
     if type(level) == list:
         level = level[1]
 
@@ -441,7 +403,10 @@ def tricpd(T, r, options):
         print('Computing CPD')
     
     # Compute the approximated tensor in coordinates with the dGN method.
-    X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, r, options) 
+    if method == 'als':
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, r, options)
+    else:
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, r, options) 
 
     # Use the orthogonal transformations to work in the original space.
     X = dot(U1, X)
@@ -465,7 +430,10 @@ def tricpd(T, r, options):
             print('-----------------------------------------------------------------------------------------------')
             print('Computing CPD')
 
-        X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = gn.dGN(T, X, Y, Z, r, options)
+        if method == 'als':
+            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = als.als(T, X, Y, Z, r, options)
+        else:
+            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = gn.dGN(T, X, Y, Z, r, options)
 
     else:
         step_sizes_refine = array([0])
@@ -515,6 +483,7 @@ def bicpd(T, r, fixed_factor, options):
     symm = options.symm
     display = options.display
     level = options.level
+    bi_method = options.bi_method_parameters[0]
     if type(level) == list:
         level = level[1]
 
@@ -607,8 +576,11 @@ def bicpd(T, r, fixed_factor, options):
         print('-----------------------------------------------------------------------------------------------') 
         print('Computing CPD of T')
     
-    # Compute the approximated tensor in coordinates with the dGN method. 
-    X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, r, options)
+    # Compute the approximated tensor in coordinates with the dGN method or the ALS method. 
+    if bi_method == 'als':
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, r, options)
+    else:
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, r, options)
  
     # FINAL WORKS
     
@@ -909,6 +881,8 @@ def foxit(T, r, options=False, bestof=1):
         print('    algorithm: conjugate gradient (static)')
     elif options.method == 'cg':
         print('    algorithm: conjugate gradient (dynamic)')
+    elif options.method == 'als':
+        print('    algorithm: alternating least squares')
     print()
 
     plt.figure(figsize=[9,6])
