@@ -9,14 +9,12 @@ biCPD's for the tensor train.
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, float64, sqrt, dot
 from numpy.linalg import norm, pinv
-from decimal import Decimal
 from numba import njit
 
 # Tensor Fox modules
-import Auxiliar as aux
 import Conversion as cnv
-import Dense as dns
-import MultilinearAlgebra as mlinalg 
+import MultilinearAlgebra as mlinalg
+
 
 def als(T, X, Y, Z, r, options):
     """
@@ -72,7 +70,7 @@ def als(T, X, Y, Z, r, options):
     # INITIALIZE RELEVANT VARIABLES 
 
     # Extract all variable from the class of options.
-    symm = options.symm 
+    symm = options.symm
     display = options.display
     low, upp, factor = options.constraints
     c = options.constant_norm
@@ -111,12 +109,12 @@ def als(T, X, Y, Z, r, options):
     # INITIALIZE RELEVANT ARRAYS
     
     x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
-    grad = empty(r*(m+n+p), dtype = float64)
+    grad = empty(r*(m+n+p), dtype=float64)
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    T_approx = empty((m,n,p), dtype=float64)
+    T_approx = empty((m, n, p), dtype=float64)
     T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
 
     if display > 1:
@@ -141,7 +139,7 @@ def als(T, X, Y, Z, r, options):
         old_error = error
                        
         # ALS iteration call.
-        X, Y, Z = als_iteration(T1, T2, T3, X, Y, Z, m, n, p, r, fix_mode) 
+        X, Y, Z = als_iteration(T1, T2, T3, X, Y, Z, fix_mode)
         x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
                                      
         # Transform factors X, Y, Z.
@@ -160,7 +158,6 @@ def als(T, X, Y, Z, r, options):
         # Update best solution.
         if error < best_error:
             best_error = error
-            best_x = copy(x)
             best_X = copy(X)
             best_Y = copy(Y)
             best_Z = copy(Z)
@@ -178,16 +175,16 @@ def als(T, X, Y, Z, r, options):
         if display > 1:
             if display == 4:
                 print('    ', 
-                  '{:^8}'.format(it+1), 
-                  '| {:^10.5e}'.format(errors[it]),
-                  '| {:^10.5e}'.format(improv[it]),
-                  '| {:^11.5e}'.format(gradients[it]))
+                      '{:^8}'.format(it+1),
+                      '| {:^10.5e}'.format(errors[it]),
+                      '| {:^10.5e}'.format(improv[it]),
+                      '| {:^11.5e}'.format(gradients[it]))
             else:
                 print('   ', 
-                  '{:^9}'.format(it+1), 
-                  '| {:^9.2e}'.format(errors[it]),
-                  '| {:^11.2e}'.format(improv[it]),
-                  '| {:^10.2e}'.format(gradients[it]))
+                      '{:^9}'.format(it+1),
+                      '| {:^9.2e}'.format(errors[it]),
+                      '| {:^11.2e}'.format(improv[it]),
+                      '| {:^10.2e}'.format(gradients[it]))
            
         # Stopping conditions.
         if it > 1:
@@ -200,8 +197,9 @@ def als(T, X, Y, Z, r, options):
             if gradients[it] < tol:
                 stop = 2
                 break 
-            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol, then 
-            # we stop iterating. We don't want to waste time computing with 'almost negligible' improvements for long time.
+            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol,
+            # then we stop iterating. We don't want to waste time computing with 'almost negligible' improvements for
+            # long time.
             if it > const and it%const == 0: 
                 if mean(np.abs(errors[it-const : it] - errors[it-const-1 : it-1])) < 10*tol:
                     stop = 3
@@ -211,7 +209,7 @@ def als(T, X, Y, Z, r, options):
                 stop = 6
                 break 
     
-    # SAVE LAST COMPUTED INFORMATIONS
+    # SAVE LAST COMPUTED INFORMATION
     
     step_sizes = step_sizes[0:it+1]
     errors = errors[0:it+1]
@@ -222,7 +220,7 @@ def als(T, X, Y, Z, r, options):
 
 
 @njit(nogil=True)
-def als_iteration(T1, T2, T3, X, Y, Z, m, n, p, r, fix_mode):
+def als_iteration(T1, T2, T3, X, Y, Z, fix_mode):
     """
     This function makes two or three ALS iterations, that is, it computes the pseudoinverse with respect to 
     two or three modes depending if one of the modes is fixed. The implementation is simple and not intended 
