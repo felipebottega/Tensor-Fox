@@ -10,13 +10,10 @@ import numpy as np
 from numpy import array, eye, zeros, ones, empty, prod, float64, int64, copy, dot, sort, argsort, sqrt, mean
 from numpy.linalg import eigh, svd
 from numpy.random import randint
-import numpy as np
-import sys
 
 # Tensor Fox modules
 import Auxiliar as aux
 import Conversion as cnv
-import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
@@ -59,7 +56,7 @@ def mlsvd(T, Tsize, r, options):
     sigmas = []
     U = []
     UT = []
-    T1 = empty((dims[0], prod(dims)//dims[0]), dtype = float64)
+    T1 = empty((dims[0], prod(dims)//dims[0]), dtype=float64)
 
     # Compute the SVD of all unfolding of T.
     for l in range(L):
@@ -82,7 +79,7 @@ def mlsvd(T, Tsize, r, options):
             U.append(Vlh[:, idx])
             UT.append(Vlh[:, idx].T)
 
-    # Level = 4 means to not truncate the compression, i.e., we use the central tensor if the MLSVD without truncating it.
+    # Level = 4 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
     if level == 4:
         mlsvd_stop = 7
         S = mlinalg.multilin_mult(UT, T, T1, dims) 
@@ -118,10 +115,11 @@ def mlsvd(T, Tsize, r, options):
         else:
             return S, best_energy, best_dims, best_U, best_UT, sigmas, mlsvd_stop
 
-    # The original SVD factors may have extra information due to noise or numerical error. We clean this SVD by performing
-    # a specialized truncation. 
+    # The original SVD factors may have extra information due to noise or numerical error.
+    # We clean this SVD by performing a specialized truncation.
     stage = 1
-    S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = high_clean_compression(T, T1, Tsize, T, sigmas, U, UT, r, level, stage)
+    S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = \
+        high_clean_compression(T, T1, T, sigmas, U, UT, r, level, stage)
     
     # TRUNCATE THE TRUNCATION
 
@@ -139,8 +137,10 @@ def mlsvd(T, Tsize, r, options):
             level += 1
         stage = 2
         best_energy2 = 100
-        S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage)
-        # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy accordingly.
+        S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = \
+            high_clean_compression(T, T1, S, sigmas, U, UT, r, level, stage)
+        # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy
+        # accordingly.
         best_energy = best_energy*best_energy2/100
 
     # Compute error of compressed tensor.
@@ -157,9 +157,9 @@ def mlsvd(T, Tsize, r, options):
 
 def trimlsvd(T, Tsize, r, trunc_dims, level, display): 
     """
-    This function computes the High order singular value decomposition (MLSVD) of a tensor T. This decomposition is given 
-    by T = (U1,U2,U3)*S, where U1, U2, U3 are orthogonal matrices, S is the central tensor and * is the multilinear 
-    multiplication. The MLSVD is a particular case of the Tucker decomposition.
+    This function computes the High order singular value decomposition (MLSVD) of a tensor T. This decomposition is
+    given by T = (U1,U2,U3)*S, where U1, U2, U3 are orthogonal matrices, S is the central tensor and * is the
+    multilinear multiplication. The MLSVD is a particular case of the Tucker decomposition.
 
     Inputs
     ------
@@ -178,15 +178,15 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
         The central tensor (possibly truncated).
     best_energy: float
         It is a value between 0 and 100 indicating how much of the energy was preserverd after truncating the central 
-        tensor. If no truncation occurs (best_energy == 100), then we are working with the original central tensor, which 
-        has the same size as T.
+        tensor. If no truncation occurs (best_energy == 100), then we are working with the original central tensor,
+        which has the same size as T.
     R1, R2, R3: int
         S.shape = (R1, R2, R3)
     U1, U2, U3: float 2-D ndarrays
         U1.shape = (m, R1), U2.shape = (n, R2), U3.shape = (p, R3)
     sigma1, sigma2, sigma3: float 1-D arrays
-        Each one of these array is an ordered list with the singular values of the respective unfolding of T. We have that 
-        sigma1.size = R1, sigma2.size = R2, sigma3.size = R3.
+        Each one of these array is an ordered list with the singular values of the respective unfolding of T. We have
+        that sigma1.size = R1, sigma2.size = R2, sigma3.size = R3.
     mlsvd_stop: int
         It is a integer between 0 and 7, indicating how the compression was obtained. Below we summarize the possible 
         situations.
@@ -196,13 +196,14 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
         the truncation. 
         3: the program was unable to compress at the very first iteration. In this case the tensor singular values are 
         equal or almost equal. We stop the truncation process when this happens.
-        4: when no truncation were detected in 90 % of the attempts we suppose the tensor is random or has a lot of noise. 
-        In this case we take a small truncation based on the rank r. This verification is made only made at the first stage.
-        5: the energy of the truncation is accepted for it is big enough (this 'big' depends on the level choice and the 
+        4: when no truncation were detected in 90 % of the attempts we suppose the tensor is random or has a lot of
+        noise. In this case we take a small truncation based on the rank r. This verification is made only made at the
+        first stage.
+        5: the energy of the truncation is accepted for it is big enough (this 'big' depends on the level choice and the
         size of the tensor).
-        6: none of the previous conditions were satisfied and we keep the last truncation computed. This condition is only 
-        possible at the second stage.
-        7:  user choosed level = 4, i.e., to work with the compressed tensor without truncating it.
+        6: none of the previous conditions were satisfied and we keep the last truncation computed. This condition is
+        only possible at the second stage.
+        7:  user choose level = 4, i.e., to work with the compressed tensor without truncating it.
     """    
 
     # Compute dimensions of T.
@@ -225,7 +226,7 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     T3 = cnv.unfold(T, 3, dims)
     sigma1, sigma2, sigma3, U1, U2, U3 = unfoldings_svd(T1, T2, T3, m, n, p)
 
-    # Level = 4 means to not truncate the compression, i.e., we use the central tensor if the MLSVD without truncating it.
+    # Level = 4 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
     if level == 4:
         mlsvd_stop = 7
         R1, R2, R3 = sigma1.size, sigma2.size, sigma3.size
@@ -257,10 +258,11 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
         else:
             return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
-    # The original SVD factors may have extra information due to noise or numerical error. We clean this SVD by performing
-    # a specialized truncation. 
+    # The original SVD factors may have extra information due to noise or numerical error. We clean this SVD by
+    # performing a specialized truncation.
     stage = 1
-    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = clean_compression(T, T1, Tsize, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+    S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = \
+        clean_compression(T, T1, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
                       
     # TRUNCATE THE TRUNCATION
 
@@ -277,9 +279,10 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
         if level < 3:
             level += 1
         stage = 2
-        best_energy2 = 100
-        S, best_energy2, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
-        # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy accordingly.
+        S, best_energy2, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = \
+            clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+        # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy
+        # accordingly.
         best_energy = best_energy*best_energy2/100
 
     # Compute error of compressed tensor.
@@ -291,8 +294,8 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
 
-def high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage):
-     # Initialize the best results in the case none of the truncations work.
+def high_clean_compression(T, T1, S, sigmas, U, UT, r, level, stage):
+    # Initialize the best results in the case none of the truncations work.
     dims = array(T.shape)
     L = len(dims)
     energy_tol = set_constraints(dims, level)
@@ -312,7 +315,6 @@ def high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage):
         best_sigmas.append( sigmas[l][:best_dims[l]] )
           
     # Initialize relevant constants and arrays.
-    count = 0
     num_cuts = max(100, int(mean(dims)))
     S_energy = 0.0
     for l in range(L):
@@ -346,8 +348,8 @@ def high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage):
             best_sigmas = [ ones(dims[l]) for l in range(L) ]
             return T, best_energy, best_dims, best_U, best_UT, best_sigmas, mlsvd_stop, situation              
             
-        # If no truncation was detected through almost all iterations, we may assume this tensor is random or has a lot 
-        # of random noise (although it is also possible that the energy stop condition is too restrictive for this case). 
+        # If no truncation was detected through almost all iterations, we assume this tensor is random or has a lot of
+        # random noise (although it is also possible that the energy stop condition is too restrictive for this case).
         # When this happens the program just choose some small truncation to work with. A good idea is to suppose the 
         # chosen rank is close to correct and use it to estimate the truncation size.
         if stage == 1 and i == num_cuts-int(num_cuts/10): 
@@ -388,8 +390,8 @@ def high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage):
     
     if L > 3:
         mlsvd_stop = 6
-        best_dims = [max(best_dims[l], r) for l in range(L)]
-        best_slices = [ slice(best_dims[l]) for i in range(L) ]
+        best_dims = [ max(best_dims[l], r) for l in range(L) ]
+        best_slices = [ slice(best_dims[l]) for l in range(L) ]
         best_S = S[tuple(best_slices)]
         for l in range(L):
             best_U[l] = U[l][:, :best_dims[l]]
@@ -397,20 +399,21 @@ def high_clean_compression(T, T1, Tsize, S, sigmas, U, UT, r, level, stage):
             best_sigmas[l] = sigmas[l][:best_dims[l]]
     else:
         mlsvd_stop = 6
-        best_slices = [ slice(best_dims[l]) for i in range(L) ]
+        best_slices = [ slice(best_dims[l]) for l in range(L) ]
         best_S = S[tuple(best_slices)]
         for l in range(L):
             best_U[l] = U[l][:, :best_dims[l]]
             best_UT[l] = UT[l][:best_dims[l], :]
             best_sigmas[l] = sigmas[l][:best_dims[l]]
-    return best_S, best_energy, best_dims, best_U, best_UT, best_sigmas, mlsvd_stop, situation        
- 
+
+    return best_S, best_energy, best_dims, best_U, best_UT, best_sigmas, mlsvd_stop, situation
 
 
-def clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage):
+def clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage):
     """
-    This function try different threshold values to truncate the mlsvd. The conditions to accept a truncation are defined 
-    by the parameter level. Higher level means harder constraints, which translates to bigger tensors after the truncation.
+    This function try different threshold values to truncate the mlsvd. The conditions to accept a truncation are
+    defined by the parameter level. Higher level means harder constraints, which translates to bigger tensors after the
+    truncation.
 
     Inputs
     ------
@@ -460,10 +463,8 @@ def clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n,
           
     # Initialize relevant constants and arrays.
     dims = (m, n, p)
-    count = 0
     num_cuts = max(100, int((m+n+p)/3))
     S_energy = np.sum(best_sigma1**2) + np.sum(best_sigma2**2) + np.sum(best_sigma3**2)
-    R1_old, R2_old, R3_old = m, n, p
     best_energy = 1
     situation = 'ok'
     sigma1_settled, sigma2_settled, sigma3_settled = False, False, False
@@ -490,19 +491,22 @@ def clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n,
     for i in range(num_cuts):        
         # UPDATES.
 
-        if sigma1_settled == False:
+        if not sigma1_settled:
             sigma1_new, R1_new, U1_new = update_compression(sigma1, U1, sigma1[cut1[i]])
-        if sigma2_settled == False:
+        if not sigma2_settled:
             sigma2_new, R2_new, U2_new = update_compression(sigma2, U2, sigma2[cut2[i]])
-        if sigma3_settled == False:
+        if not sigma3_settled:
             sigma3_new, R3_new, U3_new = update_compression(sigma3, U3, sigma3[cut3[i]]) 
         
-        # If the difference between two consecutive singular values is very large, we keep the current value for the rest 
-        # of the iterations. 
+        # If the difference between two consecutive singular values is very large, we keep the current value for the
+        # rest of the iterations.
         if i > 1:      
-            sigma1_new, R1_new, U1_new, sigma1_settled = check_jump(sigma1_new, R1_new, U1_new, sigma1, U1, cut1, sigma1_settled, i)             
-            sigma2_new, R2_new, U2_new, sigma2_settled = check_jump(sigma2_new, R2_new, U2_new, sigma2, U2, cut2, sigma2_settled, i)            
-            sigma3_new, R3_new, U3_new, sigma3_settled = check_jump(sigma3_new, R3_new, U3_new, sigma3, U3, cut3, sigma3_settled, i)   
+            sigma1_new, R1_new, U1_new, sigma1_settled = \
+                check_jump(sigma1_new, R1_new, U1_new, sigma1, U1, cut1, sigma1_settled, i)
+            sigma2_new, R2_new, U2_new, sigma2_settled = \
+                check_jump(sigma2_new, R2_new, U2_new, sigma2, U2, cut2, sigma2_settled, i)
+            sigma3_new, R3_new, U3_new, sigma3_settled = \
+                check_jump(sigma3_new, R3_new, U3_new, sigma3, U3, cut3, sigma3_settled, i)
                     
         # Compute energy of compressed tensor.
         total_energy = compute_energy(S_energy, sigma1_new, sigma2_new, sigma3_new) 
@@ -530,9 +534,9 @@ def clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n,
             return T, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation              
             
         # If no truncation was detected through almost all iterations, we may assume this tensor is random or has a lot 
-        # of random noise (although it is also possible that the energy stop condition is too restrictive for this case). 
-        # When this happens the program just choose some small truncation to work with. A good idea is to suppose the 
-        # chosen rank is close to correct and use it to estimate the truncation size.
+        # of random noise (although it is also possible that the energy stop condition is too restrictive for this
+        # case). When this happens the program just choose some small truncation to work with. A good idea is to suppose
+        # the chosen rank is close to correct and use it to estimate the truncation size.
         if stage == 1 and i == num_cuts-int(num_cuts/10): 
             mlsvd_stop = 4
             situation = 'random'
@@ -559,10 +563,7 @@ def clean_compression(T, T1, Tsize, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n,
                 UT = [best_U1.T, best_U2.T, best_U3.T]
                 best_S = mlinalg.multilin_mult(UT, T, T1, dims)
                 return best_S, best_energy, best_R1, best_R2, best_R3, best_U1, best_U2, best_U3, best_sigma1, best_sigma2, best_sigma3, mlsvd_stop, situation 
-    
-        # Keep values of all dimensions to compare in the next iteration.
-        R1_old, R2_old, R3_old = R1_new, R2_new, R3_new
-  
+
     mlsvd_stop = 6
     best_S = S[:best_R1, :best_R2, :best_R3]
     best_U1, best_U2, best_U3 = U1[:, :best_R1], U2[:, :best_R2], U3[:, :best_R3] 
@@ -653,9 +654,9 @@ def set_constraints(dims, level):
     if level == 0:
         if val <= 1e5:
             energy_tol = 99.9
-        if 1e5 < val and val <= 1e6:
+        if 1e5 < val <= 1e6:
             energy_tol = 99
-        if 1e6 < val and val <= 1e7:
+        if 1e6 < val <= 1e7:
             energy_tol = 98
         if 1e7 < val:
             energy_tol = 95
@@ -664,9 +665,9 @@ def set_constraints(dims, level):
     if level == 1:
         if val <= 1e5:
             energy_tol = 100 - 1e-7
-        if 1e5 < val and val <= 1e6:
+        if 1e5 < val <= 1e6:
             energy_tol = 100 - 1e-5
-        if 1e6 < val and val <= 1e7:
+        if 1e6 < val <= 1e7:
             energy_tol = 100 - 1e-3
         if 1e7 < val:
             energy_tol = 100 - 1e-1
@@ -675,9 +676,9 @@ def set_constraints(dims, level):
     if level == 2:
         if val <= 1e5:
             energy_tol = 100 - 1e-9
-        if 1e5 < val and val <= 1e6:
+        if 1e5 < val <= 1e6:
             energy_tol = 100 - 1e-7
-        if 1e6 < val and val <= 1e7:
+        if 1e6 < val <= 1e7:
             energy_tol = 100 - 1e-5
         if 1e7 < val:
             energy_tol = 100 - 1e-3
@@ -701,16 +702,16 @@ def high_generate_cuts(sigmas, num_cuts, r):
             cuts.append( randint(1,sigmas[l].size, size=num_cuts) )
             cuts[l] = sort(cuts[l])
     else:
-        cuts.append( ones(num_cuts, dtype = int64) )
+        cuts.append( ones(num_cuts, dtype=int64) )
     
     return cuts
 
 
 def generate_cuts(sigma1, sigma2, sigma3, num_cuts, r):
     """
-    At iteration i of the function clean_compression, we will truncate the sigmas by considering only the singular values 
-    bigger than cut[i]. Each cut is a random number between 0 and 100. This means we will take num_cut points of each 
-    array of singular values.
+    At iteration i of the function clean_compression, we will truncate the sigmas by considering only the singular
+    values bigger than cut[i]. Each cut is a random number between 0 and 100. This means we will take num_cut points of
+    each array of singular values.
     """
 
     sigma1 = sigma1[:min(r, sigma1.size)]
@@ -718,16 +719,16 @@ def generate_cuts(sigma1, sigma2, sigma3, num_cuts, r):
     sigma3 = sigma3[:min(r, sigma3.size)]
 
     if r > 1:
-        cut1 = randint(1,sigma1.size, size=num_cuts)
+        cut1 = randint(1, sigma1.size, size=num_cuts)
         cut1 = sort(cut1)
-        cut2 = randint(1,sigma2.size, size=num_cuts)
+        cut2 = randint(1, sigma2.size, size=num_cuts)
         cut2 = sort(cut2)
-        cut3 = randint(1,sigma3.size, size=num_cuts)
+        cut3 = randint(1, sigma3.size, size=num_cuts)
         cut3 = sort(cut3)
     else:
-        cut1 = ones(num_cuts, dtype = int64)
-        cut2 = ones(num_cuts, dtype = int64)
-        cut3 = ones(num_cuts, dtype = int64)
+        cut1 = ones(num_cuts, dtype=int64)
+        cut2 = ones(num_cuts, dtype=int64)
+        cut3 = ones(num_cuts, dtype=int64)
     
     return cut1, cut2, cut3 
 
