@@ -1,7 +1,7 @@
 """
  General Description
  ===================
- *Tensor Fox* is a vast library of routines related to tensor problems. Since most tensor problems fall in the category 
+ Tensor Fox is a vast library of routines related to tensor problems. Since most tensor problems fall in the category
 of NP-hard problems, a great effort was made to make this library as efficient as possible. Some relevant routines and 
 features of Tensor Fox are the following: 
  
@@ -31,7 +31,6 @@ import time
 import copy as cp
 from decimal import Decimal
 import matplotlib.pyplot as plt
-from sklearn.utils.extmath import randomized_svd as rand_svd
 
 # Tensor Fox modules
 import Alternating_Least_Squares as als
@@ -49,8 +48,8 @@ import MultilinearAlgebra as mlinalg
 def cpd(T, r, options=False):
     """
     Given a tensor T and a rank r, this function computes an approximated CPD of T with rank r. The factors matrices are 
-    given in the form of a list [W^(1),...,W^(L)]. These matrices are such that sum_(l=1)^r W[:,l]^(1) ⊗ ... ⊗ W[:,l]^(L) 
-    is an approximation for T, where W[:,l]^(1) denotes the l-th column of W^(1). The same goes for the other matrices.
+    given in the form of a list [W^(1),...,W^(L)]. They are such that sum_(l=1)^r W[:,l]^(1) ⊗ ... ⊗ W[:,l]^(L) is an
+    approximation for T, where W[:,l]^(1) denotes the l-th column of W^(1). The same goes for the other matrices.
 
     Inputs
     ------
@@ -62,7 +61,7 @@ def cpd(T, r, options=False):
         maxiter: int
             Number of maximum iterations allowed for the dGN function. Default is 200.
         tol: float
-            Tolerance criterium to stop the iteration proccess of the dGN function. Default is 1e-12.
+            Tolerance criterium to stop the iteration process of the dGN function. Default is 1e-12.
         init_method: string or list
             This options is used to choose the initial point to start the iterations. For more information, check the 
                 function starting_point.
@@ -74,7 +73,7 @@ def cpd(T, r, options=False):
              The conditions to accept a truncation are defined by the parameter level. Higher means harder constraints, 
                 which means bigger dimensions. Default is 1. For more information check the function set_constraints.
         symm: bool
-            The user should set symm to True if the objetive tensor is symmetric, otherwise symm is False. Default is 
+            The user should set symm to True if the objective tensor is symmetric, otherwise symm is False. Default is
                 False.
         low, upp, factor: floats
             These values sets constraints to the entries of the tensor. Default for all of them is 0, which means no 
@@ -84,9 +83,9 @@ def cpd(T, r, options=False):
                 This parameter is only used for tensor with order higher than 3. The computation of the tensor train CPD 
                 requires the computation of several CPD of third order tensors. If only one of these CPD's is of low 
                 quality (divergence or local minima) then all effort is in vain. One work around is to compute several 
-                CPD'd and keep the best, for third order tensor. The parameter trials defines the maximum number of times 
-                we repeat the computation of each third order CPD. These trials stops when the relative error is less than 
-                1e-4 or when the maximum number of trials is reached. Default is trials=1. 
+                CPD'd and keep the best, for third order tensor. The parameter trials defines the maximum number of
+                times we repeat the computation of each third order CPD. These trials stops when the relative error is
+                less than 1e-4 or when the maximum number of trials is reached. Default is trials=1.
         display: -1, 0, 1, 2 or 3
             This options is used to control how information about the computations are displayed on the screen. The 
                 possible values are -1, 0, 1 (default), 2, 3. Notice that display=3 makes the overall running time large 
@@ -118,9 +117,8 @@ def cpd(T, r, options=False):
     T_orig = copy(T)
     
     # Set options
-    options = aux.make_options(options, dims)
+    options = aux.make_options(options)
     display = options.display
-    level = options.level
     level = options.level
     if type(level) == list:
         if L > 3:
@@ -197,7 +195,7 @@ def cpd(T, r, options=False):
 
     num_steps = 0
     for output in outputs:
-            num_steps += output.num_steps
+        num_steps += output.num_steps
     T_approx = zeros(dims)
     T_approx = cnv.cpd2tens(T_approx, factors, dims)
     rel_error = norm(T_orig - T_approx)/Tsize
@@ -248,9 +246,9 @@ def highcpd(T, r, options):
     cpd_list, outputs, best_Z = aux.cpd_cores(G, max_trials, epochs, r, display, options)            
                 
     # Compute of factors of T.
-    factors = []
+
     # First factor
-    factors.append(dot(G[0], cpd_list[0][0]))
+    factors = [dot(G[0], cpd_list[0][0])]
     # Factors 2 to L-2.
     for l in range(0, L-2):
         factors.append(cpd_list[l][1])
@@ -259,7 +257,7 @@ def highcpd(T, r, options):
 
     if display > 2 or display < -1:
         G_approx = [G[0]]
-        for l in range(1,L-1):
+        for l in range(1, L-1):
             temp_factors = cpd_list[l-1]
             temp_dims = temp_factors[0].shape[0], temp_factors[1].shape[0], temp_factors[2].shape[0], 
             T_approx = empty(temp_dims)
@@ -280,8 +278,8 @@ def highcpd(T, r, options):
 
 def tricpd(T, r, options):
     """
-    Given a tensor T and a rank r, this function computes an approximated CPD of T with rank r. The result is given in the 
-    form [X, Y, Z]. These matrices are such that sum_(l=1)^r X(l) ⊗ Y(l) ⊗ Z(l) is an approximation for T. 
+    Given a tensor T and a rank r, this function computes an approximated CPD of T with rank r. The result is given in
+    the form [X, Y, Z]. These matrices are such that sum_(l=1)^r X(l) ⊗ Y(l) ⊗ Z(l) is an approximation for T.
     X(l) denotes the l-th column of X. The same goes for Y(l) and Z(l).
 
     Inputs
@@ -317,9 +315,7 @@ def tricpd(T, r, options):
     # INITIALIZE RELEVANT VARIABLES 
 
     # Extract all variable from the class of options.
-    tol = options.tol
     init_method = options.init_method
-    display = options.display
     refine = options.refine
     symm = options.symm
     display = options.display
@@ -349,7 +345,8 @@ def tricpd(T, r, options):
     
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
     if display > 2:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = cmpr.mlsvd(T, Tsize, r, options)
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = \
+            cmpr.mlsvd(T, Tsize, r, options)
     else:
         S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
 
@@ -431,9 +428,11 @@ def tricpd(T, r, options):
             print('Computing CPD')
 
         if method == 'als':
-            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = als.als(T, X, Y, Z, r, options)
+            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
+                als.als(T, X, Y, Z, r, options)
         else:
-            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = gn.dGN(T, X, Y, Z, r, options)
+            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
+                gn.dGN(T, X, Y, Z, r, options)
 
     else:
         step_sizes_refine = array([0])
@@ -452,7 +451,13 @@ def tricpd(T, r, options):
     T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m_orig, n_orig, p_orig))
         
     # Save and display final informations.
-    output = aux.output_info(T_orig, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, improv_main, improv_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine, options)
+    output = aux.output_info(T_orig, Tsize, T_approx,
+                             step_sizes_main, step_sizes_refine,
+                             errors_main, errors_refine,
+                             improv_main, improv_refine,
+                             gradients_main, gradients_refine,
+                             mlsvd_stop, stop_main, stop_refine,
+                             options)
 
     if display > 0:
         print('===============================================================================================')
@@ -476,9 +481,7 @@ def bicpd(T, r, fixed_factor, options):
     # INITIALIZE RELEVANT VARIABLES 
 
     # Extract all variable from the class of options.
-    tol = options.tol
     init_method = options.init_method
-    display = options.display
     refine = options.refine
     symm = options.symm
     display = options.display
@@ -490,7 +493,7 @@ def bicpd(T, r, fixed_factor, options):
     # Set the other variables.
     m, n, p = T.shape
     Tsize = norm(T)
-    ordering = [0,1,2]
+    ordering = [0, 1, 2]
                            
     # Test consistency of dimensions and rank.
     aux.consistency(r, (m, n, p), symm)     
@@ -503,7 +506,8 @@ def bicpd(T, r, fixed_factor, options):
     
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
     if display > 2:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = cmpr.mlsvd(T, Tsize, r, options)
+        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = \
+            cmpr.mlsvd(T, Tsize, r, options)
     else:
         S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
 
@@ -610,7 +614,13 @@ def bicpd(T, r, fixed_factor, options):
     improv_refine = array([0]) 
     gradients_refine = array([0]) 
     stop_refine = 5 
-    output = aux.output_info(T, Tsize, T_approx, step_sizes_main, step_sizes_refine, errors_main, errors_refine, improv_main, improv_refine, gradients_main, gradients_refine, mlsvd_stop, stop_main, stop_refine, options)
+    output = aux.output_info(T, Tsize, T_approx,
+                             step_sizes_main, step_sizes_refine,
+                             errors_main, errors_refine,
+                             improv_main, improv_refine,
+                             gradients_main, gradients_refine,
+                             mlsvd_stop, stop_main, stop_refine,
+                             options)
 
     if display > 0:
         print('===============================================================================================')
@@ -628,11 +638,12 @@ def bicpd(T, r, fixed_factor, options):
 
 def rank(T, options=False, plot=True):
     """
-    This function computes several approximations of T for r = 1...max rank. These computations will be used to determine 
-    the (most probable) rank of T. The function also returns an array `errors_per_rank` with the relative errors for each 
-    rank computed. It is relevant to say that the rank r computed can also be the `border rank` of T, not the actual rank.
-    The idea is that the minimum of |T - T_approx|, for each rank r, stabilizes when T_approx has the same rank as T. This 
-    function also plots the graph of the errors so the user are able to visualize the moment when the error stabilizes.
+    This function computes several approximations of T for r = 1...max rank. These computations will be used to
+    determine the (most probable) rank of T. The function also returns an array `errors_per_rank` with the relative
+    errors for each rank computed. It is relevant to say that the rank r computed can also be the `border rank` of T,
+    not the actual rank. The idea is that the minimum of |T - T_approx|, for each rank r, stabilizes when T_approx has
+    the same rank as T. This function also plots the graph of the errors so the user are able to visualize the moment
+    when the error stabilizes.
     
     Inputs
     ------
@@ -649,12 +660,11 @@ def rank(T, options=False, plot=True):
     
     # Compute norm of T.
     Tsize = norm(T)
-    dims = T.shape
 
     # Set options
-    options = aux.complete_options(options, dims) 
+    options = aux.complete_options(options)
 
-    # START THE PROCCESS OF FINDING THE RANK
+    # START THE PROCESS OF FINDING THE RANK
 
     # Decide bounds for rank.
     dims = array(T.shape)
@@ -670,7 +680,7 @@ def rank(T, options=False, plot=True):
     error_per_rank = empty(Rmax)
     
     print('Start searching for rank')
-    print('Stops at r =',Rmax,' or less')
+    print('Stops at r =', Rmax, ' or less')
     print('-----------------------------')
 
     for r in range(Rmin, Rmax+1):  
@@ -690,7 +700,7 @@ def rank(T, options=False, plot=True):
             if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
                 break
     
-    # SAVE LAST INFORMATIONS
+    # SAVE LAST INFORMATION
     
     if L > 3:
         error_per_rank = error_per_rank[0:r-1] 
@@ -706,7 +716,7 @@ def rank(T, options=False, plot=True):
     
     if plot:
         plt.plot(range(Rmin, r+1), log10(error_per_rank))
-        plt.plot(final_rank, log10(error_per_rank[final_rank - Rmin]), marker = 'o', color = 'k')
+        plt.plot(final_rank, log10(error_per_rank[final_rank - Rmin]), marker='o', color='k')
         plt.title('Rank trials')
         plt.xlabel('rank')
         plt.ylabel(r'$\log_{10} \|T - S\|/|T|$')
@@ -716,13 +726,13 @@ def rank(T, options=False, plot=True):
     return int(final_rank), error_per_rank
 
 
-def stats(T, r, options=False, num_samples = 100):
+def stats(T, r, options=False, num_samples=100):
     """
     This function makes several calls of the Gauss-Newton function with random initial points. Each call turns into a 
     sample to recorded so we can make statistics lates. By defalt this functions takes 100 samples to analyze. The user 
-    may choose the number of samples the program makes, but the computational time may be very costly. Also, the user may 
-    choose the maximum number of iterations and the tolerance to be used in each Gauss-Newton function.
-    The outputs plots with general information about all the trials. These informations are the following:
+    may choose the number of samples the program makes, but the computational time may be very costly. Also, the user
+    may choose the maximum number of iterations and the tolerance to be used in each Gauss-Newton function.
+    The outputs plots with general information about all the trials. These information are the following:
         - The total time spent in each trial.
         - The number of steps used in each trial.
         - The relative error |T - T_approx|/|T| obtained in each trial.
@@ -744,7 +754,7 @@ def stats(T, r, options=False, num_samples = 100):
     L = len(dims)
 
     # Set options
-    options = aux.complete_options(options, dims)
+    options = aux.complete_options(options)
 
     # INITIALIZE RELEVANT ARRAYS
     
@@ -788,20 +798,20 @@ def stats(T, r, options=False, num_samples = 100):
         sys.stdout.write('\r'+s)
      
     # PLOT HISTOGRAMS
-    
-    [array,bins,patches] = plt.hist(times, 50)
+
+    [array, bins, patches] = plt.hist(times, 50)
     plt.xlabel('Seconds')
     plt.ylabel('Quantity')
     plt.title('Histogram of the total time of each trial')
     plt.show()
 
-    [array,bins,patches] = plt.hist(steps, 50)
+    [array, bins, patches] = plt.hist(steps, 50)
     plt.xlabel('Number of steps')
     plt.ylabel('Quantity')
     plt.title('Histogram of the number of steps of each trial')
     plt.show()
 
-    [array,bins,patches] = plt.hist(log10(errors), 50)
+    [array, bins, patches] = plt.hist(log10(errors), 50)
     plt.xlabel(r'$\log_{10} \|T - \tilde{T}\|/\|T\|$')
     plt.ylabel('Quantity')
     plt.title('Histogram of the log10 of the relative error of each trial')
@@ -812,14 +822,13 @@ def stats(T, r, options=False, num_samples = 100):
 
 def cpdtt(T, r):
     """
-    Function to compute the tensor train cores of T with specific format to obtain the CPD of T. This tensor train follow 
-    the format dims[0] x r -> r x dims[1] x r -> ... -> r x dims[L-2] x r -> r x dims[L-1].
+    Function to compute the tensor train cores of T with specific format to obtain the CPD of T. This tensor train
+    follows the format dims[0] x r -> r x dims[1] x r -> ... -> r x dims[L-2] x r -> r x dims[L-1].
     """
 
     # Compute dimensions and norm of T.
     dims = array(T.shape)
     L = dims.size
-    Tsize = norm(T)
     
     # List of cores.
     G = []
@@ -842,7 +851,7 @@ def foxit(T, r, options=False, bestof=1):
     """
     This is a special function made for the convenience of the user, i.e., this function makes the following:
         1) computes the desired CPD with the requested options
-        2) prints the relevants results on the screen
+        2) prints the relevant results on the screen
         3) prints the parameters used
         4) plots the evolution of the step sizes, errors, improvements and gradients
 
@@ -850,9 +859,8 @@ def foxit(T, r, options=False, bestof=1):
     only the best one.    
     """
 
-    dims = T.shape
     best_error = inf
-    options = aux.complete_options(options, dims)
+    options = aux.complete_options(options)
 
     for i in range(bestof):
         factors, T_approx, outputs = cpd(T, r, options)
@@ -885,7 +893,7 @@ def foxit(T, r, options=False, bestof=1):
         print('    algorithm: alternating least squares')
     print()
 
-    plt.figure(figsize=[9,6])
+    plt.figure(figsize=[9, 6])
     if options.refine:
 
         # sz1 is the size of the arrays of the main stage.
@@ -896,20 +904,20 @@ def foxit(T, r, options=False, bestof=1):
         x2 = arange(sz1-1, sz1 + sz2 - 1)
 
         # Step sizes
-        plt.plot(x1, best_outputs.step_sizes[0],'k-' , markersize=2, label='Step sizes - Main')
-        plt.plot(x2, best_outputs.step_size[1],'k--' , markersize=2, label='Step sizes - Refinement')
+        plt.plot(x1, best_outputs.step_sizes[0], 'k-', markersize=2, label='Step sizes - Main')
+        plt.plot(x2, best_outputs.step_size[1], 'k--', markersize=2, label='Step sizes - Refinement')
 
         # Errors
-        plt.plot(x1, best_outputs.errors[0],'b-' , markersize=2, label='Relative errors - Main')
-        plt.plot(x2, best_outputs.errors[1],'b--' , markersize=2, label='Relative errors - Refinement')
+        plt.plot(x1, best_outputs.errors[0], 'b-', markersize=2, label='Relative errors - Main')
+        plt.plot(x2, best_outputs.errors[1], 'b--', markersize=2, label='Relative errors - Refinement')
 
         # Improvements
         plt.plot(x1, best_outputs.improv[0], 'g-', markersize=2, label='Improvements - Main')
-        plt.plot(x2, best_outputs.improv[1],'g--' , markersize=2, label='Improvements - Refinement')
+        plt.plot(x2, best_outputs.improv[1], 'g--', markersize=2, label='Improvements - Refinement')
 
         # Gradients
         plt.plot(x1, best_outputs.gradients[0], 'r-', markersize=2, label='Gradients - Main')
-        plt.plot(x2, best_outputs.gradients[1],'r--' , markersize=2, label='Gradients - Refinement')
+        plt.plot(x2, best_outputs.gradients[1], 'r--', markersize=2, label='Gradients - Refinement')
 
         plt.xlabel('iteration')
         plt.yscale('log')
@@ -923,10 +931,10 @@ def foxit(T, r, options=False, bestof=1):
         x1 = arange(sz1)
 
         # Step sizes
-        plt.plot(x1, best_outputs.step_sizes[0],'k-' , markersize=2, label='Step sizes - Main')
+        plt.plot(x1, best_outputs.step_sizes[0], 'k-', markersize=2, label='Step sizes - Main')
 
         # Errors
-        plt.plot(x1, best_outputs.errors[0],'b-' , markersize=2, label='Relative errors - Main')
+        plt.plot(x1, best_outputs.errors[0], 'b-', markersize=2, label='Relative errors - Main')
 
         # Improvements
         plt.plot(x1, best_outputs.improv[0], 'g-', markersize=2, label='Improvements - Main')

@@ -143,7 +143,7 @@ def als(T, X, Y, Z, r, options):
         x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
                                      
         # Transform factors X, Y, Z.
-        X, Y, Z = cnv.transform(X, Y, Z, m, n, p, r, low, upp, factor, symm, c)
+        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
         if fix_mode == 0:
             X = copy(X_orig)
         elif fix_mode == 1:
@@ -228,20 +228,43 @@ def als_iteration(T1, T2, T3, X, Y, Z, fix_mode):
     """
     
     if fix_mode == -1:
-        X = dot( T1, pinv(mlinalg.khatri_rao(Z, Y).T) )
-        Y = dot( T2, pinv(mlinalg.khatri_rao(Z, X).T) )
-        Z = dot( T3, pinv(mlinalg.khatri_rao(Y, X).T) )
+        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, Y, M)
+        X = dot( T1, pinv(M.T) )
+
+        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, X, M)
+        Y = dot( T2, pinv(M.T))
+
+        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
+        M = mlinalg.khatri_rao(Y, X, M)
+        Z = dot( T3, pinv(M.T) )
         
     elif fix_mode == 0:
-        Y = dot( T2, pinv(mlinalg.khatri_rao(Z, X).T) )
-        Z = dot( T3, pinv(mlinalg.khatri_rao(Y, X).T) )
+        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, X, M)
+        Y = dot( T2, pinv(M.T) )
+
+        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
+        M = mlinalg.khatri_rao(Y, X, M)
+        Z = dot( T3, pinv(M.T) )
         
     elif fix_mode == 1:
-        X = dot( T1, pinv(mlinalg.khatri_rao(Z, Y).T) )
-        Z = dot( T3, pinv(mlinalg.khatri_rao(Y, X).T) )
+        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, Y, M)
+        X = dot( T1, pinv(M.T) )
+
+        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
+        M = mlinalg.khatri_rao(Y, X, M)
+        Z = dot( T3, pinv(M.T) )
         
     elif fix_mode == 2:
-        X = dot( T1, pinv(mlinalg.khatri_rao(Z, Y).T) )
-        Y = dot( T2, pinv(mlinalg.khatri_rao(Z, X).T) )
+        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, Y, M)
+        X = dot( T1, pinv(M.T) )
+
+        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
+        M = mlinalg.khatri_rao(Z, X, M)
+        Y = dot( T2, pinv(M.T) )
         
     return X, Y, Z

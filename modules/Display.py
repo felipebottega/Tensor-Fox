@@ -24,9 +24,10 @@ import TensorFox as tfx
 def showtens(T):
     """
     Let T = T_(i,j,k) be a tensor in coordinates. It is usual to consider that i is the row coordinate, j is the column 
-    coordinate and k is the section coordinate. But if we just run the command print(T) we will see that numpy considers i 
-    as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual way to consider 
-    tensors, and if we want to print T section by section (i.e., each frontal slice separately), this function does the job. 
+    coordinate and k is the section coordinate. But if we just run the command print(T) we will see that numpy considers
+    i as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual way to consider
+    tensors, and if we want to print T section by section (i.e., each frontal slice separately), this function does the
+    job.
     """
     
     dims = T.shape
@@ -34,7 +35,7 @@ def showtens(T):
 
     if L == 3:
         for k in range(T.shape[2]):
-            print(T[:,:,k])
+            print(T[:, :, k])
             print()
     else:
         print(T)
@@ -44,8 +45,9 @@ def showtens(T):
 
 def infotens(T):
     """
-    Given a tensor T, this function computes and shows several informations about this tensor. There are only print outputs. 
-    Since this fucntion tries to estimate the rank of T, be aware that it may take a long time to finish all computations. 
+    Given a tensor T, this function computes and shows several information about this tensor. There are only print
+    outputs. Since this function tries to estimate the rank of T, be aware that it may take a long time to finish all
+    computations.
     """
     
     # Compute dimensions and norm of T.
@@ -91,13 +93,11 @@ def infotens(T):
     
     # Multilinear rank (only for third order tensors).
     if L == 3:
-        trunc_dims = 0
-        level = 2
-        display = 3
         print('Computing multilinear rank...')
         print('------------------------------------')
         try:
-            S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = cmpr.trimlsvd(T, Tsize, R_gen, 0, 1, 3)
+            S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = \
+                cmpr.trimlsvd(T, Tsize, R_gen, 0, 1, 3)
             print('Estimated multirank(T) =', S.shape)
             print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
             print()
@@ -112,30 +112,31 @@ def infotens(T):
     return
 
 
-def rank1_plot(Lambda, X, Y, Z, m, n, p, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False):
+def rank1_plot(X, Y, Z, m, n, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False):
     """
-    This function generates an image with the frontal sections of all rank one terms (in coordinates) of some CPD. It also 
-    saves the image in a file. 
+    This function generates an image with the frontal sections of all rank one terms (in coordinates) of some CPD. It
+    also saves the image in a file.
     Warning: this functions uses a lot of memory.
 
     Inputs
     ------
-    Lambda, X, Y, Z: float ndarray
+    X, Y, Z: float ndarray
         Their are the CPD of some tensor.
-    m, n, p, r: int
+    m, n, r: int
     k: int
         Slice we want to visualize.
     num_rows, num_cols: int
         The dimensions of the grid of subplots. We recommend using squares grids in order to maximize the size of each 
         subplot. Some blank squares may be left at the end.
     greys: bool
-        If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the slices. 
+        If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the
+        slices.
         In this case the parameter 'rgb' should be set to True.
     rgb: bool
         If True, it will show all the RGB evolution of the slices. Default is rgb=False.
     """
 
-    sections = aux.rank1(X, Y, Z, m, n, p, r, k)
+    sections = aux.rank1(X, Y, Z, m, n, r, k)
     l = 0
     count = 0
     
@@ -143,17 +144,16 @@ def rank1_plot(Lambda, X, Y, Z, m, n, p, r, k=0, num_rows=5, num_cols=5, greys=T
         fig, ax = plt.subplots(num_rows, num_cols, figsize=(30, 30), sharex='col', sharey='row')     
         for i in range(num_rows):
             for j in range(num_cols):
-                ax[i,j].xaxis.set_major_locator(plt.NullLocator())
-                ax[i,j].yaxis.set_major_locator(plt.NullLocator())
+                ax[i, j].xaxis.set_major_locator(plt.NullLocator())
+                ax[i, j].yaxis.set_major_locator(plt.NullLocator())
                 if l < r:
                     if greys:
-                        temp = zeros((m, n))
-                        temp = sections[:,:,l] 
-                        ax[i,j].imshow(temp, cmap='gray')
+                        temp = sections[:, :, l]
+                        ax[i, j].imshow(temp, cmap='gray')
                     elif rgb:
                         temp = zeros((m, n, 3))
-                        temp[:,:,k] = sections[:,:,l] 
-                        ax[i,j].imshow(array(temp, dtype = uint8))
+                        temp[:, :, k] = sections[:, :, l]
+                        ax[i, j].imshow(array(temp, dtype=uint8))
                     else:
                         return
                 l += 1
@@ -166,22 +166,23 @@ def rank1_plot(Lambda, X, Y, Z, m, n, p, r, k=0, num_rows=5, num_cols=5, greys=T
     return 
 
 
-def rank_progress(Lambda, X, Y, Z, m, n, p, r, k=0, greys=True, rgb=False):
+def rank_progress(X, Y, Z, m, n, r, k=0, greys=True, rgb=False):
     """
     Plots the partial sums of rank one terms coresponding to the k-th slice of the CPD. The last image should match the 
     original CPD. Use rgb=True only for tensors of the form (m, n, 3) enconding RGB format. The program will display the 
-    red rank one terms, then it will add the green rank one terms and then the blue rank one terms. This ordering may cause 
-    some distortions on the final image.
+    red rank one terms, then it will add the green rank one terms and then the blue rank one terms. This ordering may
+    cause some distortions on the final image.
 
     Inputs
     ------
-    Lambda, X, Y, Z: float ndarrays 
+    X, Y, Z: float ndarrays
         Their are the CPD of some tensor.
     m, n, p, r: int
     k: int
         Slice we want to visualize.
     greys: bool
-        If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the slices. 
+        If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the
+        slices.
         In this case the parameter 'rgb' should be set to True.
     rgb: bool
         If True, it will show all the RGB evolution of the slices. False is default.    
@@ -189,9 +190,9 @@ def rank_progress(Lambda, X, Y, Z, m, n, p, r, k=0, greys=True, rgb=False):
     
     if greys:
         temp = zeros((m, n))
-        sections = aux.rank1(X, Y, Z, m, n, p, r, k)
-        for l in range(0,r):
-            temp = temp + sections[:,:,l] 
+        sections = aux.rank1(X, Y, Z, m, n, r, k)
+        for l in range(r):
+            temp = temp + sections[:, :, l]
             plt.imshow(temp, cmap='gray')
             name = 'factor_' + str(l+1) + '.png'
             plt.savefig(name) 
@@ -200,11 +201,11 @@ def rank_progress(Lambda, X, Y, Z, m, n, p, r, k=0, greys=True, rgb=False):
     elif rgb:
         count = 0
         temp = zeros((m, n, 3))
-        for color_choice in [0,1,2]:
-            sections = aux.rank1(X, Y, Z, m, n, p, r, color_choice)
-            for l in range(0,r):
-                temp[:,:,color_choice] = temp[:,:,color_choice] + sections[:,:,l] 
-                plt.imshow(array(temp, dtype = uint8))
+        for color_choice in [0, 1, 2]:
+            sections = aux.rank1(X, Y, Z, m, n, r, color_choice)
+            for l in range(r):
+                temp[:, :, color_choice] = temp[:, :, color_choice] + sections[:, :, l]
+                plt.imshow(array(temp, dtype=uint8))
                 name = 'factor_' + str(count) + '.png'
                 plt.savefig(name)
                 plt.show()
@@ -219,17 +220,17 @@ def rank_progress(Lambda, X, Y, Z, m, n, p, r, k=0, greys=True, rgb=False):
 @njit(nogil=True)
 def adjust(S, m, n, p):
     """
-    A CPD of a rgb image will have aproximated values, not integers in the range [0, 255]. This function fix this problem. 
+    A CPD of a rgb image will have approximated values, not integers in the range [0, 255]. This function fix this.
     """
 
     for i in range(m):
         for j in range(n):
             for k in range(p):
-                S[i,j,k] = floor(S[i,j,k])
-                if S[i,j,k] > 255:
-                    S[i,j,k] = 255
-                elif S[i,j,k] < 0: 
-                    S[i,j,k] = 0
+                S[i, j, k] = floor(S[i, j, k])
+                if S[i, j, k] > 255:
+                    S[i, j, k] = 255
+                elif S[i, j, k] < 0:
+                    S[i, j, k] = 0
                     
     return S
 
@@ -260,7 +261,14 @@ def test_tensors(tensors_list, options_list, trials, display):
     names = []
 
     i = 0
-    df = pd.DataFrame(columns = ['Tensor name', 'Maxiter', 'Tolerance', 'Initialization', 'Inner algorithm options', 'Bi-CPD inner algorithm options', '# Success', '# Fail'])
+    df = pd.DataFrame(columns=['Tensor name',
+                               'Maxiter',
+                               'Tolerance',
+                               'Initialization',
+                               'Inner algorithm options',
+                               'Bi-CPD inner algorithm options',
+                               '# Success',
+                               '# Fail'])
     
     for element in tensors_list:
         if len(element) == 4:
@@ -329,7 +337,14 @@ def test_tensors(tensors_list, options_list, trials, display):
             temp2 = output.options.bicpd_method_parameters
         else:
             temp2 = '          '
-        df.loc[i] = [name, maxiter, tol, init, [temp1[0], temp1[1], temp1[2]], [temp2[0], temp2[1], temp2[2]], int(num_good_print), int(num_bad_print)]
+        df.loc[i] = [name,
+                     maxiter,
+                     tol,
+                     init,
+                     [temp1[0], temp1[1], temp1[2]],
+                     [temp2[0], temp2[1], temp2[2]],
+                     int(num_good_print),
+                     int(num_bad_print)]
         i += 1
         
         if display:
@@ -337,19 +352,27 @@ def test_tensors(tensors_list, options_list, trials, display):
             ipd.display(df)
             print()
         
-    make_plots(names, trials, errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings)
+    make_plots(names,
+               trials,
+               errors_mean_good, errors_var_good, num_good,
+               errors_mean_bad, errors_var_bad, num_bad,
+               timings)
     
     return errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings
 
 
-def make_plots(names, trials, errors_mean_good, errors_var_good, num_good, errors_mean_bad, errors_var_bad, num_bad, timings):
+def make_plots(names,
+               trials,
+               errors_mean_good, errors_var_good, num_good,
+               errors_mean_bad, errors_var_bad, num_bad,
+               timings):
     """
     After the function 'test_tensors' is finished, all data is passed to this function, which makes informative
     plots with the percentage of successes and failures, plus a plot with the average timings. These two functions
     combined are a great tool for modelling and hyperparameter grid search.
     """    
     
-    plt.figure(figsize=[16,6])
+    plt.figure(figsize=[16, 6])
 
     plt.errorbar(
         names, errors_mean_bad, 
@@ -365,11 +388,11 @@ def make_plots(names, trials, errors_mean_good, errors_var_good, num_good, error
 
     for i in range(len(names)):
         x, y = names[i], errors_mean_bad[i]
-        plt.annotate(str(np.round(100*num_bad[i]/trials, 1)) + ' %', # this is the text
-            (x,y), # this is the point to label
-            textcoords="offset points", # how to position the text
-            xytext=(0,20), # distance from text to points (x,y)
-            ha='center') 
+        plt.annotate(str(np.round(100*num_bad[i]/trials, 1)) + ' %',  # this is the text
+                     (x, y),  # this is the point to label
+                     textcoords="offset points",  # how to position the text
+                     xytext=(0, 20),  # distance from text to points (x,y)
+                     ha='center')
     
     plt.errorbar(
         names, errors_mean_good, 
@@ -385,11 +408,11 @@ def make_plots(names, trials, errors_mean_good, errors_var_good, num_good, error
 
     for i in range(len(names)):
         x, y = names[i], errors_mean_good[i]
-        plt.annotate(str(np.round(100*num_good[i]/trials, 1)) + ' %', # this is the text
-            (x,y), # this is the point to label
-            textcoords="offset points", # how to position the text
-            xytext=(0,-20), # distance from text to points (x,y)
-            ha='center') 
+        plt.annotate(str(np.round(100*num_good[i]/trials, 1)) + ' %',  # this is the text
+                     (x, y),  # this is the point to label
+                     textcoords="offset points",  # how to position the text
+                     xytext=(0, -20),  # distance from text to points (x,y)
+                     ha='center')
 
     plt.legend(numpoints=1, loc='center left')  
     plt.yscale('log')
@@ -397,7 +420,7 @@ def make_plots(names, trials, errors_mean_good, errors_var_good, num_good, error
     plt.grid()
     plt.show()
     
-    plt.figure(figsize=[16,6])
+    plt.figure(figsize=[16, 6])
     plt.plot(names, timings, '--')
     plt.plot(names, timings, 'ks')
     plt.grid()

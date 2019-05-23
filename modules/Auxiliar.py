@@ -6,16 +6,15 @@ user to use directly, but most of them are  just some piece of another (and more
 """ 
 
 # Python modules
-import numpy as np
 from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size, inf
 from numpy.linalg import norm, pinv
 import sys
 import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
-from numba import jit, njit, prange
+from numba import njit, prange
 
-#Tensor Fox modules
+# Tensor Fox modules
 import Critical as crt
 import MultilinearAlgebra as mlinalg
 import TensorFox as tfx
@@ -87,51 +86,51 @@ def sort_dims(T, m, n, p):
     We will use them to reorder the dimensions of the tensor, in such a way that we have m_new >= n_new >= p_new.
     """
 
-    if m >= n and n >= p:
-        ordering = [0,1,2]
+    if m >= n >= p:
+        ordering = [0, 1, 2]
         return T, ordering
   
-    elif p >= n and n >= m:
-        ordering = [2,1,0]
+    elif p >= n >= m:
+        ordering = [2, 1, 0]
        
-    elif n >= p and p >= m:
-        ordering = [1,2,0]
+    elif n >= p >= m:
+        ordering = [1, 2, 0]
 
-    elif m >= p and p >= n:
-        ordering = [0,2,1]
+    elif m >= p >= n:
+        ordering = [0, 2, 1]
 
-    elif n >= m and m >= p:
-        ordering = [1,0,2]
+    elif n >= m >= p:
+        ordering = [1, 0, 2]
 
-    elif p >= m and m >= n:
-        ordering = [2,0,1]
+    elif p >= m >= n:
+        ordering = [2, 0, 1]
  
     # Define m_s, n_s, p_s such that T_sorted.shape == m_s, n_s, p_s.
     m_s, n_s, p_s = T.shape[ordering[0]], T.shape[ordering[1]], T.shape[ordering[2]]
-    T_sorted = empty((m_s, n_s, p_s), dtype = float64)
+    T_sorted = empty((m_s, n_s, p_s), dtype=float64)
 
     # In the function sort_T, inv_sort is such that T_sorted[inv_sort[i,j,k]] == T[i,j,k].
     inv_sort = argsort(ordering)
-    T_sorted = sort_T(T, T_sorted, ordering, inv_sort, m_s, n_s, p_s)      
+    T_sorted = sort_T(T, T_sorted, inv_sort, m_s, n_s, p_s)
 
     return T_sorted, ordering
    
 
 @njit(nogil=True)
-def sort_T(T, T_sorted, ordering, inv_sort, m, n, p):
+def sort_T(T, T_sorted, inv_sort, m, n, p):
     """
     Subroutine of the function sort_dims. Here the program deals with the computationally costly part, which is the 
     assignment of values to the new tensor.
     """
 
     # id receives the current triple (i,j,k) at each iteration.
-    idx = array([0,0,0])
+    idx = array([0, 0, 0])
     
     for i in range(0, m):
         for j in range(0, n):
             for k in range(0, p):
                 idx[0], idx[1], idx[2] = i, j, k
-                T_sorted[i,j,k] = T[idx[inv_sort[0]], idx[inv_sort[1]], idx[inv_sort[2]]]
+                T_sorted[i, j, k] = T[idx[inv_sort[0]], idx[inv_sort[1]], idx[inv_sort[2]]]
                               
     return T_sorted
         
@@ -141,22 +140,22 @@ def unsort_dims(X, Y, Z, ordering):
     Put the CPD factors and orthogonal transformations to the original ordering of dimensions.
     """
 
-    if ordering == [0,1,2]:
+    if ordering == [0, 1, 2]:
         return X, Y, Z
 
-    elif ordering == [0,2,1]:        
+    elif ordering == [0, 2, 1]:
         return X, Z, Y
 
-    elif ordering == [1,0,2]:        
+    elif ordering == [1, 0, 2]:
         return Y, X, Z
 
-    elif ordering == [1,2,0]:        
+    elif ordering == [1, 2, 0]:
         return Z, X, Y
 
-    elif ordering == [2,0,1]:        
+    elif ordering == [2, 0, 1]:
         return Y, Z, X
 
-    elif ordering == [2,1,0]:        
+    elif ordering == [2, 1, 0]:
         return Z, Y, X
 
 
@@ -165,7 +164,7 @@ def compute_error(T, Tsize, S, S1, U, dims):
     Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
     """
 
-    T_compress = mlinalg.multilin_mult(U, S, S1, dims)
+    T_compress = mlinalg.multilin_mult(U, S1, dims)
     error = norm(T - T_compress)/Tsize 
     return error
 
@@ -212,8 +211,9 @@ def output_info(T_orig, Tsize, T_approx,
                 print('2 - When testing the truncations a big gap between singular values were detected and the program' 
                       ' lock the size of the truncation.')
             if self.stop[0] == 3:
-                print('3 - The program was unable to truncate at the very first attempt. In this case the MLSVD singular' 
-                      ' values are equal or almost equal. The program stops the truncation process when this happens.')
+                print('3 - The program was unable to truncate at the very first attempt. In this case the singular' 
+                      ' values of the MLSVD are equal or almost equal. The program stops the truncation process when'
+                      ' this happens.')
             if self.stop[0] == 4:
                 print('4 - Tensor probably is random or has a lot of noise.')
             if self.stop[0] == 5:
@@ -285,13 +285,11 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     return final_outputs
 
 
-def make_options(options, dims):
+def make_options(options):
     """
     This function constructs the whole class of options based on the options the user requested. 
     This is the format read by the program.
     """
-
-    L = len(dims)
 
     # Default options
     class temp_options:
@@ -384,13 +382,11 @@ def make_options(options, dims):
     return temp_options
 
 
-def complete_options(options, dims):
+def complete_options(options):
     """
     This function constructs the whole class of options based on the options the user requested. This function is 
     specific to the stats, foxit and find_factor functions.
     """
-
-    L = len(dims)
 
     # Default options
     class temp_options:
@@ -465,7 +461,6 @@ def complete_options(options, dims):
     if 'epochs' in dir(options):
         temp_options.epochs = options.epochs
     
-    
     return temp_options
 
 
@@ -477,10 +472,10 @@ def tt_core(V, dims, r1, r2, l):
     V = V.reshape(r1*dims[l], prod(dims[l+1:]), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
-    U = U[:,:r2]
+    U = U[:, :r2]
     S = diag(S)
     V = dot(S, V)
-    V = V[:r2,:]
+    V = V[:r2, :]
     if r1 == 1:
         g = U.reshape(dims[l], r2, order='F') 
     else:
@@ -527,7 +522,7 @@ def tt_error(T, G, dims, L):
 
 
 @njit(nogil=True, parallel=True)
-def rank1(X, Y, Z, m, n, p, r, k):
+def rank1(X, Y, Z, m, n, r, k):
     """
     Compute each rank 1 term of the CPD given by X, Y, Z. Them this function converts these factors into a matrix, which 
     is the first frontal slice of the tensor in coordinates obtained by this rank 1 term. By doing this for all r terms, 
@@ -549,13 +544,12 @@ def rank1(X, Y, Z, m, n, p, r, k):
     
     # Each frontal slice of rank1_slices is the coordinate representation of a
     # rank one term of the CPD given by (X,Y,Z)*Lambda.
-    rank1_slices = zeros((m,n,r), dtype = float64)
-    T_aux = zeros((m,n,p), dtype = float64)
-   
-    for l in prange(0,r):
-        for i in range(0,m):
-            for j in range(0,n):
-                rank1_slices[i,j,l] = X[i,l]*Y[j,l]*Z[k,l]
+    rank1_slices = zeros((m, n, r), dtype=float64)
+
+    for l in prange(r):
+        for i in range(m):
+            for j in range(n):
+                rank1_slices[i, j, l] = X[i, l]*Y[j, l]*Z[k, l]
                         
     return rank1_slices
 
@@ -565,7 +559,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
     L = len(G)
     
     # The number of epochs is increased in 1 if necessary to be odd.
-    if epochs%2 == 0:
+    if epochs % 2 == 0:
         epochs += 1
     
     # List of CPD's.
@@ -599,12 +593,12 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                 
     for epoch in range(epochs):
         
-        if display < 0 and epoch > 0:
+        if display < 0 < epoch:
             print()
             print('Epoch ', epoch+1)
     
         # Following the tensor train from G[1] to G[L-2].
-        if epoch%2 == 0:        
+        if epoch % 2 == 0:
             for l in range(2, L-1):
                 best_error = inf
                 fixed_X = pinv(best_Z.T)
@@ -612,7 +606,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_X,0], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_X, 0], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
@@ -636,7 +630,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_Z,2], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_Z, 2], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error

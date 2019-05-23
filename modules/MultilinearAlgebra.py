@@ -6,14 +6,14 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, zeros, empty, float64
+from numpy import dot, empty, float64
 from numpy.linalg import norm
 from numba import njit, prange
 
 # Tensor Fox modules
 import Auxiliar as aux
+import Compression as cmpr
 import Conversion as cnv
-import Critical as crt
 
 
 def multilin_mult_cpd(U, W, dims):
@@ -32,11 +32,11 @@ def multilin_mult_cpd(U, W, dims):
         dims_out.append(W_new[l].shape[0])
     
     S = np.zeros(dims_out)
-    S = tfx.cnv.cpd2tens(S, W_new, dims_out)
+    S = cnv.cpd2tens(S, W_new, dims_out)
     return S
 
 
-def multilin_mult(U, T, T1, dims):
+def multilin_mult(U, T1, dims):
     """    
     Performs the multilinear multiplication (U[0],...,U[L-1])*T, where dims = T.shape. We need the first unfolding T1 of 
     T to start the computations.
@@ -58,10 +58,10 @@ def multilin_mult(U, T, T1, dims):
             return S
         
 
-def multirank_approx(T, r1, r2, r3):
+def multirank_approx(T, r1, r2, r3, options):
     """
-    This function computes an approximation of T with multilinear rank = (r1,r2,r3). Truncation the central tensor of the 
-    MLSVD doesn't gives the best low multirank approximation, but gives very good approximations. 
+    This function computes an approximation of T with multilinear rank = (r1,r2,r3). Truncation the central tensor of
+    the MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
     
     Inputs
     ------
@@ -80,21 +80,19 @@ def multirank_approx(T, r1, r2, r3):
     Tsize = norm(T)
     
     # Compute the MLSVD of T.
-    trunc_dims = 0
-    level = 1
-    display = 0
+    options = aux.complete_options(options)
     r = min(m, n, p)
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = cmpr.mlsvd(T, Tsize, r, trunc_dims, level, display)
-    U1 = U1[:,0:r1]
-    U2 = U2[:,0:r2]
-    U3 = U3[:,0:r3]
+    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = cmpr.mlsvd(T, Tsize, r, options)
+    U1 = U1[:, 0:r1]
+    U2 = U2[:, 0:r2]
+    U3 = U3[:, 0:r3]
     
-    # Trncate S to a smaller shape (r1,r2,r3) and construct the tensor T_approx = (U1,U2,U3)*S.
-    S = S[0:r1,0:r2,0:r3]    
+    # Truncate S to a smaller shape (r1,r2,r3) and construct the tensor T_approx = (U1,U2,U3)*S.
+    S = S[0:r1, 0:r2, 0:r3]
     U = [U1, U2, U3]
     dims = (r1, r2, r3)   
     S1 = cnv.unfold(S, 1, dims)         
-    T_approx = multilin_mult(U, S, S1, dims)
+    T_approx = multilin_mult(U, S, S1)
     
     return T_approx
 
@@ -108,17 +106,17 @@ def kronecker(A, B):
 
     a1, a2 = A.shape
     b1, b2 = B.shape
-    M = empty((a1*b1, a2*b2), dtype = float64)
+    M = empty((a1*b1, a2*b2), dtype=float64)
     
     for i in range(0, a1):
         for j in range(0, a2):
-            M[i*b1 : (i+1)*b1, j*b2 : (j+1)*b2] = A[i, j]*B
+            M[i*b1:(i+1)*b1, j*b2:(j+1)*b2] = A[i, j]*B
 
     return M 
 
 
 @njit(nogil=True, parallel=True)
-def khatri_rao(A, B):
+def khatri_rao(A, B, M):
     """
     Computes the Khatri-Rao product between A and B. We must have M.shape = (a1*b1, a2), where A.shape = (a1, a2) and 
     B.shape = (b1, b2), with a2 == b2. 
@@ -126,10 +124,9 @@ def khatri_rao(A, B):
 
     a1, a2 = A.shape
     b1, b2 = B.shape
-    M = zeros((a1*b1, a2), dtype = float64)
     
     for i in prange(0, a1):
-        M[i*b1 : (i+1)*b1, :] = khatri_rao_inner_computations(A, B, M, i, b1, b2)
+        M[i*b1:(i+1)*b1, :] = khatri_rao_inner_computations(A, B, M, i, b1, b2)
 
     return M 
 
@@ -140,11 +137,11 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
     Computes A[i, :]*B.
     """
 
-    for k in range(0, b1):
-        for j in range(0, b2):
-            M[i*b1 + k, j] = A[i,j]*B[k,j]
+    for k in range(b1):
+        for j in range(b2):
+            M[i*b1 + k, j] = A[i, j]*B[k, j]
 
-    return M[i*b1 : (i+1)*b1, :] 
+    return M[i*b1:(i+1)*b1, :]
 
 
 @njit(nogil=True, parallel=True)
@@ -154,7 +151,7 @@ def hadamard(A, B, M, r):
     matrices, we assume this without verifications.
     """
     
-    for i in prange(0, r):
-            M[i,:] = A[i, :]*B[i, :]
+    for i in prange(r):
+        M[i, :] = A[i, :]*B[i, :]
 
     return M 
