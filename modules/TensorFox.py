@@ -38,7 +38,6 @@ import Auxiliar as aux
 import Compression as cmpr
 import Conversion as cnv
 import Critical as crt
-import Dense as dns
 import Display as disp
 import GaussNewton as gn
 import Initialization as init

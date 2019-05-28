@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, arange, hstack
+from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sign, sqrt, dot, arange, hstack
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
@@ -601,17 +601,17 @@ def sym_ortho(a, b):
     """
 
     if b == 0:
-        return np.sign(a), 0, np.abs(a)
+        return sign(a), 0, np.abs(a)
     elif a == 0:
-        return 0, np.sign(b), np.abs(b)
+        return 0, sign(b), np.abs(b)
     elif np.abs(b) > np.abs(a):
         tau = a / b
-        s = np.sign(b) / np.sqrt(1 + tau * tau)
+        s = sign(b) / sqrt(1 + tau * tau)
         c = s * tau
         r = b / s
     else:
         tau = b / a
-        c = np.sign(a) / np.sqrt(1 + tau * tau)
+        c = sign(a) / sqrt(1 + tau * tau)
         s = c * tau
         r = a / c
     return c, s, r
@@ -806,17 +806,17 @@ def prepare_data(m, n, p, r):
     Gr_Z_V_Xt_dot_X = empty((r, r), dtype=float64)
     Gr_Y_V_Xt_dot_X = empty((r, r), dtype=float64)
     Gr_X_V_Yt_dot_Y = empty((r, r), dtype=float64)
-    X_dot_Gr_Z_V_Yt_dot_Y = empty((r, r), dtype=float64)
-    X_dot_Gr_Y_V_Zt_dot_Z = empty((r, r), dtype=float64)
-    Y_dot_Gr_X_V_Zt_dot_Z = empty((r, r), dtype=float64)
-    Y_dot_Gr_Z_V_Xt_dot_X = empty((r, r), dtype=float64)
-    Z_dot_Gr_Y_V_Xt_dot_X = empty((r, r), dtype=float64)
-    Z_dot_Gr_X_V_Yt_dot_Y = empty((r, r), dtype=float64)
+    X_dot_Gr_Z_V_Yt_dot_Y = empty((m, r), dtype=float64)
+    X_dot_Gr_Y_V_Zt_dot_Z = empty((m, r), dtype=float64)
+    Y_dot_Gr_X_V_Zt_dot_Z = empty((n, r), dtype=float64)
+    Y_dot_Gr_Z_V_Xt_dot_X = empty((n, r), dtype=float64)
+    Z_dot_Gr_Y_V_Xt_dot_X = empty((p, r), dtype=float64)
+    Z_dot_Gr_X_V_Yt_dot_Y = empty((p, r), dtype=float64)
 
     # Matrices for the diagonal block
-    Gr_YZ_V_Xt = empty((m, r), dtype=float64)
-    Gr_XZ_V_Yt = empty((n, r), dtype=float64)
-    Gr_XY_V_Zt = empty((p, r), dtype=float64)
+    Gr_YZ_V_Xt = empty((r, m), dtype=float64)
+    Gr_XZ_V_Yt = empty((r, n), dtype=float64)
+    Gr_XY_V_Zt = empty((r, p), dtype=float64)
 
     # Final blocks
     B_X_v = empty(m * r, dtype=float64)
@@ -908,12 +908,13 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
     """
 
-    Gr_X = dot(X.T, X)
-    Gr_Y = dot(Y.T, Y)
-    Gr_Z = dot(Z.T, Z)
-    Gr_XY = Gr_X * Gr_Y
-    Gr_XZ = Gr_X * Gr_Z
-    Gr_YZ = Gr_Y * Gr_Z
+    r = X.shape[1]
+    dot(X.T, X, out=Gr_X)
+    dot(Y.T, Y, out=Gr_Y)
+    dot(Z.T, Z, out=Gr_Z)
+    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY, r)
+    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ, r)
+    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ, r)
 
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
@@ -944,9 +945,9 @@ def matvec(X, Y, Z,
     V_Zt = v[r * (m + n): r * (m + n + p)].reshape(r, p)
 
     # Compute the products V_X^T*X, V_Y^T*Y, V_Z^T*Z
-    V_Xt_dot_X = dot(V_Xt, X)
-    V_Yt_dot_Y = dot(V_Yt, Y)
-    V_Zt_dot_Z = dot(V_Zt, Z)
+    dot(V_Xt, X, out=V_Xt_dot_X)
+    dot(V_Yt, Y, out=V_Yt_dot_Y)
+    dot(V_Zt, Z, out=V_Zt_dot_Z)
 
     # Compute the Hadamard products
     Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y, r)
@@ -957,17 +958,17 @@ def matvec(X, Y, Z,
     Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y, r)
 
     # Compute the final products
-    X_dot_Gr_Z_V_Yt_dot_Y = dot(X, Gr_Z_V_Yt_dot_Y)
-    X_dot_Gr_Y_V_Zt_dot_Z = dot(X, Gr_Y_V_Zt_dot_Z)
-    Y_dot_Gr_X_V_Zt_dot_Z = dot(Y, Gr_X_V_Zt_dot_Z)
-    Y_dot_Gr_Z_V_Xt_dot_X = dot(Y, Gr_Z_V_Xt_dot_X)
-    Z_dot_Gr_Y_V_Xt_dot_X = dot(Z, Gr_Y_V_Xt_dot_X)
-    Z_dot_Gr_X_V_Yt_dot_Y = dot(Z, Gr_X_V_Yt_dot_Y)
+    dot(X, Gr_Z_V_Yt_dot_Y, out=X_dot_Gr_Z_V_Yt_dot_Y)
+    dot(X, Gr_Y_V_Zt_dot_Z, out=X_dot_Gr_Y_V_Zt_dot_Z)
+    dot(Y, Gr_X_V_Zt_dot_Z, out=Y_dot_Gr_X_V_Zt_dot_Z)
+    dot(Y, Gr_Z_V_Xt_dot_X, out=Y_dot_Gr_Z_V_Xt_dot_X)
+    dot(Z, Gr_Y_V_Xt_dot_X, out=Z_dot_Gr_Y_V_Xt_dot_X)
+    dot(Z, Gr_X_V_Yt_dot_Y, out=Z_dot_Gr_X_V_Yt_dot_Y)
 
     # Diagonal block matrices
-    Gr_YZ_V_Xt = dot(Gr_YZ, V_Xt)
-    Gr_XZ_V_Yt = dot(Gr_XZ, V_Yt)
-    Gr_XY_V_Zt = dot(Gr_XY, V_Zt)
+    dot(Gr_YZ, V_Xt, out=Gr_YZ_V_Xt)
+    dot(Gr_XZ, V_Yt, out=Gr_XZ_V_Yt)
+    dot(Gr_XY, V_Zt, out=Gr_XY_V_Zt)
 
     # Vectorize the matrices to have the final vectors
     B_X_v = cnv.vect(Gr_YZ_V_Xt, B_X_v, m, r)

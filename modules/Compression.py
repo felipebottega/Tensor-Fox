@@ -786,3 +786,84 @@ def unfoldings_svd(T1, T2, T3, m, n, p):
         U3 = v3h[:, new_col_order]
 
     return Sigma1, Sigma2, Sigma3, U1, U2, U3
+
+
+def test_truncation(T, Tsize, trunc_dims, display_error=True):
+    """
+    This function test one or several possible truncations for the MLSVD of T, showing the energy and, optionally, the
+    error of the truncation. It is possible to accomplish the same results calling the function mlsvd with display=3.
+    This is not advisable since each call recomputes the same unfolding SVD's.
+    The variable trunc_dims must be a list of truncations. Even if it is only one truncation, it must be a list with one
+    truncation only.
+    """
+
+    # Set the main variables about T.
+    dims = T.shape
+    L = len(dims)
+
+    sigmas = []
+    U = []
+    UT = []
+    T1 = empty((dims[0], prod(dims) // dims[0]), dtype=float64)
+    
+    # Compute the SVD of all unfolding of T.
+    for l in range(L):
+        Tl = cnv.unfold(T, l + 1, dims)
+        if l == 0:
+            T1 = copy(Tl)
+        if dims[0] < prod(dims) // dims[0]:
+            sigma_l, Ul = eigh(dot(Tl, Tl.T))
+            idx = argsort(-sigma_l)
+            sigma_l = -sort(-sigma_l)
+            sigmas.append(sigma_l)
+            U.append(Ul[:, idx])
+            UT.append(Ul[:, idx].T)
+        else:
+            Ul, sigma_l, Vlh = svd(Tl.T, full_matrices=False)
+            idx = argsort(-sigma_l)
+            sigma_l = -sort(-sigma_l)
+            sigmas.append(sigma_l)
+            Vlh = Vlh.T
+            U.append(Vlh[:, idx])
+            UT.append(Vlh[:, idx].T)
+
+    # Energy of S.
+    S_energy = 0.0
+    for l in range(L):
+        S_energy += np.sum(sigmas[l] ** 2)
+
+    # Save all energy and error results in two lists.
+    trunc_energy = []
+    trunc_error = []
+    
+    # Truncated MLSVD.
+    for trunc in trunc_dims:
+        # S, U and UT truncated.
+        current_dims = trunc
+        current_U = []
+        current_UT = []
+        current_sigmas = []
+        for l in range(L):
+            current_U.append(U[l][:, :current_dims[l]])
+            current_UT.append(UT[l][:current_dims[l], :])
+            current_sigmas.append(sigmas[l][:current_dims[l]])
+        S = mlinalg.multilin_mult(current_UT, T1, dims)
+        
+        # Energy of truncation.
+        current_energy = high_compute_energy(S_energy, current_sigmas)
+        trunc_energy.append(current_energy)
+
+        # Error of truncation.
+        if display_error:
+            S1 = cnv.unfold(S, 1, current_dims)
+            current_error = aux.compute_error(T, Tsize, S, S1, current_U, current_dims)
+            trunc_error.append(current_error)
+
+        # Display results.
+        print('Truncation:', current_dims)
+        print('Energy:', np.round(current_energy, 4), '%')
+        if display_error:
+            print('Error:', current_error)
+        print()
+
+    return trunc_energy, trunc_error
