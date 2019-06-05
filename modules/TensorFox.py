@@ -71,7 +71,8 @@ def cpd(T, r, options=False):
         energy:  float
              The conditions to accept a truncation are defined by the parameter energy. Higher energy means that the
              truncated tensor has more energy, which means bigger dimensions. Default is 0.99999 which means that the
-             truncated tensor has 99.999% of the energy.
+             truncated tensor has 99.999% of the energy. It is also possible to set energy = -1, in which case it tells
+             the program to work with the original tensor.
         symm: bool
             The user should set symm to True if the objective tensor is symmetric, otherwise symm is False. Default is
                 False.
