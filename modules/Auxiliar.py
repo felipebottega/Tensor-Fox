@@ -206,7 +206,7 @@ def output_info(T_orig, Tsize, T_approx,
             if self.stop[0] == 0:
                 print('0 - Truncation was given manually by the user.')
             if self.stop[0] == 1:
-                print('1 - User choose level = 5, that is, to work with the original tensor.')
+                print('1 - User choose energy = -1, that is, to work with the original tensor.')
             if self.stop[0] == 2:
                 print('2 - When testing the truncations a big gap between singular values were detected and the program' 
                       ' lock the size of the truncation.')
@@ -222,7 +222,7 @@ def output_info(T_orig, Tsize, T_approx,
                 print('6 - None of the previous conditions were satisfied and we used the last truncation computed.' 
                       ' This condition is only possible at the second stage.')
             if self.stop[0] == 7:
-                print('7 - User choose level = 4, that is, to work with the compressed tensor (the central tensor of' 
+                print('7 - User choose energy = 1, that is, to work with the compressed tensor (the central tensor of' 
                       ' the MLSVD) without truncating it.')
            
             # stop_main message
@@ -305,7 +305,7 @@ def make_options(options):
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.init_method = 'random'
             self.trunc_dims = 0
-            self.level = 1
+            self.energy = 0.99999
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -356,8 +356,8 @@ def make_options(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
-    if 'level' in dir(options):
-        temp_options.level = options.level
+    if 'energy' in dir(options):
+        temp_options.energy = options.energy
     if 'init_damp' in dir(options):
         temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):
@@ -401,7 +401,7 @@ def complete_options(options):
             self.bi_method_tol = 1e-6
             self.init_method = 'random'
             self.trunc_dims = 0
-            self.level = 1
+            self.energy = 0.99999
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -438,8 +438,8 @@ def complete_options(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
-    if 'level' in dir(options):
-        temp_options.level = options.level
+    if 'energy' in dir(options):
+        temp_options.energy = options.energy
     if 'init_damp' in dir(options):
         temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):

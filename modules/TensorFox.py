@@ -68,9 +68,10 @@ def cpd(T, r, options=False):
             If trunc_dims is not 0, then it should be a list with three integers [R1,R2,R3] such that 1 <= R1 <= m, 
                 1 <= R2 <= n, 1 <= R3 <= p. The compressed tensor will have dimensions (R1,R2,R3). Default is 0, which 
                 means 'automatic' truncation. This options only serves to the tricpd function.
-        level:  0, 1, 2, 3, 4 or 5
-             The conditions to accept a truncation are defined by the parameter level. Higher means harder constraints, 
-                which means bigger dimensions. Default is 1. For more information check the function set_constraints.
+        energy:  float
+             The conditions to accept a truncation are defined by the parameter energy. Higher energy means that the
+             truncated tensor has more energy, which means bigger dimensions. Default is 0.99999 which means that the
+             truncated tensor has 99.999% of the energy.
         symm: bool
             The user should set symm to True if the objective tensor is symmetric, otherwise symm is False. Default is
                 False.
@@ -118,12 +119,12 @@ def cpd(T, r, options=False):
     # Set options
     options = aux.make_options(options)
     display = options.display
-    level = options.level
-    if type(level) == list:
+    energy = options.energy
+    if type(energy) == list:
         if L > 3:
-            level = level[0]
+            energy = energy[0]
         else:
-            level = level[1]
+            energy = energy[1]
                    
     # Test consistency of dimensions and rank.
     aux.consistency(r, dims, options.symm)  
@@ -151,11 +152,11 @@ def cpd(T, r, options=False):
             S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
         
         if display != 0:
-            if level == 4:
+            if energy == 1:
                 print('    Compression without truncation requested by user')
                 print('    Compressing from', T.shape, 'to', S.shape)
             elif prod(array(best_dims) == array(dims)):
-                if level == 5:
+                if energy == -1:
                     print('    No compression and no truncation requested by user')
                     print('    Working with dimensions', T.shape) 
                 else:
@@ -318,10 +319,10 @@ def tricpd(T, r, options):
     refine = options.refine
     symm = options.symm
     display = options.display
-    level = options.level
+    energy = options.energy
     method = options.method_parameters[0]
-    if type(level) == list:
-        level = level[1]
+    if type(energy) == list:
+        energy = energy[1]
 
     # Set the other variables.
     m_orig, n_orig, p_orig = T.shape
@@ -357,11 +358,11 @@ def tricpd(T, r, options):
         U1, U2, U3 = U1[:, :R], U2[:, :R], U3[:, :R]
           
     if display > 0:
-        if level == 4:
+        if energy == 1:
             print('    Compression without truncation requested by user')
             print('    Compressing from', T.shape, 'to', S.shape)
         elif (R1, R2, R3) == (m, n, p):
-            if level == 5:
+            if energy == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
             else:
@@ -484,10 +485,10 @@ def bicpd(T, r, fixed_factor, options):
     refine = options.refine
     symm = options.symm
     display = options.display
-    level = options.level
+    energy = options.energy
     bi_method = options.bi_method_parameters[0]
-    if type(level) == list:
-        level = level[1]
+    if type(energy) == list:
+        energy = energy[1]
 
     # Set the other variables.
     m, n, p = T.shape
@@ -518,11 +519,11 @@ def bicpd(T, r, fixed_factor, options):
         U1, U2, U3 = U1[:, :R], U2[:, :R], U3[:, :R]
           
     if display > 0:
-        if level == 4:
+        if energy == 1:
             print('    Compression without truncation requested by user')
             print('    Compressing from', T.shape, 'to', S.shape)  
         elif (R1, R2, R3) == (m, n, p):
-            if level == 5:
+            if energy == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
             else:

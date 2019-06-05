@@ -32,18 +32,18 @@ def mlsvd(T, Tsize, r, options):
     # Extract all variable from the class of options.
     trunc_dims = options.trunc_dims
     display = options.display
-    level = options.level
-    if type(level) == list:
+    energy = options.energy
+    if type(energy) == list:
         if L > 3:
-            level = level[0]
+            energy = energy[0]
         else:
-            level = level[1]
+            energy = energy[1]
 
     if L == 3:
-        return trimlsvd(T, Tsize, r, trunc_dims, level, display)
+        return trimlsvd(T, Tsize, r, trunc_dims, energy, display)
 
-    # Level = 5 means no truncation and no compression, in other words, the original tensor.
-    if level == 5:
+    # energy = -1 means no truncation and no compression, in other words, the original tensor.
+    if energy == -1:
         mlsvd_stop = 1
         U = [ eye(dims[l]) for l in range(L) ]
         UT = U
@@ -79,8 +79,8 @@ def mlsvd(T, Tsize, r, options):
             U.append(Vlh[:, idx])
             UT.append(Vlh[:, idx].T)
 
-    # Level = 4 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
-    if level == 4:
+    # energy = 1 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
+    if energy == 1:
         mlsvd_stop = 7
         S = mlinalg.multilin_mult(UT, T1, dims)
         if display > 2 or display < -1:
@@ -119,7 +119,7 @@ def mlsvd(T, Tsize, r, options):
     # We clean this SVD by performing a specialized truncation.
     stage = 1
     S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = \
-        high_clean_compression(T, T1, T, sigmas, U, UT, r, level, stage)
+        high_clean_compression(T, T1, T, sigmas, U, UT, r, energy, stage)
 
     # TRUNCATE THE TRUNCATION
 
@@ -133,12 +133,11 @@ def mlsvd(T, Tsize, r, options):
             return S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop
     # Sometimes the first truncation still is too large. To fix this we consider a second truncation over the first one.
     else:
-        if level < 3:
-            level += 1
+        energy = (1 + energy)/2
         stage = 2
         best_energy2 = 100
         S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, situation = \
-            high_clean_compression(T, T1, S, sigmas, U, UT, r, level, stage)
+            high_clean_compression(T, T1, S, sigmas, U, UT, r, energy, stage)
         # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy
         # accordingly.
         best_energy = best_energy*best_energy2/100
@@ -155,7 +154,7 @@ def mlsvd(T, Tsize, r, options):
     return S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop
 
 
-def trimlsvd(T, Tsize, r, trunc_dims, level, display):
+def trimlsvd(T, Tsize, r, trunc_dims, energy, display):
     """
     This function computes the High order singular value decomposition (MLSVD) of a tensor T. This decomposition is
     given by T = (U1,U2,U3)*S, where U1, U2, U3 are orthogonal matrices, S is the central tensor and * is the
@@ -210,8 +209,8 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     m, n, p = T.shape
     dims = (m, n, p)
 
-    # Level = 5 means no truncation and no compression, in other words, the original tensor.
-    if level == 5:
+    # energy = -1 means no truncation and no compression, in other words, the original tensor.
+    if energy == -1:
         mlsvd_stop = 1
         U1, U2, U3 = eye(m), eye(n), eye(p)
         sigma1, sigma2, sigma3 = ones(m), ones(n), ones(p)
@@ -226,8 +225,8 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     T3 = cnv.unfold(T, 3, dims)
     sigma1, sigma2, sigma3, U1, U2, U3 = unfoldings_svd(T1, T2, T3, m, n, p)
 
-    # Level = 4 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
-    if level == 4:
+    # energy = 1 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
+    if energy == 1:
         mlsvd_stop = 7
         R1, R2, R3 = sigma1.size, sigma2.size, sigma3.size
         UT = [U1.T, U2.T, U3.T]
@@ -262,7 +261,7 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     # performing a specialized truncation.
     stage = 1
     S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = \
-        clean_compression(T, T1, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+        clean_compression(T, T1, T, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, energy, stage)
 
     # TRUNCATE THE TRUNCATION
 
@@ -276,11 +275,10 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
             return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
     # Sometimes the first truncation still is too large. To fix this we consider a second truncation over the first one.
     else:
-        if level < 3:
-            level += 1
+        energy = (1 + energy)/2
         stage = 2
         S, best_energy2, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, situation = \
-            clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage)
+            clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, energy, stage)
         # The second energy is a fraction of the first one. To compare with the original MLSVD we update the energy
         # accordingly.
         best_energy = best_energy*best_energy2/100
@@ -294,11 +292,11 @@ def trimlsvd(T, Tsize, r, trunc_dims, level, display):
     return S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop
 
 
-def high_clean_compression(T, T1, S, sigmas, U, UT, r, level, stage):
+def high_clean_compression(T, T1, S, sigmas, U, UT, r, energy, stage):
     # Initialize the best results in the case none of the truncations work.
     dims = array(T.shape)
     L = len(dims)
-    energy_tol = set_constraints(dims, level)
+    energy_tol = 100*energy
     best_dims = zeros(L, dtype=int64)
     slices = []
     for l in range(L):
@@ -409,7 +407,7 @@ def high_clean_compression(T, T1, S, sigmas, U, UT, r, level, stage):
     return best_S, best_energy, best_dims, best_U, best_UT, best_sigmas, mlsvd_stop, situation
 
 
-def clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, level, stage):
+def clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, energy, stage):
     """
     This function try different threshold values to truncate the mlsvd. The conditions to accept a truncation are
     defined by the parameter level. Higher level means harder constraints, which translates to bigger tensors after the
@@ -453,7 +451,7 @@ def clean_compression(T, T1, S, sigma1, sigma2, sigma3, U1, U2, U3, m, n, p, r, 
     """
 
     # Define constraints.
-    energy_tol = set_constraints((m, n, p), level)
+    energy_tol = 100*energy
 
     # Initialize the best results in the case none of the truncations work.
     best_R1, best_R2, best_R3 = sigma1.size, sigma2.size, sigma3.size
@@ -641,55 +639,6 @@ def check_jump(sigma_new, R_new, U_new, sigma, U, cut, sigma_settled, i):
         return sigma_new, R_new, U_new, sigma_settled
 
 
-def set_constraints(dims, level):
-    """
-    The level parameter is 0, 1, 2, 3 or 4. The larger is this value, the bigger is the threshold value of the energy to 
-    stop truncating. Small level values means small truncations, and big level values means bigger truncations. In 
-    particular, level = 4 means no truncation at all.
-    """
-
-    val = prod(dims)
-
-    # Truncation is small.
-    if level == 0:
-        if val <= 1e5:
-            energy_tol = 99.9
-        if 1e5 < val <= 1e6:
-            energy_tol = 99
-        if 1e6 < val <= 1e7:
-            energy_tol = 98
-        if 1e7 < val:
-            energy_tol = 95
-
-    # Normal truncation.
-    if level == 1:
-        if val <= 1e5:
-            energy_tol = 100 - 1e-7
-        if 1e5 < val <= 1e6:
-            energy_tol = 100 - 1e-5
-        if 1e6 < val <= 1e7:
-            energy_tol = 100 - 1e-3
-        if 1e7 < val:
-            energy_tol = 100 - 1e-1
-
-    # Truncation is large.
-    if level == 2:
-        if val <= 1e5:
-            energy_tol = 100 - 1e-9
-        if 1e5 < val <= 1e6:
-            energy_tol = 100 - 1e-7
-        if 1e6 < val <= 1e7:
-            energy_tol = 100 - 1e-5
-        if 1e7 < val:
-            energy_tol = 100 - 1e-3
-
-    # Truncation is almost equal or equal to the original MLSVD.
-    if level == 3:
-        energy_tol = 100 - 1e-9
-
-    return energy_tol
-
-
 def high_generate_cuts(sigmas, num_cuts, r):
     L = len(sigmas)
     cuts = []
@@ -714,16 +663,12 @@ def generate_cuts(sigma1, sigma2, sigma3, num_cuts, r):
     each array of singular values.
     """
 
-    sigma1 = sigma1[:min(r, sigma1.size)]
-    sigma2 = sigma2[:min(r, sigma2.size)]
-    sigma3 = sigma3[:min(r, sigma3.size)]
-
     if r > 1:
-        cut1 = randint(1, sigma1.size, size=num_cuts)
+        cut1 = randint(1, min(r, sigma1.size), size=num_cuts)
         cut1 = sort(cut1)
-        cut2 = randint(1, sigma2.size, size=num_cuts)
+        cut2 = randint(1, min(r, sigma2.size), size=num_cuts)
         cut2 = sort(cut2)
-        cut3 = randint(1, sigma3.size, size=num_cuts)
+        cut3 = randint(1, min(r, sigma3.size), size=num_cuts)
         cut3 = sort(cut3)
     else:
         cut1 = ones(num_cuts, dtype=int64)
