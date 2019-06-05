@@ -733,12 +733,12 @@ def unfoldings_svd(T1, T2, T3, m, n, p):
     return Sigma1, Sigma2, Sigma3, U1, U2, U3
 
 
-def test_truncation(T, Tsize, trunc_dims, display_error=True):
+def test_truncation(T, Tsize, trunc_list, compute_error=True, display=True):
     """
     This function test one or several possible truncations for the MLSVD of T, showing the energy and, optionally, the
     error of the truncation. It is possible to accomplish the same results calling the function mlsvd with display=3.
     This is not advisable since each call recomputes the same unfolding SVD's.
-    The variable trunc_dims must be a list of truncations. Even if it is only one truncation, it must be a list with one
+    The variable trunc_list must be a list of truncations. Even if it is only one truncation, it must be a list with one
     truncation only.
     """
 
@@ -782,7 +782,7 @@ def test_truncation(T, Tsize, trunc_dims, display_error=True):
     trunc_error = []
     
     # Truncated MLSVD.
-    for trunc in trunc_dims:
+    for trunc in trunc_list:
         # S, U and UT truncated.
         current_dims = trunc
         current_U = []
@@ -799,16 +799,16 @@ def test_truncation(T, Tsize, trunc_dims, display_error=True):
         trunc_energy.append(current_energy)
 
         # Error of truncation.
-        if display_error:
+        if compute_error:
             S1 = cnv.unfold(S, 1, current_dims)
             current_error = aux.compute_error(T, Tsize, S, S1, current_U, current_dims)
             trunc_error.append(current_error)
 
         # Display results.
-        print('Truncation:', current_dims)
-        print('Energy:', np.round(current_energy, 4), '%')
-        if display_error:
+        if display:
+            print('Truncation:', current_dims)
+            print('Energy:', np.round(current_energy, 4), '%')
             print('Error:', current_error)
-        print()
+            print()
 
     return trunc_energy, trunc_error
