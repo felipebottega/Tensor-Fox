@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, empty, float64
+from numpy import dot, zeros, empty, float64
 from numpy.linalg import norm
 from numba import njit, prange
 
@@ -19,7 +19,7 @@ import Conversion as cnv
 def multilin_mult_cpd(U, W, dims):
     """    
     Performs the multilinear multiplication (U[0],...,U[L-1])*(W[0], ..., W[L-1])*I = (U[0]*W[0],...,U[L-1]*W[L-1])*I, 
-    where I.shape = dims = (W[0].shape[0],...,W[L-1].shape[0]) are the size of the columns of the W's. 
+    where I.shape = dims = (W[0].shape[1],...,W[L-1].shape[1]) are the size of the columns of the W's. 
     """
 
     L = len(dims)
@@ -31,7 +31,7 @@ def multilin_mult_cpd(U, W, dims):
         W_new.append( dot(U[l], W[l]) )
         dims_out.append(W_new[l].shape[0])
     
-    S = np.zeros(dims_out)
+    S = zeros(dims_out)
     S = cnv.cpd2tens(S, W_new, dims_out)
     return S
 
