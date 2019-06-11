@@ -124,7 +124,6 @@ def dGN(T, X, Y, Z, r, options):
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(m, n, p, r)
-    data_rmatvec = prepare_data_rmatvec(m, n, p, r)
     lsmr_data = lsmr_prepare_data(m, n, p, r)
 
     if display > 1:
@@ -159,7 +158,7 @@ def dGN(T, X, Y, Z, r, options):
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
         y, grad, itn, residualnorm = compute_step(X, Y, Z,
-                                                  lsmr_data, data, data_rmatvec,
+                                                  lsmr_data, data,
                                                   y, res,
                                                   m, n, p, r,
                                                   fix_mode, damp, method_info, it)
@@ -252,7 +251,7 @@ def dGN(T, X, Y, Z, r, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, res, m, n, p, r, fix_mode, damp, method_info, it):
+def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, r, fix_mode, damp, method_info, it):
     """    
     This function uses the adequate method to compute the step based on the user choice, otherwise the default
     is used.
@@ -265,13 +264,13 @@ def compute_step(X, Y, Z, lsmr_data, data, data_rmatvec, y, res, m, n, p, r, fix
 
     if method == 'cg':
         y, grad, itn, residualnorm = cg(X, Y, Z,
-                                        data, data_rmatvec,
+                                        data,
                                         y, -res,
                                         m, n, p, r,
                                         damp, inner_maxiter, inner_tol)
     elif method == 'cg_static':
         y, grad, itn, residualnorm = cg(X, Y, Z,
-                                        data, data_rmatvec,
+                                        data,
                                         y, -res,
                                         m, n, p, r,
                                         damp, method_maxiter, inner_tol)
@@ -373,8 +372,6 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
         w_Yt, Bu_Yt, \
         w_Zt, Bu_Zt = data
 
-    M_X, M_Y, M_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
-
     damp = 0
 
     # Initialize arrays.
@@ -385,11 +382,7 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
 
     if beta > 0:
         u = (1 / beta) * u
-        v = rmatvec(u,
-                    w_Xt, Bu_Xt, M_X,
-                    w_Yt, Bu_Yt, M_Y,
-                    w_Zt, Bu_Zt, M_Z,
-                    m, n, p, r)
+        v = rmatvec(u, X, Y, Z, m, n, p, r)
         alpha = norm(v)
 
     if alpha > 0:
@@ -464,11 +457,7 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
 
         if beta > 0:
             u = (1 / beta) * u
-            v = rmatvec(u,
-                        w_Xt, Bu_Xt, M_X,
-                        w_Yt, Bu_Yt, M_Y,
-                        w_Zt, Bu_Zt, M_Z,
-                        m, n, p, r) - beta * v
+            v = rmatvec(u, X, Y, Z, m, n, p, r)
             alpha = norm(v)
             if alpha > 0:
                 v = (1 / alpha) * v
@@ -683,7 +672,7 @@ def update_damp(damp, old_error, error, residualnorm):
     return damp
 
 
-def cg(X, Y, Z, data, data_rmatvec, y, b, m, n, p, r, damp, maxiter, tol):
+def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
@@ -707,13 +696,10 @@ def cg(X, Y, Z, data, data_rmatvec, y, b, m, n, p, r, damp, maxiter, tol):
         gamma_X, gamma_Y, gamma_Z, Gamma, \
         M, L, residual_cg, P, Q, z = data
 
-    M_X, M_Y, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt = data_rmatvec
-
     # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
                                                      Gr_X, Gr_Y, Gr_Z,
                                                      Gr_XY, Gr_XZ, Gr_YZ)
-    M_X, M_Y, M_Z = update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z)
     L = regularization(X, Y, Z,
                        X_norms, Y_norms, Z_norms,
                        gamma_X, gamma_Y, gamma_Z, Gamma,
@@ -723,12 +709,8 @@ def cg(X, Y, Z, data, data_rmatvec, y, b, m, n, p, r, damp, maxiter, tol):
 
     y = 0 * y
 
-    # grad = Dres^T*res is the gradient of the error function E.    
-    grad = rmatvec(b,
-                   w_Xt, Bu_Xt, M_X,
-                   w_Yt, Bu_Yt, M_Y,
-                   w_Zt, Bu_Zt, M_Z,
-                   m, n, p, r)
+    # grad = Dres^T*res is the gradient of the error function E.
+    grad = rmatvec(b, X, Y, Z, m, n, p, r)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = dot(residual_cg, residual_cg)
@@ -863,43 +845,6 @@ def prepare_data(m, n, p, r):
             M, L, residual_cg, P, Q, z]
 
     return data
-
-
-def prepare_data_rmatvec(m, n, p, r):
-    """
-    This function creates several auxiliar matrices which will be used later to accelerate matrix-vector products.
-    """
-
-    M_X = empty((n * p, r), dtype=float64)
-    M_Y = empty((m * p, r), dtype=float64)
-    M_Z = empty((m * n, r), dtype=float64)
-
-    # B_X^T
-    w_Xt = empty(n * p, dtype=float64)
-    Bu_Xt = empty(r * m, dtype=float64)
-
-    # B_Y^T
-    w_Yt = empty(m * p, dtype=float64)
-    Bu_Yt = empty(r * n, dtype=float64)
-
-    # B_Z^T
-    w_Zt = empty((p, m * n), dtype=float64)
-    Bu_Zt = empty(r * p, dtype=float64)
-
-    data_rmatvec = [M_X, M_Y, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt]
-
-    return data_rmatvec
-
-
-def update_data_rmatvec(X, Y, Z, M_X, M_Y, M_Z):
-    """
-    This function creates several auxiliar matrices which will be used later to accelerate matrix-vector products.
-    """
-    M_X = -mlinalg.khatri_rao(Y, Z, M_X)
-    M_Y = -mlinalg.khatri_rao(X, Z, M_Y)
-    M_Z = -mlinalg.khatri_rao(X, Y, M_Z)
-
-    return M_X, M_Y, M_Z
 
 
 @njit(nogil=True)
@@ -1053,34 +998,49 @@ def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p
     return Bv_X + Bv_Y + Bv_Z
 
 
-@njit(nogil=True)
-def rmatvec(u, w_Xt, Bu_Xt, M_X, w_Yt, Bu_Yt, M_Y, w_Zt, Bu_Zt, M_Z, m, n, p, r):
-    """    
-    Computes the matrix-vector product Dres.transpose*u.
-    """
+@njit(nogil=True, parallel=True)
+def rmatvec(u, X, Y, Z, m, n, p, r):
+    M = empty((m, n, p), dtype=float64)
+    result = empty(r*(m+n+p), dtype=float64)
+    aux1 = zeros(m, dtype=float64)
+    aux2 = zeros(n, dtype=float64)
+    aux3 = zeros(p, dtype=float64)
 
-    values = arange(r)
+    for i in prange(m):
+        for j in range(n):
+            M[i, j, :] = u[(i*n + j)*p: (i*n + j + 1)*p]
 
-    "B_Xt"
-    for i in range(m):
-        w_Xt = u[i * n * p: (i + 1) * n * p]
-        idx = i + m * values
-        Bu_Xt[idx] = np.dot(w_Xt, M_X)
-
-    "B_Yt"
+    # X piece
+    N = empty((n, m, r), dtype=float64)
     for j in range(n):
+        N[j, :, :] = dot(M[:, j, :], Z)
+    for l in prange(r):
+        aux1 *= 0
+        for j in range(n):
+            aux1 += Y[j, l] * N[j, :, l]
+        result[l*m: (l+1)*m ] = aux1
+
+    # Y piece
+    N = empty((m, n, r), dtype=float64)
+    for i in range(m):
+        N[i, :, :] = dot(M[i, :, :], Z)
+    for l in prange(r):
+        aux2 *= 0
         for i in range(m):
-            w_Yt[i * p: (i + 1) * p] = u[j * p + i * n * p: (j + 1) * p + i * n * p]
-        idx = j + n * values
-        Bu_Yt[idx] = np.dot(w_Yt, M_Y)
+            aux2 += X[i, l] * N[i, :, l]
+        result[r*m + l*n: r*m + (l+1)*n] = aux2
 
-    "B_Zt"
-    w_Zt = u.reshape(m * n, p).T
-    for k in range(p):
-        idx = k + p * values
-        Bu_Zt[idx] = np.dot(w_Zt[k, :], M_Z)
+    # Z piece
+    N = empty((m, r, p), dtype=float64)
+    for i in range(m):
+        N[i, :, :] = dot(Y.T, M[i, :, :])
+    for l in prange(r):
+        aux3 *= 0
+        for i in range(m):
+            aux3 += X[i, l] * N[i, l, :]
+        result[r*(m+n) + l*p: r*(m+n) + (l+1)*p] = aux3
 
-    return hstack((Bu_Xt, Bu_Yt, Bu_Zt))
+    return -result
 
 
 @njit(nogil=True)
