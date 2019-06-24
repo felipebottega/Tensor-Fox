@@ -185,3 +185,4 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  11) Tensorlab - https://www.tensorlab.net/
  12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
  13) Tensorly - https://github.com/tensorly/
+ 14) TensorBox - https://github.com/phananhhuy/TensorBox
