@@ -607,7 +607,7 @@ def sym_ortho(a, b):
 
 
 @njit(nogil=True, parallel=True)
-def residual(res, T, T_aux, m, n, p):
+def residual(res, T, T_approx, m, n, p):
     """
     This function computes (updates) the residuals between a 3-D tensor T in R^m⊗R^n⊗R^p and an approximation T_approx
     of rank r. The tensor T_approx is of the form T_approx = X_1⊗Y_1⊗Z_1 + ... + X_r⊗Y_r⊗Z_r, where
@@ -623,7 +623,7 @@ def residual(res, T, T_aux, m, n, p):
     res: float 1-D ndarray with m*n*p entries 
         Each entry is a residual.
     T: float 3-D ndarray
-    T_aux: float 3-D ndarray
+    T_approx: float 3-D ndarray
         T_aux is the current tensor obtained by the iteration of dGN. 
     m,n,p: int
     
@@ -633,28 +633,13 @@ def residual(res, T, T_aux, m, n, p):
         Each entry is a residual.
     """
 
-    for i in prange(m):
-        for j in range(n):
-            for k in range(p):
+    for j in prange(n):
+        for k in range(p):
+            for i in range(m):
                 s = n * p * i + p * j + k
-                res[s] = T[i, j, k] - T_aux[i, j, k]
+                res[s] = T[i, j, k] - T_approx[i, j, k]
 
     return res
-
-
-@njit(nogil=True)
-def residual_entries(T_ijk, X, Y, Z, r, i, j, k):
-    """ 
-    Computation of each individual residual in the residual function. 
-    """
-
-    acc = 0.0
-    for l in range(r):
-        acc += X[i, l] * Y[j, l] * Z[k, l]
-
-    res_ijk = T_ijk - acc
-
-    return res_ijk
 
 
 def update_damp(damp, old_error, error, residualnorm):
@@ -694,7 +679,7 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
         B_XYt_v, B_XZt_v, B_YZt_v, \
         X_norms, Y_norms, Z_norms, \
         gamma_X, gamma_Y, gamma_Z, Gamma, \
-        M, L, residual_cg, P, Q, z = data
+        M, L, residual_cg, P, Q, z, N1, N2, NX, NY, NZ = data
 
     # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
@@ -710,7 +695,7 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
     y = 0 * y
 
     # grad = Dres^T*res is the gradient of the error function E.
-    grad = rmatvec(b, X, Y, Z, m, n, p, r)
+    grad = rmatvec(b, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, r)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = dot(residual_cg, residual_cg)
@@ -828,6 +813,13 @@ def prepare_data(m, n, p, r):
     Q = empty(r * (m + n + p), dtype=float64)
     z = empty(r * (m + n + p), dtype=float64)
 
+    # Arrays to be used in the rmatvec function.
+    N1 = empty((n, m, p), dtype=float64)
+    N2 = empty((m, n, p), dtype=float64)
+    NX = [empty((m, r), dtype=float64) for j in range(n)]
+    NY = [empty((n, r), dtype=float64) for i in range(m)]
+    NZ = [empty((r, p), dtype=float64) for i in range(m)]
+
     data = [Gr_X, Gr_Y, Gr_Z,
             Gr_XY, Gr_XZ, Gr_YZ,
             V_Xt, V_Yt, V_Zt,
@@ -842,7 +834,7 @@ def prepare_data(m, n, p, r):
             B_XYt_v, B_XZt_v, B_YZt_v,
             X_norms, Y_norms, Z_norms,
             gamma_X, gamma_Y, gamma_Z, Gamma,
-            M, L, residual_cg, P, Q, z]
+            M, L, residual_cg, P, Q, z, N1, N2, NX, NY, NZ]
 
     return data
 
@@ -929,6 +921,45 @@ def matvec(X, Y, Z,
     return concatenate((B_X_v + B_XY_v + B_XZ_v, B_XYt_v + B_Y_v + B_YZ_v, B_XZt_v + B_YZt_v + B_Z_v))
 
 
+@njit(nogil=True, parallel=True)
+def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, r):
+    result = empty(r*(m+n+p), dtype=float64)
+    aux1 = zeros(m, dtype=float64)
+    aux2 = zeros(n, dtype=float64)
+    aux3 = zeros(p, dtype=float64)
+    
+    # Compute auxiliary matrices.
+    for i in prange(m):
+        for j in range(n):
+            v = u[(i*n + j)*p: (i*n + j + 1)*p]
+            N1[j, i, :] = v
+            N2[i, j, :] = v
+        dot(N2[i, :, :], Z, out=NY[i])
+        dot(Y.T, N2[i, :, :], out=NZ[i])
+        
+    for j in prange(n):
+        dot(N1[j, :, :], Z, out=NX[j])
+
+    # Compute resulting vector by blocks.
+    for l in prange(r):
+        # X piece
+        aux1 *= 0
+        for j in range(n):
+            aux1 += Y[j, l] * NX[j][:, l]
+        result[l*m: (l+1)*m ] = aux1
+
+        # Y and Z pieces
+        aux2 *= 0
+        aux3 *= 0
+        for i in range(m):
+            aux2 += X[i, l] * NY[i][:, l]
+            aux3 += X[i, l] * NZ[i][l, :]
+        result[r*m + l*n: r*m + (l+1)*n] = aux2
+        result[r*(m+n) + l*p: r*(m+n) + (l+1)*p] = aux3
+        
+    return -result
+
+
 def lsmr_prepare_data(m, n, p, r):
     """
     This function creates several auxiliar matrices which will be used later 
@@ -996,51 +1027,6 @@ def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p
         Bv_Z[k + p * values1] = dot(M_Z, w_Z[k, :])
 
     return Bv_X + Bv_Y + Bv_Z
-
-
-@njit(nogil=True, parallel=True)
-def rmatvec(u, X, Y, Z, m, n, p, r):
-    M = empty((m, n, p), dtype=float64)
-    result = empty(r*(m+n+p), dtype=float64)
-    aux1 = zeros(m, dtype=float64)
-    aux2 = zeros(n, dtype=float64)
-    aux3 = zeros(p, dtype=float64)
-
-    for i in prange(m):
-        for j in range(n):
-            M[i, j, :] = u[(i*n + j)*p: (i*n + j + 1)*p]
-
-    # X piece
-    N = empty((n, m, r), dtype=float64)
-    for j in range(n):
-        N[j, :, :] = dot(M[:, j, :], Z)
-    for l in prange(r):
-        aux1 *= 0
-        for j in range(n):
-            aux1 += Y[j, l] * N[j, :, l]
-        result[l*m: (l+1)*m ] = aux1
-
-    # Y piece
-    N = empty((m, n, r), dtype=float64)
-    for i in range(m):
-        N[i, :, :] = dot(M[i, :, :], Z)
-    for l in prange(r):
-        aux2 *= 0
-        for i in range(m):
-            aux2 += X[i, l] * N[i, :, l]
-        result[r*m + l*n: r*m + (l+1)*n] = aux2
-
-    # Z piece
-    N = empty((m, r, p), dtype=float64)
-    for i in range(m):
-        N[i, :, :] = dot(Y.T, M[i, :, :])
-    for l in prange(r):
-        aux3 *= 0
-        for i in range(m):
-            aux3 += X[i, l] * N[i, l, :]
-        result[r*(m+n) + l*p: r*(m+n) + (l+1)*p] = aux3
-
-    return -result
 
 
 @njit(nogil=True)
