@@ -149,7 +149,6 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **Initialization**|  |
 |---|---|
 | starting_point| main function to generates the starting point. There are four possible methods of initialization, 'random', 'smart_random', 'smart', or you can provide your own starting point. |
-| find_factor| if the user introduce constraints for the entries of the solution, a projection is made at each step of the dGN. This projection is based on three parameters, where the least clear is the *factor* parameter. This function helps the user to find the best factor for the starting point. For more information, see [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/3-advanced_options.ipynb) notebook. |
    
 | **MultilinearAlgebra**| |
 |---|---|
