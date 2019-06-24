@@ -54,7 +54,7 @@ Now let's turn to the most important tool of Tensor Fox, the computation of the 
 
 ## :fox_face: Performance
 
-In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab (version 3.0), Tensor Toolbox (version 2.6) and Tensorly. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
+In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab (version 3.0), Tensor Toolbox (version 3.1), Tensorly and TensorBox. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
 
  1) *Swimmer*: This tensor was constructed in [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/6-first_problem.ipynb) tutorial lesson. It is a set of 256 images of dimensions 32 x 32 representing a swimmer. Each image contains a torso (the invariant part) of 12 pixels in the center and four limbs of 6 pixels that can be in one of 4 positions. We proposed to use a rank R = 50 tensor to approximate it.
  
@@ -82,6 +82,7 @@ In the following we compare the performances of Tensor Fox and other known tenso
   * MINFr: Tensorlab MINF with refinement
   * Tly-ALS: Tensorly ALS
   * OPT: Tensor Toolbox OPT (with 'lbfgs' algorithm)
+  * fLMA: TensorBox fast Levenberg-Marquardt algorithm.
  
  The first round of our benchmarks is showed below.
  
