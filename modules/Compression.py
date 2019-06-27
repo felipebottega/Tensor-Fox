@@ -10,6 +10,7 @@ import numpy as np
 from numpy import array, eye, zeros, ones, empty, prod, float64, int64, copy, dot, sort, argsort, sqrt, mean
 from numpy.linalg import eigh, svd
 from numpy.random import randint
+from decimal import Decimal
 
 # Tensor Fox modules
 import Auxiliar as aux
