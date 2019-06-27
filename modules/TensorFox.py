@@ -166,10 +166,10 @@ def cpd(T, r, options=False):
             else:
                 print('    Compression detected')
                 print('    Compressing from', T.shape, 'to', S.shape)
-                a = float('%.5e' % Decimal(best_energy))
+                a = float('%.7e' % Decimal(best_energy))
                 print('   ', a, '% of the energy was retained')
             if display > 2 or display < -1:
-                print('    Compression relative error = {:5e}'.format(best_error))
+                print('    Compression relative error = {:7e}'.format(best_error))
             print()
 
         # Increase dimensions if r > min(S.shape).
@@ -372,10 +372,10 @@ def tricpd(T, r, options):
         else:
             print('    Compression detected')
             print('    Compressing from', T.shape, 'to', S.shape)
-            a = float('%.5e' % Decimal(best_energy))
+            a = float('%.7e' % Decimal(best_energy))
             print('   ', a, '% of the energy was retained')
         if display > 2:
-            print('    Compression relative error = {:5e}'.format(best_error))
+            print('    Compression relative error = {:7e}'.format(best_error))
             
     # GENERATION OF STARTING POINT STAGE
         
@@ -533,10 +533,10 @@ def bicpd(T, r, fixed_factor, options):
         else:
             print('    Compression detected')
             print('    Compressing from', T.shape, 'to', S.shape)
-            a = float('%.5e' % Decimal(best_energy))
+            a = float('%.7e' % Decimal(best_energy))
             print('   ', a, '% of the energy was retained')
         if display > 2:
-            print('    Compression relative error = {:5e}'.format(best_error))
+            print('    Compression relative error = {:7e}'.format(best_error))
 
     # GENERATION OF STARTING POINT STAGE
         

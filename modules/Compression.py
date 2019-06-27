@@ -808,7 +808,8 @@ def test_truncation(T, trunc_list, compute_error=True, display=True):
         # Display results.
         if display:
             print('Truncation:', current_dims)
-            print('Energy:', np.round(current_energy, 4), '%')
+            a = float('%.7e' % Decimal(current_energy))
+            print('Energy:', a, '%')
             print('Error:', current_error)
             print()
 
