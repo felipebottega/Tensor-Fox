@@ -733,7 +733,7 @@ def unfoldings_svd(T1, T2, T3, m, n, p):
     return Sigma1, Sigma2, Sigma3, U1, U2, U3
 
 
-def test_truncation(T, Tsize, trunc_list, compute_error=True, display=True):
+def test_truncation(T, trunc_list, compute_error=True, display=True):
     """
     This function test one or several possible truncations for the MLSVD of T, showing the energy and, optionally, the
     error of the truncation. It is possible to accomplish the same results calling the function mlsvd with display=3.
@@ -745,6 +745,7 @@ def test_truncation(T, Tsize, trunc_list, compute_error=True, display=True):
     # Set the main variables about T.
     dims = T.shape
     L = len(dims)
+    Tsize = np.linalg.norm(T)
 
     sigmas = []
     U = []
