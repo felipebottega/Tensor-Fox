@@ -54,7 +54,7 @@ Now let's turn to the most important tool of Tensor Fox, the computation of the 
 
 ## :fox_face: Performance
 
-In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab (version 3.0), Tensor Toolbox (version 2.6) and Tensorly. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
+In the following we compare the performances of Tensor Fox and other known tensor packages: Tensorlab (version 3.0), Tensor Toolbox (version 3.1), Tensorly and TensorBox. Our first benchmark consists in measuring the effort for the other solvers to obtain a solution close to the Tensor Fox default. We compute the CPD of four fixed tensors:
 
  1) *Swimmer*: This tensor was constructed in [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/6-first_problem.ipynb) tutorial lesson. It is a set of 256 images of dimensions 32 x 32 representing a swimmer. Each image contains a torso (the invariant part) of 12 pixels in the center and four limbs of 6 pixels that can be in one of 4 positions. We proposed to use a rank R = 50 tensor to approximate it.
  
@@ -82,6 +82,7 @@ In the following we compare the performances of Tensor Fox and other known tenso
   * MINFr: Tensorlab MINF with refinement
   * Tly-ALS: Tensorly ALS
   * OPT: Tensor Toolbox OPT (with 'lbfgs' algorithm)
+  * fLMA: TensorBox fast Levenberg-Marquardt algorithm.
  
  The first round of our benchmarks is showed below.
  
@@ -148,7 +149,6 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **Initialization**|  |
 |---|---|
 | starting_point| main function to generates the starting point. There are four possible methods of initialization, 'random', 'smart_random', 'smart', or you can provide your own starting point. |
-| find_factor| if the user introduce constraints for the entries of the solution, a projection is made at each step of the dGN. This projection is based on three parameters, where the least clear is the *factor* parameter. This function helps the user to find the best factor for the starting point. For more information, see [this](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/3-advanced_options.ipynb) notebook. |
    
 | **MultilinearAlgebra**| |
 |---|---|
@@ -185,3 +185,4 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  11) Tensorlab - https://www.tensorlab.net/
  12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
  13) Tensorly - https://github.com/tensorly/
+ 14) TensorBox - https://github.com/phananhhuy/TensorBox
