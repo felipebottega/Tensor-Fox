@@ -120,12 +120,12 @@ def cpd(T, r, options=False):
     # Set options
     options = aux.make_options(options)
     display = options.display
-    energy = options.energy
-    if type(energy) == list:
+    mlsvd_tol = options.mlsvd_tol
+    if type(mlsvd_tol) == list:
         if L > 3:
-            energy = energy[0]
+            mlsvd_tol = mlsvd_tol[0]
         else:
-            energy = energy[1]
+            mlsvd_tol = mlsvd_tol[1]
                    
     # Test consistency of dimensions and rank.
     aux.consistency(r, dims, options.symm)  
@@ -148,16 +148,16 @@ def cpd(T, r, options=False):
 
         # Compute compressed version of T with the MLSVD. We have that T = (U_1,...,U_L)*S.
         if display > 2 or display < -1:
-            S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop, best_error = cmpr.mlsvd(T, Tsize, r, options)
+            S, U, UT, sigmas, best_error = cmpr.mlsvd(T, Tsize, r, options)
         else: 
-            S, best_energy, best_dims, U, UT, sigmas, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
+            S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, r, options)
         
         if display != 0:
-            if energy == 1:
+            if mlsvd_tol == 0:
                 print('    Compression without truncation requested by user')
                 print('    Compressing from', T.shape, 'to', S.shape)
-            elif prod(array(best_dims) == array(dims)):
-                if energy == -1:
+            elif prod(array(S.shape) == array(dims)):
+                if mlsvd_tol == -1:
                     print('    No compression and no truncation requested by user')
                     print('    Working with dimensions', T.shape) 
                 else:
@@ -166,8 +166,6 @@ def cpd(T, r, options=False):
             else:
                 print('    Compression detected')
                 print('    Compressing from', T.shape, 'to', S.shape)
-                a = float('%.7e' % Decimal(best_energy))
-                print('   ', a, '% of the energy was retained')
             if display > 2 or display < -1:
                 print('    Compression relative error = {:7e}'.format(best_error))
             print()
@@ -320,10 +318,10 @@ def tricpd(T, r, options):
     refine = options.refine
     symm = options.symm
     display = options.display
-    energy = options.energy
+    mlsvd_tol = options.mlsvd_tol
     method = options.method_parameters[0]
-    if type(energy) == list:
-        energy = energy[1]
+    if type(mlsvd_tol) == list:
+        mlsvd_tol = mlsvd_tol[1]
 
     # Set the other variables.
     m_orig, n_orig, p_orig = T.shape
@@ -346,10 +344,11 @@ def tricpd(T, r, options):
     
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
     if display > 2:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = \
-            cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas, best_error = cmpr.mlsvd(T, Tsize, r, options)
     else:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, r, options)
+    R1, R2, R3 = S.shape
+    U1, U2, U3 = U
 
     # When the tensor is symmetric we want S to have equal dimensions. 
     if symm:
@@ -359,11 +358,11 @@ def tricpd(T, r, options):
         U1, U2, U3 = U1[:, :R], U2[:, :R], U3[:, :R]
           
     if display > 0:
-        if energy == 1:
+        if mlsvd_tol == 0:
             print('    Compression without truncation requested by user')
             print('    Compressing from', T.shape, 'to', S.shape)
         elif (R1, R2, R3) == (m, n, p):
-            if energy == -1:
+            if mlsvd_tol == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
             else:
@@ -372,8 +371,6 @@ def tricpd(T, r, options):
         else:
             print('    Compression detected')
             print('    Compressing from', T.shape, 'to', S.shape)
-            a = float('%.7e' % Decimal(best_energy))
-            print('   ', a, '% of the energy was retained')
         if display > 2:
             print('    Compression relative error = {:7e}'.format(best_error))
             
@@ -457,7 +454,7 @@ def tricpd(T, r, options):
                              errors_main, errors_refine,
                              improv_main, improv_refine,
                              gradients_main, gradients_refine,
-                             mlsvd_stop, stop_main, stop_refine,
+                             stop_main, stop_refine,
                              options)
 
     if display > 0:
@@ -486,10 +483,10 @@ def bicpd(T, r, fixed_factor, options):
     refine = options.refine
     symm = options.symm
     display = options.display
-    energy = options.energy
+    mlsvd_tol = options.mlsvd_tol
     bi_method = options.bi_method_parameters[0]
-    if type(energy) == list:
-        energy = energy[1]
+    if type(mlsvd_tol) == list:
+        mlsvd_tol = mlsvd_tol[1]
 
     # Set the other variables.
     m, n, p = T.shape
@@ -504,13 +501,14 @@ def bicpd(T, r, fixed_factor, options):
     if display > 0:
         print('-----------------------------------------------------------------------------------------------') 
         print('Computing MLSVD of T')
-    
+
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
     if display > 2:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, best_error = \
-            cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas, best_error = cmpr.mlsvd(T, Tsize, r, options)
     else:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, r, options)
+    R1, R2, R3 = S.shape
+    U1, U2, U3 = U
 
     # When the tensor is symmetric we want S to have equal dimensions. 
     if symm:
@@ -520,11 +518,11 @@ def bicpd(T, r, fixed_factor, options):
         U1, U2, U3 = U1[:, :R], U2[:, :R], U3[:, :R]
           
     if display > 0:
-        if energy == 1:
+        if mlsvd_tol == 0:
             print('    Compression without truncation requested by user')
             print('    Compressing from', T.shape, 'to', S.shape)  
         elif (R1, R2, R3) == (m, n, p):
-            if energy == -1:
+            if mlsvd_tol == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
             else:
@@ -533,8 +531,6 @@ def bicpd(T, r, fixed_factor, options):
         else:
             print('    Compression detected')
             print('    Compressing from', T.shape, 'to', S.shape)
-            a = float('%.7e' % Decimal(best_energy))
-            print('   ', a, '% of the energy was retained')
         if display > 2:
             print('    Compression relative error = {:7e}'.format(best_error))
 
@@ -609,7 +605,7 @@ def bicpd(T, r, fixed_factor, options):
     elif fixed_factor[1] == 2:
         T_approx = cnv.cpd2tens(T_approx, [X, Y, fixed_factor[0]], (m, n, p))
     
-    # Save and display final informations.
+    # Save and display final information.
     step_sizes_refine = array([0])
     errors_refine = array([0])
     improv_refine = array([0]) 
@@ -620,7 +616,7 @@ def bicpd(T, r, fixed_factor, options):
                              errors_main, errors_refine,
                              improv_main, improv_refine,
                              gradients_main, gradients_refine,
-                             mlsvd_stop, stop_main, stop_refine,
+                             stop_main, stop_refine,
                              options)
 
     if display > 0:

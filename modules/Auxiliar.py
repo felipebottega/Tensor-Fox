@@ -174,7 +174,7 @@ def output_info(T_orig, Tsize, T_approx,
                 errors_main, errors_refine, 
                 improv_main, improv_refine, 
                 gradients_main, gradients_refine, 
-                mlsvd_stop, stop_main, stop_refine, 
+                stop_main, stop_refine,
                 options):
     """
     Constructs the class containing the information of all relevant outputs relative to the computation of a 
@@ -197,34 +197,10 @@ def output_info(T_orig, Tsize, T_approx,
             self.errors = [errors_main, errors_refine]
             self.improv = [improv_main, improv_refine]
             self.gradients = [gradients_main, gradients_refine]
-            self.stop = [mlsvd_stop, stop_main, stop_refine]
+            self.stop = [stop_main, stop_refine]
             self.options = options
 
         def stop_msg(self):
-            # mlsvd_stop message
-            print('MLSVD stop:')
-            if self.stop[0] == 0:
-                print('0 - Truncation was given manually by the user.')
-            if self.stop[0] == 1:
-                print('1 - User choose energy = -1, that is, to work with the original tensor.')
-            if self.stop[0] == 2:
-                print('2 - When testing the truncations a big gap between singular values were detected and the program' 
-                      ' lock the size of the truncation.')
-            if self.stop[0] == 3:
-                print('3 - The program was unable to truncate at the very first attempt. In this case the singular' 
-                      ' values of the MLSVD are equal or almost equal. The program stops the truncation process when'
-                      ' this happens.')
-            if self.stop[0] == 4:
-                print('4 - Tensor probably is random or has a lot of noise.')
-            if self.stop[0] == 5:
-                print('5 - The energy of the truncation is accepted because it is big enough.')
-            if self.stop[0] == 6:
-                print('6 - None of the previous conditions were satisfied and we used the last truncation computed.' 
-                      ' This condition is only possible at the second stage.')
-            if self.stop[0] == 7:
-                print('7 - User choose energy = 1, that is, to work with the compressed tensor (the central tensor of' 
-                      ' the MLSVD) without truncating it.')
-           
             # stop_main message
             print()
             print('Main stop:')
@@ -305,7 +281,7 @@ def make_options(options):
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.init_method = 'random'
             self.trunc_dims = 0
-            self.energy = 0.99999
+            self.mlsvd_tol = 1e-6
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -356,8 +332,8 @@ def make_options(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
-    if 'energy' in dir(options):
-        temp_options.energy = options.energy
+    if 'mlsvd_tol' in dir(options):
+        temp_options.mlsvd_tol = options.mlsvd_tol
     if 'init_damp' in dir(options):
         temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):
@@ -401,7 +377,7 @@ def complete_options(options):
             self.bi_method_tol = 1e-6
             self.init_method = 'random'
             self.trunc_dims = 0
-            self.energy = 0.99999
+            self.mlsvd_tol = 1e-6
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -438,8 +414,8 @@ def complete_options(options):
         temp_options.init_method = options.init_method
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
-    if 'energy' in dir(options):
-        temp_options.energy = options.energy
+    if 'mlsvd_tol' in dir(options):
+        temp_options.mlsvd_tol = options.mlsvd_tol
     if 'init_damp' in dir(options):
         temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):
