@@ -18,7 +18,7 @@ import Conversion as cnv
 import MultilinearAlgebra as mlinalg
 
 
-def dGN(T, X, Y, Z, r, options):
+def dGN(T, X, Y, Z, R, options):
     """
     This function uses the Damped Gauss-Newton method to compute an approximation of T with rank r. An initial point to 
     start the iterations must be given. This point is described by the arrays X, Y, Z.    
@@ -31,15 +31,15 @@ def dGN(T, X, Y, Z, r, options):
     Inputs
     ------
     T: float 3-D ndarray
-    X: float 2-D ndarray of shape (m,r)
-    Y: float 2-D ndarray of shape (n,r)
-    Z: float 2-D ndarray of shape (p,r)
-    r: int. 
+    X: float 2-D ndarray of shape (m, R)
+    Y: float 2-D ndarray of shape (n, R)
+    Z: float 2-D ndarray of shape (p, R)
+    R: int.
         The desired rank of the approximating tensor.
     maxiter: int
         Number of maximum iterations permitted. 
     tol: float
-        Tolerance criterium to stop the iteration proccess. This value is used in more than one stopping criteria.
+        Tolerance criterion to stop the iteration process. This value is used in more than one stopping criteria.
     symm: bool
     display: int
     
@@ -113,7 +113,7 @@ def dGN(T, X, Y, Z, r, options):
     # INITIALIZE RELEVANT ARRAYS
 
     x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
-    y = zeros(r * (m + n + p), dtype=float64)
+    y = zeros(R * (m + n + p), dtype=float64)
     res = empty(m * n * p, dtype=float64)
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
@@ -123,8 +123,8 @@ def dGN(T, X, Y, Z, r, options):
     T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
 
     # Prepare data to use in each Gauss-Newton iteration.
-    data = prepare_data(m, n, p, r)
-    lsmr_data = lsmr_prepare_data(m, n, p, r)
+    data = prepare_data(m, n, p, R)
+    lsmr_data = lsmr_prepare_data(m, n, p, R)
 
     if display > 1:
         if display == 4:
@@ -160,14 +160,14 @@ def dGN(T, X, Y, Z, r, options):
         y, grad, itn, residualnorm = compute_step(X, Y, Z,
                                                   lsmr_data, data,
                                                   y, res,
-                                                  m, n, p, r,
+                                                  m, n, p, R,
                                                   fix_mode, damp, method_info, it)
 
         # Update point obtained by the iteration.         
         x = x + y
 
         # Compute factors X, Y, Z.
-        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, r)
+        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
         X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
         if fix_mode == 0:
             X = copy(X_orig)
@@ -251,7 +251,7 @@ def dGN(T, X, Y, Z, r, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, r, fix_mode, damp, method_info, it):
+def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, R, fix_mode, damp, method_info, it):
     """    
     This function uses the adequate method to compute the step based on the user choice, otherwise the default
     is used.
@@ -266,23 +266,23 @@ def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, r, fix_mode, damp, m
         y, grad, itn, residualnorm = cg(X, Y, Z,
                                         data,
                                         y, -res,
-                                        m, n, p, r,
+                                        m, n, p, R,
                                         damp, inner_maxiter, inner_tol)
     elif method == 'cg_static':
         y, grad, itn, residualnorm = cg(X, Y, Z,
                                         data,
                                         y, -res,
-                                        m, n, p, r,
+                                        m, n, p, R,
                                         damp, method_maxiter, inner_tol)
     elif method == 'lsmr':
         y, grad, itn, residualnorm = lsmr(X, Y, Z,
                                           -res, lsmr_data,
-                                          m, n, p, r,
+                                          m, n, p, R,
                                           fix_mode, inner_tol, inner_tol, inner_maxiter)
     elif method == 'lsmr_static':
         y, grad, itn, residualnorm = lsmr(X, Y, Z,
                                           -res, lsmr_data,
-                                          m, n, p, r,
+                                          m, n, p, R,
                                           fix_mode, inner_tol, inner_tol, method_maxiter)
     else:
         sys.exit('Wrong method parameter specification.')
@@ -290,7 +290,7 @@ def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, r, fix_mode, damp, m
     return y, grad, itn, residualnorm
 
 
-def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
+def lsmr(X, Y, Z, b, data, m, n, p, R, fix_mode, atol, btol, maxiter):
     """
     LSMR stands for 'least squares with minimal residual'. This LSMR function is an 
     adaptation of the scipy's LSMR function. You can see the original in the link below:
@@ -362,7 +362,7 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
         ``norm(x)``
     """
 
-    maxiter = min(maxiter, r * (m + n + p))
+    maxiter = min(maxiter, R * (m + n + p))
 
     # Update data for the next Gauss-Newton iteration.
     w_X, Bv_X, M_X, \
@@ -370,30 +370,31 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
         w_Z, Bv_Z, M_Z, \
         w_Xt, Bu_Xt, \
         w_Yt, Bu_Yt, \
-        w_Zt, Bu_Zt = data
+        w_Zt, Bu_Zt, \
+        N1, N2, NX, NY, NZ = data
 
     damp = 0
 
     # Initialize arrays.
     u = b
     beta = norm(u)
-    v = zeros(r * (m + n + p), dtype=float64)
+    v = zeros(R * (m + n + p), dtype=float64)
     alpha = 0
 
     if beta > 0:
         u = (1 / beta) * u
-        v = rmatvec(u, X, Y, Z, m, n, p, r)
+        v = rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
         alpha = norm(v)
 
     if alpha > 0:
         v = (1 / alpha) * v
 
     if fix_mode == 0:
-        v[:r * m] = zeros(r * m)
+        v[:R * m] = zeros(R * m)
     elif fix_mode == 1:
-        v[r * m:r * (m + n)] = zeros(r * n)
+        v[R * m:R * (m + n)] = zeros(R * n)
     elif fix_mode == 2:
-        v[r * (m + n):r * (m + n + p)] = zeros(r * p)
+        v[R * (m + n):R * (m + n + p)] = zeros(R * p)
 
     grad = copy(v)
 
@@ -407,8 +408,8 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
     sbar = 0
 
     h = copy(v)
-    hbar = zeros(r * (m + n + p), dtype=float64)
-    x = zeros(r * (m + n + p), dtype=float64)
+    hbar = zeros(R * (m + n + p), dtype=float64)
+    x = zeros(R * (m + n + p), dtype=float64)
 
     # Initialize variables for estimation of ||r||.
     betadd = beta
@@ -452,12 +453,12 @@ def lsmr(X, Y, Z, b, data, m, n, p, r, fix_mode, atol, btol, maxiter):
                         w_X, Bv_X, M_X,
                         w_Y, Mw_Y, Bv_Y, M_Y,
                         w_Z, Bv_Z, M_Z,
-                        m, n, p, r) - alpha * u
+                        m, n, p, R) - alpha * u
         beta = norm(u)
 
         if beta > 0:
             u = (1 / beta) * u
-            v = rmatvec(u, X, Y, Z, m, n, p, r)
+            v = rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
             alpha = norm(v)
             if alpha > 0:
                 v = (1 / alpha) * v
@@ -657,12 +658,12 @@ def update_damp(damp, old_error, error, residualnorm):
     return damp
 
 
-def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
+def cg(X, Y, Z, data, y, b, m, n, p, R, damp, maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
 
-    maxiter = min(maxiter, r * (m + n + p))
+    maxiter = min(maxiter, R * (m + n + p))
 
     # Give names to the arrays.
     Gr_X, Gr_Y, Gr_Z, \
@@ -688,17 +689,17 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
     L = regularization(X, Y, Z,
                        X_norms, Y_norms, Z_norms,
                        gamma_X, gamma_Y, gamma_Z, Gamma,
-                       m, n, p, r)
-    M = precond(X, Y, Z, L, M, damp, m, n, p, r)
+                       m, n, p, R)
+    M = precond(X, Y, Z, L, M, damp, m, n, p, R)
     const = 2 + int(maxiter / 5)
 
     y = 0 * y
 
     # grad = Dres^T*res is the gradient of the error function E.
-    grad = rmatvec(b, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, r)
+    grad = rmatvec(b, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
     residual_cg = M * grad
     P = residual_cg
-    residualnorm = dot(residual_cg, residual_cg)
+    residualnorm = norm(residual_cg)**2
     if residualnorm == 0.0:
         residualnorm = 1e-6
     residualnorm_list = []
@@ -718,7 +719,7 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
                    B_X_v, B_Y_v, B_Z_v,
                    B_XY_v, B_XZ_v, B_YZ_v,
                    B_XYt_v, B_XZt_v, B_YZt_v,
-                   Q, m, n, p, r) + damp * L * Q
+                   Q, m, n, p, R) + damp * L * Q
         z = M * z
         denominator = dot(P.T, z)
         if denominator == 0.0:
@@ -726,7 +727,7 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
         alpha = residualnorm / denominator
         y += alpha * P
         residual_cg -= alpha * z
-        residualnorm_new = dot(residual_cg, residual_cg)
+        residualnorm_new = norm(residual_cg)**2
         beta = residualnorm_new / residualnorm
         residualnorm = residualnorm_new
         residualnorm_list.append(residualnorm)
@@ -745,80 +746,80 @@ def cg(X, Y, Z, data, y, b, m, n, p, r, damp, maxiter, tol):
     return M * y, grad, itn + 1, residualnorm
 
 
-def prepare_data(m, n, p, r):
+def prepare_data(m, n, p, R):
     """
     Initialize all necessary matrices to keep the values of several computations during the program.
     """
 
     # Gramians
-    Gr_X = empty((r, r), dtype=float64)
-    Gr_Y = empty((r, r), dtype=float64)
-    Gr_Z = empty((r, r), dtype=float64)
-    Gr_XY = empty((r, r), dtype=float64)
-    Gr_XZ = empty((r, r), dtype=float64)
-    Gr_YZ = empty((r, r), dtype=float64)
+    Gr_X = empty((R, R), dtype=float64)
+    Gr_Y = empty((R, R), dtype=float64)
+    Gr_Z = empty((R, R), dtype=float64)
+    Gr_XY = empty((R, R), dtype=float64)
+    Gr_XZ = empty((R, R), dtype=float64)
+    Gr_YZ = empty((R, R), dtype=float64)
 
     # V_X^T, V_Y^T, V_Z^T
-    V_Xt = empty((r, m), dtype=float64)
-    V_Yt = empty((r, n), dtype=float64)
-    V_Zt = empty((r, p), dtype=float64)
+    V_Xt = empty((R, m), dtype=float64)
+    V_Yt = empty((R, n), dtype=float64)
+    V_Zt = empty((R, p), dtype=float64)
 
     # Initializations of matrices to receive the results of the computations.
-    V_Xt_dot_X = empty((r, r), dtype=float64)
-    V_Yt_dot_Y = empty((r, r), dtype=float64)
-    V_Zt_dot_Z = empty((r, r), dtype=float64)
-    Gr_Z_V_Yt_dot_Y = empty((r, r), dtype=float64)
-    Gr_Y_V_Zt_dot_Z = empty((r, r), dtype=float64)
-    Gr_X_V_Zt_dot_Z = empty((r, r), dtype=float64)
-    Gr_Z_V_Xt_dot_X = empty((r, r), dtype=float64)
-    Gr_Y_V_Xt_dot_X = empty((r, r), dtype=float64)
-    Gr_X_V_Yt_dot_Y = empty((r, r), dtype=float64)
-    X_dot_Gr_Z_V_Yt_dot_Y = empty((m, r), dtype=float64)
-    X_dot_Gr_Y_V_Zt_dot_Z = empty((m, r), dtype=float64)
-    Y_dot_Gr_X_V_Zt_dot_Z = empty((n, r), dtype=float64)
-    Y_dot_Gr_Z_V_Xt_dot_X = empty((n, r), dtype=float64)
-    Z_dot_Gr_Y_V_Xt_dot_X = empty((p, r), dtype=float64)
-    Z_dot_Gr_X_V_Yt_dot_Y = empty((p, r), dtype=float64)
+    V_Xt_dot_X = empty((R, R), dtype=float64)
+    V_Yt_dot_Y = empty((R, R), dtype=float64)
+    V_Zt_dot_Z = empty((R, R), dtype=float64)
+    Gr_Z_V_Yt_dot_Y = empty((R, R), dtype=float64)
+    Gr_Y_V_Zt_dot_Z = empty((R, R), dtype=float64)
+    Gr_X_V_Zt_dot_Z = empty((R, R), dtype=float64)
+    Gr_Z_V_Xt_dot_X = empty((R, R), dtype=float64)
+    Gr_Y_V_Xt_dot_X = empty((R, R), dtype=float64)
+    Gr_X_V_Yt_dot_Y = empty((R, R), dtype=float64)
+    X_dot_Gr_Z_V_Yt_dot_Y = empty((m, R), dtype=float64)
+    X_dot_Gr_Y_V_Zt_dot_Z = empty((m, R), dtype=float64)
+    Y_dot_Gr_X_V_Zt_dot_Z = empty((n, R), dtype=float64)
+    Y_dot_Gr_Z_V_Xt_dot_X = empty((n, R), dtype=float64)
+    Z_dot_Gr_Y_V_Xt_dot_X = empty((p, R), dtype=float64)
+    Z_dot_Gr_X_V_Yt_dot_Y = empty((p, R), dtype=float64)
 
     # Matrices for the diagonal block
-    Gr_YZ_V_Xt = empty((r, m), dtype=float64)
-    Gr_XZ_V_Yt = empty((r, n), dtype=float64)
-    Gr_XY_V_Zt = empty((r, p), dtype=float64)
+    Gr_YZ_V_Xt = empty((R, m), dtype=float64)
+    Gr_XZ_V_Yt = empty((R, n), dtype=float64)
+    Gr_XY_V_Zt = empty((R, p), dtype=float64)
 
     # Final blocks
-    B_X_v = empty(m * r, dtype=float64)
-    B_Y_v = empty(n * r, dtype=float64)
-    B_Z_v = empty(p * r, dtype=float64)
-    B_XY_v = empty(m * r, dtype=float64)
-    B_XZ_v = empty(m * r, dtype=float64)
-    B_YZ_v = empty(n * r, dtype=float64)
-    B_XYt_v = empty(n * r, dtype=float64)
-    B_XZt_v = empty(p * r, dtype=float64)
-    B_YZt_v = empty(p * r, dtype=float64)
+    B_X_v = empty(m * R, dtype=float64)
+    B_Y_v = empty(n * R, dtype=float64)
+    B_Z_v = empty(p * R, dtype=float64)
+    B_XY_v = empty(m * R, dtype=float64)
+    B_XZ_v = empty(m * R, dtype=float64)
+    B_YZ_v = empty(n * R, dtype=float64)
+    B_XYt_v = empty(n * R, dtype=float64)
+    B_XZt_v = empty(p * R, dtype=float64)
+    B_YZt_v = empty(p * R, dtype=float64)
 
     # Matrices to use when constructing the Tikhonov matrix for regularization.
-    X_norms = empty(r, dtype=float64)
-    Y_norms = empty(r, dtype=float64)
-    Z_norms = empty(r, dtype=float64)
-    gamma_X = empty(r, dtype=float64)
-    gamma_Y = empty(r, dtype=float64)
-    gamma_Z = empty(r, dtype=float64)
-    Gamma = empty(r * (m + n + p), dtype=float64)
+    X_norms = empty(R, dtype=float64)
+    Y_norms = empty(R, dtype=float64)
+    Z_norms = empty(R, dtype=float64)
+    gamma_X = empty(R, dtype=float64)
+    gamma_Y = empty(R, dtype=float64)
+    gamma_Z = empty(R, dtype=float64)
+    Gamma = empty(R * (m + n + p), dtype=float64)
 
     # Arrays to be used in the Conjugated Gradient.
-    M = ones(r * (m + n + p), dtype=float64)
-    L = ones(r * (m + n + p), dtype=float64)
-    residual_cg = empty(r * (m + n + p), dtype=float64)
-    P = empty(r * (m + n + p), dtype=float64)
-    Q = empty(r * (m + n + p), dtype=float64)
-    z = empty(r * (m + n + p), dtype=float64)
+    M = ones(R * (m + n + p), dtype=float64)
+    L = ones(R * (m + n + p), dtype=float64)
+    residual_cg = empty(R * (m + n + p), dtype=float64)
+    P = empty(R * (m + n + p), dtype=float64)
+    Q = empty(R * (m + n + p), dtype=float64)
+    z = empty(R * (m + n + p), dtype=float64)
 
     # Arrays to be used in the rmatvec function.
     N1 = empty((n, m, p), dtype=float64)
     N2 = empty((m, n, p), dtype=float64)
-    NX = [empty((m, r), dtype=float64) for j in range(n)]
-    NY = [empty((n, r), dtype=float64) for i in range(m)]
-    NZ = [empty((r, p), dtype=float64) for i in range(m)]
+    NX = [empty((m, R), dtype=float64) for j in range(n)]
+    NY = [empty((n, R), dtype=float64) for i in range(m)]
+    NZ = [empty((R, p), dtype=float64) for i in range(m)]
 
     data = [Gr_X, Gr_Y, Gr_Z,
             Gr_XY, Gr_XZ, Gr_YZ,
@@ -845,13 +846,13 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
     """
 
-    r = X.shape[1]
+    R = X.shape[1]
     dot(X.T, X, out=Gr_X)
     dot(Y.T, Y, out=Gr_Y)
     dot(Z.T, Z, out=Gr_Z)
-    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY, r)
-    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ, r)
-    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ, r)
+    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY, R)
+    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ, R)
+    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ, R)
 
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
@@ -870,16 +871,16 @@ def matvec(X, Y, Z,
            B_X_v, B_Y_v, B_Z_v,
            B_XY_v, B_XZ_v, B_YZ_v,
            B_XYt_v, B_XZt_v, B_YZt_v,
-           v, m, n, p, r):
+           v, m, n, p, R):
     """
     Makes the matrix-vector computation (Dres.transpose*Dres)*v. 
     """
 
     # Split v into three blocks, convert them into matrices and transpose them. 
     # With this we have the matrices V_X^T, V_Y^T, V_Z^T.
-    V_Xt = v[0: m * r].reshape(r, m)
-    V_Yt = v[m * r: r * (m + n)].reshape(r, n)
-    V_Zt = v[r * (m + n): r * (m + n + p)].reshape(r, p)
+    V_Xt = v[0: m * R].reshape(R, m)
+    V_Yt = v[m * R: R * (m + n)].reshape(R, n)
+    V_Zt = v[R * (m + n): R * (m + n + p)].reshape(R, p)
 
     # Compute the products V_X^T*X, V_Y^T*Y, V_Z^T*Z
     dot(V_Xt, X, out=V_Xt_dot_X)
@@ -887,12 +888,12 @@ def matvec(X, Y, Z,
     dot(V_Zt, Z, out=V_Zt_dot_Z)
 
     # Compute the Hadamard products
-    Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y, r)
-    Gr_Y_V_Zt_dot_Z = mlinalg.hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z, r)
-    Gr_X_V_Zt_dot_Z = mlinalg.hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, r)
-    Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X, r)
-    Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X, r)
-    Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y, r)
+    Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y, R)
+    Gr_Y_V_Zt_dot_Z = mlinalg.hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z, R)
+    Gr_X_V_Zt_dot_Z = mlinalg.hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, R)
+    Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X, R)
+    Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X, R)
+    Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y, R)
 
     # Compute the final products
     dot(X, Gr_Z_V_Yt_dot_Y, out=X_dot_Gr_Z_V_Yt_dot_Y)
@@ -908,22 +909,22 @@ def matvec(X, Y, Z,
     dot(Gr_XY, V_Zt, out=Gr_XY_V_Zt)
 
     # Vectorize the matrices to have the final vectors
-    B_X_v = cnv.vect(Gr_YZ_V_Xt, B_X_v, m, r)
-    B_Y_v = cnv.vect(Gr_XZ_V_Yt, B_Y_v, n, r)
-    B_Z_v = cnv.vect(Gr_XY_V_Zt, B_Z_v, p, r)
-    B_XY_v = cnv.vec(X_dot_Gr_Z_V_Yt_dot_Y, B_XY_v, m, r)
-    B_XZ_v = cnv.vec(X_dot_Gr_Y_V_Zt_dot_Z, B_XZ_v, m, r)
-    B_YZ_v = cnv.vec(Y_dot_Gr_X_V_Zt_dot_Z, B_YZ_v, n, r)
-    B_XYt_v = cnv.vec(Y_dot_Gr_Z_V_Xt_dot_X, B_XYt_v, n, r)
-    B_XZt_v = cnv.vec(Z_dot_Gr_Y_V_Xt_dot_X, B_XZt_v, p, r)
-    B_YZt_v = cnv.vec(Z_dot_Gr_X_V_Yt_dot_Y, B_YZt_v, p, r)
+    B_X_v = cnv.vect(Gr_YZ_V_Xt, B_X_v, m, R)
+    B_Y_v = cnv.vect(Gr_XZ_V_Yt, B_Y_v, n, R)
+    B_Z_v = cnv.vect(Gr_XY_V_Zt, B_Z_v, p, R)
+    B_XY_v = cnv.vec(X_dot_Gr_Z_V_Yt_dot_Y, B_XY_v, m, R)
+    B_XZ_v = cnv.vec(X_dot_Gr_Y_V_Zt_dot_Z, B_XZ_v, m, R)
+    B_YZ_v = cnv.vec(Y_dot_Gr_X_V_Zt_dot_Z, B_YZ_v, n, R)
+    B_XYt_v = cnv.vec(Y_dot_Gr_Z_V_Xt_dot_X, B_XYt_v, n, R)
+    B_XZt_v = cnv.vec(Z_dot_Gr_Y_V_Xt_dot_X, B_XZt_v, p, R)
+    B_YZt_v = cnv.vec(Z_dot_Gr_X_V_Yt_dot_Y, B_YZt_v, p, R)
 
     return concatenate((B_X_v + B_XY_v + B_XZ_v, B_XYt_v + B_Y_v + B_YZ_v, B_XZt_v + B_YZt_v + B_Z_v))
 
 
 @njit(nogil=True, parallel=True)
-def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, r):
-    result = empty(r*(m+n+p), dtype=float64)
+def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R):
+    result = empty(R*(m+n+p), dtype=float64)
     aux1 = zeros(m, dtype=float64)
     aux2 = zeros(n, dtype=float64)
     aux3 = zeros(p, dtype=float64)
@@ -941,71 +942,84 @@ def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, r):
         dot(N1[j, :, :], Z, out=NX[j])
 
     # Compute resulting vector by blocks.
-    for l in prange(r):
+    for r in prange(R):
         # X piece
         aux1 *= 0
         for j in range(n):
-            aux1 += Y[j, l] * NX[j][:, l]
-        result[l*m: (l+1)*m ] = aux1
+            aux1 += Y[j, r] * NX[j][:, r]
+        result[r*m: (r+1)*m ] = aux1
 
         # Y and Z pieces
         aux2 *= 0
         aux3 *= 0
         for i in range(m):
-            aux2 += X[i, l] * NY[i][:, l]
-            aux3 += X[i, l] * NZ[i][l, :]
-        result[r*m + l*n: r*m + (l+1)*n] = aux2
-        result[r*(m+n) + l*p: r*(m+n) + (l+1)*p] = aux3
+            aux2 += X[i, r] * NY[i][:, r]
+            aux3 += X[i, r] * NZ[i][r, :]
+        result[R*m + r*n: R*m + (r+1)*n] = aux2
+        result[R*(m+n) + r*p: R*(m+n) + (r+1)*p] = aux3
         
     return -result
 
 
-def lsmr_prepare_data(m, n, p, r):
+def lsmr_prepare_data(m, n, p, R):
     """
     This function creates several auxiliar matrices which will be used later 
     to accelerate matrix-vector products.
     """
 
     "B_X"
-    w_X = empty(r, dtype=float64)
+    w_X = empty(R, dtype=float64)
     Bv_X = empty(m * n * p, dtype=float64)
-    M_X = empty((n * p, r), dtype=float64)
+    M_X = empty((n * p, R), dtype=float64)
 
     "B_Y"
-    w_Y = empty(r, dtype=float64)
+    w_Y = empty(R, dtype=float64)
     Mw_Y = empty(m * p, dtype=float64)
     Bv_Y = empty(m * n * p, dtype=float64)
-    M_Y = empty((m * p, r), dtype=float64)
+    M_Y = empty((m * p, R), dtype=float64)
 
     "B_Z"
-    w_Z = empty(p * r, dtype=float64)
+    w_Z = empty(p * R, dtype=float64)
     Bv_Z = empty(m * n * p, dtype=float64)
-    M_Z = empty((m * n, r), dtype=float64)
+    M_Z = empty((m * n, R), dtype=float64)
 
     "B_X^T"
     w_Xt = empty(n * p, dtype=float64)
-    Bu_Xt = empty(r * m, dtype=float64)
+    Bu_Xt = empty(R * m, dtype=float64)
 
     "B_Y^T"
     w_Yt = empty(m * p, dtype=float64)
-    Bu_Yt = empty(r * n, dtype=float64)
+    Bu_Yt = empty(R * n, dtype=float64)
 
     "B_Z^T"
     w_Zt = empty((p, m * n), dtype=float64)
-    Bu_Zt = empty(r * p, dtype=float64)
+    Bu_Zt = empty(R * p, dtype=float64)
 
-    lsmr_data = [w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, w_Xt, Bu_Xt, w_Yt, Bu_Yt, w_Zt, Bu_Zt]
+    # Arrays to be used in the rmatvec function.
+    N1 = empty((n, m, p), dtype=float64)
+    N2 = empty((m, n, p), dtype=float64)
+    NX = [empty((m, R), dtype=float64) for j in range(n)]
+    NY = [empty((n, R), dtype=float64) for i in range(m)]
+    NZ = [empty((R, p), dtype=float64) for i in range(m)]
+
+    lsmr_data = [w_X, Bv_X, M_X,
+                 w_Y, Mw_Y, Bv_Y, M_Y,
+                 w_Z, Bv_Z, M_Z,
+                 w_Xt, Bu_Xt,
+                 w_Yt, Bu_Yt,
+                 w_Zt, Bu_Zt,
+                 N1, N2, NX, NY, NZ]
 
     return lsmr_data
 
 
 @njit(nogil=True)
-def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p, r):
+def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p, R):
     """    
     Computes the matrix-vector product Dres*v.
     """
 
-    values = arange(r)
+    values = arange(R)
     values1 = arange(m * n)
 
     "B_X"
@@ -1015,14 +1029,14 @@ def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p
 
     "B_Y"
     for j in range(n):
-        w_Y = v[m * r + j + n * values]
+        w_Y = v[m * R + j + n * values]
         Mw_Y = dot(M_Y, w_Y)
         for i in range(m):
             Bv_Y[j * p + i * n * p: (j + 1) * p + i * n * p] = Mw_Y[i * p: (i + 1) * p]
 
     "B_Z"
-    w_Z = v[r * (m + n):]
-    w_Z = w_Z.reshape(r, p).T
+    w_Z = v[R * (m + n):]
+    w_Z = w_Z.reshape(R, p).T
     for k in range(p):
         Bv_Z[k + p * values1] = dot(M_Z, w_Z[k, :])
 
@@ -1030,49 +1044,49 @@ def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p
 
 
 @njit(nogil=True)
-def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, r):
+def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R):
     """
     Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make 
     Dres.transpose*Dres + Gamma diagonally dominant.
     """
 
-    for l in range(0, r):
-        X_norms[l] = sqrt(dot(X[:, l], X[:, l]))
-        Y_norms[l] = sqrt(dot(Y[:, l], Y[:, l]))
-        Z_norms[l] = sqrt(dot(Z[:, l], Z[:, l]))
+    for r in range(R):
+        X_norms[r] = sqrt(dot(X[:, r], X[:, r]))
+        Y_norms[r] = sqrt(dot(Y[:, r], Y[:, r]))
+        Z_norms[r] = sqrt(dot(Z[:, r], Z[:, r]))
 
     max_XY = np.max(X_norms * Y_norms)
     max_XZ = np.max(X_norms * Z_norms)
     max_YZ = np.max(Y_norms * Z_norms)
     max_all = max(max_XY, max_XZ, max_YZ)
 
-    for l in range(0, r):
-        gamma_X[l] = Y_norms[l] * Z_norms[l] * max_all
-        gamma_Y[l] = X_norms[l] * Z_norms[l] * max_all
-        gamma_Z[l] = X_norms[l] * Y_norms[l] * max_all
+    for r in range(R):
+        gamma_X[r] = Y_norms[r] * Z_norms[r] * max_all
+        gamma_Y[r] = X_norms[r] * Z_norms[r] * max_all
+        gamma_Z[r] = X_norms[r] * Y_norms[r] * max_all
 
-    for l in range(0, r):
-        Gamma[l * m:(l + 1) * m] = gamma_X[l]
-        Gamma[m * r + l * n:m * r + (l + 1) * n] = gamma_Y[l]
-        Gamma[r * (m + n) + l * p:r * (m + n) + (l + 1) * p] = gamma_Z[l]
+    for r in range(R):
+        Gamma[r * m:(r + 1) * m] = gamma_X[r]
+        Gamma[m * R + r * n:m * R + (r + 1) * n] = gamma_Y[r]
+        Gamma[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = gamma_Z[r]
 
     return Gamma
 
 
 @njit(nogil=True)
-def precond(X, Y, Z, L, M, damp, m, n, p, r):
+def precond(X, Y, Z, L, M, damp, m, n, p, R):
     """
     This function constructs a preconditioner in order to accelerate the Conjugate Gradient function. It is a diagonal
     preconditioner designed to make Dres.transpose*Dres + Gamma a unit diagonal matrix. Since the matrix is diagonally 
     dominant, the result will be close to the identity matrix. Therefore, it will have its eigenvalues clustered
     together.
     """
-    for l in range(0, r):
-        M[l * m:(l + 1) * m] = dot(Y[:, l], Y[:, l]) * dot(Z[:, l], Z[:, l]) + damp * L[l * m: (l + 1) * m]
-        M[m * r + l * n:m * r + (l + 1) * n] = \
-            dot(X[:, l], X[:, l]) * dot(Z[:, l], Z[:, l]) + damp * L[m * r + l * n: m * r + (l + 1) * n]
-        M[r * (m + n) + l * p:r * (m + n) + (l + 1) * p] = \
-            dot(X[:, l], X[:, l]) * dot(Y[:, l], Y[:, l]) + damp * L[r * (m + n) + l * p: r * (m + n) + (l + 1) * p]
+    for r in range(R):
+        M[r * m:(r + 1) * m] = dot(Y[:, r], Y[:, r]) * dot(Z[:, r], Z[:, r]) + damp * L[r * m: (r + 1) * m]
+        M[m * R + r * n:m * R + (r + 1) * n] = \
+            dot(X[:, r], X[:, r]) * dot(Z[:, r], Z[:, r]) + damp * L[m * R + r * n: m * R + (r + 1) * n]
+        M[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = \
+            dot(X[:, r], X[:, r]) * dot(Y[:, r], Y[:, r]) + damp * L[R * (m + n) + r * p: R * (m + n) + (r + 1) * p]
 
     M = 1 / sqrt(M)
     return M

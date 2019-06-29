@@ -20,7 +20,7 @@ import MultilinearAlgebra as mlinalg
 import TensorFox as tfx
 
 
-def consistency(r, dims, symm):
+def consistency(R, dims, symm):
     """ 
     This function checks the validity of rank and dimensions before anything is done in the program. 
     """
@@ -33,27 +33,27 @@ def consistency(r, dims, symm):
 
     # If some dimension is equal to 1, the user may just use classical SVD with numpy.
     # We won't address this situation here.
-    for i in range(L):  
-        if dims[i] == 1:
+    for l in range(L):
+        if dims[l] == 1:
             sys.exit('At least one dimension is equal to 1. This situation not supported by Tensor Fox.')
         
     # Consistency of rank value.
-    if (type(r) != int) or (r < 1):
+    if (type(R) != int) or (R < 1):
         sys.exit('Rank must be a positive integer.')
         
     # Check if rank is well defined in the third order case.
     if L == 3:
         m, n, p = dims[0], dims[1], dims[2]
-        if r > min(m*n, m*p, n*p):
-            msg = 'Rank must satisfy 1 <= r <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
+        if R > min(m*n, m*p, n*p):
+            msg = 'Rank must satisfy 1 <= rank <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
             sys.exit(msg)
 
-    if L > 3 and r == 1:
+    if L > 3 and R == 1:
         msg = 'Rank must be greater than 1 for tensor with order greater than 3.'
         sys.exit(msg)
 
-    if L > 3 and r > min(dims):
-        warnings.warn('For tensors of order higher than 3 it is advisible that the rank is smaller or equal than at' 
+    if L > 3 and R > min(dims):
+        warnings.warn('For tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
                       ' least one of the dimensions of the tensor. The ideal would to be smaller or equal than all' 
                       ' dimensions. In the case this condition is not met the computations can be slower and the'
                       ' program may not converge to a good solution.', category=Warning, stacklevel=3)
@@ -159,7 +159,7 @@ def unsort_dims(X, Y, Z, ordering):
         return Z, Y, X
 
 
-def compute_error(T, Tsize, S, S1, U, dims):
+def compute_error(T, Tsize, S1, U, dims):
     """
     Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
     """
@@ -204,6 +204,22 @@ def output_info(T_orig, Tsize, T_approx,
             # stop_main message
             print()
             print('Main stop:')
+            if self.stop[0] == 0:
+                print('0 - Steps are too small.')
+            if self.stop[0] == 1:
+                print('1 - The improvement in the relative error is too small.')
+            if self.stop[0] == 2:
+                print('2 - The gradient is close enough to 0.')
+            if self.stop[0] == 3:
+                print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
+            if self.stop[0] == 4:
+                print('4 - Limit of iterations was been reached.')
+            if self.stop[0] == 6:
+                print('6 - dGN diverged.')
+
+            # stop_refine message
+            print()
+            print('Refinement stop:')
             if self.stop[1] == 0:
                 print('0 - Steps are too small.')
             if self.stop[1] == 1:
@@ -214,25 +230,9 @@ def output_info(T_orig, Tsize, T_approx,
                 print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
             if self.stop[1] == 4:
                 print('4 - Limit of iterations was been reached.')
-            if self.stop[1] == 6:
-                print('6 - dGN diverged.')
-
-            # stop_refine message
-            print()
-            print('Refinement stop:')
-            if self.stop[2] == 0:
-                print('0 - Steps are too small.')
-            if self.stop[2] == 1:
-                print('1 - The improvement in the relative error is too small.')
-            if self.stop[2] == 2:
-                print('2 - The gradient is close enough to 0.')
-            if self.stop[2] == 3:
-                print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
-            if self.stop[2] == 4:
-                print('4 - Limit of iterations was been reached.')
-            if self.stop[2] == 5:
+            if self.stop[1] == 5:
                 print('5 - No refinement was performed.')
-            if self.stop[2] == 6:
+            if self.stop[1] == 6:
                 print('6 - dGN diverged.')
 
             return ''
@@ -279,7 +279,7 @@ def make_options(options):
             # method_parameters[3] is the tolerance to stop the iterations of the method.
             self.method_parameters = ['cg', 1, 1e-6] 
             self.bi_method_parameters = ['als', 500, 1e-6] 
-            self.init_method = 'random'
+            self.initialization = 'random'
             self.trunc_dims = 0
             self.mlsvd_tol = 1e-6
             self.init_damp = 1
@@ -328,8 +328,8 @@ def make_options(options):
     if 'bi_method_tol' in dir(options):
         temp_options.bi_method_parameters[2] = options.bi_method_tol    
         
-    if 'init_method' in dir(options):
-        temp_options.init_method = options.init_method
+    if 'initialization' in dir(options):
+        temp_options.initialization = options.initialization
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
     if 'mlsvd_tol' in dir(options):
@@ -375,7 +375,7 @@ def complete_options(options):
             self.bi_method = 'als'
             self.bi_method_maxiter = 500
             self.bi_method_tol = 1e-6
-            self.init_method = 'random'
+            self.initialization = 'random'
             self.trunc_dims = 0
             self.mlsvd_tol = 1e-6
             self.init_damp = 1
@@ -410,8 +410,8 @@ def complete_options(options):
     if 'bi_method_tol' in dir(options):
         temp_options.bi_method_tol = options.bi_method_tol    
         
-    if 'init_method' in dir(options):
-        temp_options.init_method = options.init_method
+    if 'initialization' in dir(options):
+        temp_options.initialization = options.initialization
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
     if 'mlsvd_tol' in dir(options):
@@ -498,39 +498,39 @@ def tt_error(T, G, dims, L):
 
 
 @njit(nogil=True, parallel=True)
-def rank1(X, Y, Z, m, n, r, k):
+def rank1(X, Y, Z, m, n, R, k):
     """
     Compute each rank 1 term of the CPD given by X, Y, Z. Them this function converts these factors into a matrix, which 
-    is the first frontal slice of the tensor in coordinates obtained by this rank 1 term. By doing this for all r terms, 
-    we have a tensor with r slices, each one representing a rank-1 term of the original CPD.
+    is the first frontal slice of the tensor in coordinates obtained by this rank 1 term. By doing this for all R terms,
+    we have a tensor with R slices, each one representing a rank-1 term of the original CPD.
 
     Inputs
     ------
     X, Y, Z: 2-D float ndarray
         The CPD factors of some tensor.
-    m, n, p, r: int
+    m, n, p, R: int
     k: int
         Slice we want to compute.
 
     Outputs
     -------
-    rank1_sections: 3-d float ndarray
-        Each matrix rank1_slices[:,:,l] is the k-th slices associated with the l-th factor in the CPD of some tensor. 
+    rank1_sections: 3-D float ndarray
+        Each matrix rank1_slices[:, :, l] is the k-th slices associated with the l-th factor in the CPD of some tensor.
     """
     
     # Each frontal slice of rank1_slices is the coordinate representation of a
     # rank one term of the CPD given by (X,Y,Z)*Lambda.
-    rank1_slices = zeros((m, n, r), dtype=float64)
+    rank1_slices = zeros((m, n, R), dtype=float64)
 
-    for l in prange(r):
+    for r in prange(R):
         for i in range(m):
             for j in range(n):
-                rank1_slices[i, j, l] = X[i, l]*Y[j, l]*Z[k, l]
+                rank1_slices[i, j, r] = X[i, r]*Y[j, r]*Z[k, r]
                         
     return rank1_slices
 
 
-def cpd_cores(G, max_trials, epochs, r, display, options):
+def cpd_cores(G, max_trials, epochs, R, display, options):
     
     L = len(G)
     
@@ -553,7 +553,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
         if display > 0:
             print()
             print('CPD 1')
-        X, Y, Z, T_approx, output = tfx.tricpd(G[1], r, options)
+        X, Y, Z, T_approx, output = tfx.tricpd(G[1], R, options)
         if output.rel_error < best_error:
             best_output = output
             best_error = output.rel_error
@@ -582,7 +582,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_X, 0], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], R, [fixed_X, 0], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
@@ -606,7 +606,7 @@ def cpd_cores(G, max_trials, epochs, r, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], r, [fixed_Z, 2], options)
+                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], R, [fixed_Z, 2], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error

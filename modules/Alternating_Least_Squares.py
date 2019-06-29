@@ -16,7 +16,7 @@ import Conversion as cnv
 import MultilinearAlgebra as mlinalg
 
 
-def als(T, X, Y, Z, r, options):
+def als(T, X, Y, Z, R, options):
     """
     This function uses the ALS method to compute an approximation of T with rank r. An initial point to 
     start the iterations must be given. This point is described by the arrays X, Y, Z. This program also 
@@ -27,15 +27,15 @@ def als(T, X, Y, Z, r, options):
     Inputs
     ------
     T: float 3-D ndarray
-    X: float 2-D ndarray of shape (m,r)
-    Y: float 2-D ndarray of shape (n,r)
-    Z: float 2-D ndarray of shape (p,r)
+    X: float 2-D ndarray of shape (m, R)
+    Y: float 2-D ndarray of shape (n, R)
+    Z: float 2-D ndarray of shape (p, R)
     r: int. 
         The desired rank of the approximating tensor.
     maxiter: int
         Number of maximum iterations permitted. 
     tol: float
-        Tolerance criterium to stop the iteration proccess. This value is used in more than one stopping criteria.
+        Tolerance criterion to stop the iteration process. This value is used in more than one stopping criteria.
     symm: bool
     display: int
     
@@ -109,7 +109,6 @@ def als(T, X, Y, Z, r, options):
     # INITIALIZE RELEVANT ARRAYS
     
     x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
-    grad = empty(r*(m+n+p), dtype=float64)
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
     improv = empty(maxiter)
@@ -200,8 +199,8 @@ def als(T, X, Y, Z, r, options):
             # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol,
             # then we stop iterating. We don't want to waste time computing with 'almost negligible' improvements for
             # long time.
-            if it > const and it%const == 0: 
-                if mean(np.abs(errors[it-const : it] - errors[it-const-1 : it-1])) < 10*tol:
+            if it > const and it % const == 0:
+                if mean(np.abs(errors[it-const: it] - errors[it-const-1: it-1])) < 10*tol:
                     stop = 3
                     break  
             # Prevent blow ups.
@@ -211,10 +210,10 @@ def als(T, X, Y, Z, r, options):
     
     # SAVE LAST COMPUTED INFORMATION
     
-    step_sizes = step_sizes[0:it+1]
-    errors = errors[0:it+1]
-    improv = improv[0:it+1]
-    gradients = gradients[0:it+1]
+    step_sizes = step_sizes[0: it+1]
+    errors = errors[0: it+1]
+    improv = improv[0: it+1]
+    gradients = gradients[0: it+1]
     
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 

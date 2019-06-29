@@ -16,45 +16,45 @@ import MultilinearAlgebra as mlinalg
 
 
 @njit(nogil=True)
-def x2cpd(x, X, Y, Z, m, n, p, r):   
+def x2cpd(x, X, Y, Z, m, n, p, R):
     """
-    Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD of S. This program return
+    Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD. Then this function return
     the following arrays:
-    X = [X_1,...,X_r],
-    Y = [Y_1,...,Y_r],
-    Z = [Z_1,...,Z_r].    
-    Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal r x r x r tensor.
+    X = [X_1,...,X_R],
+    Y = [Y_1,...,Y_R],
+    Z = [Z_1,...,Z_R].
+    Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal R x R x R tensor.
     
     Inputs
     ------
     x: float 1-D ndarray
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
+    X: float 2-D ndarray of shape (m, R)
+    Y: float 2-D ndarray of shape (n, R)
+    Z: float 2-D ndarray of shape (p, R)
     m, n, p: int
-    r: int
+    R: int
         
     Outputs
     -------
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
+    X: float 2-D ndarray of shape (m, R)
+    Y: float 2-D ndarray of shape (n, R)
+    Z: float 2-D ndarray of shape (p, R)
     """ 
 
     s = 0
-    for l in range(r):
-        X[:, l] = x[s:s+m]
+    for r in range(R):
+        X[:, r] = x[s:s+m]
         s = s+m
             
-    for l in range(r):
-        Y[:, l] = x[s:s+n]
+    for r in range(R):
+        Y[:, r] = x[s:s+n]
         s = s+n
             
-    for l in range(r):
-        Z[:, l] = x[s:s+p]
+    for r in range(R):
+        Z[:, r] = x[s:s+p]
         s = s+p
             
-    X, Y, Z = equalize(X, Y, Z, r)
+    X, Y, Z = equalize(X, Y, Z, R)
           
     return X, Y, Z
 
@@ -65,7 +65,7 @@ def cpd2tens(T_approx, factors, dims):
 
     Inputs
     ------
-    factors: list of L floats 2-D ndarray of shape (dims[i], r) each
+    factors: list of L floats 2-D ndarray of shape (dims[i], R) each
     dims: tuple of L ints
 
     Outputs
@@ -82,7 +82,7 @@ def cpd2tens(T_approx, factors, dims):
         M = mlinalg.khatri_rao(factors[l], M, N)
 
     T1_approx = dot(factors[0], M.T)
-    T_approx = foldback(T1_approx, 1, dims)
+    T_approx = foldback(T_approx, T1_approx, 1, dims)
     return T_approx
 
 
@@ -98,14 +98,13 @@ def unfold(T, mode, dims):
     return Tl
 
 
-def foldback(Tl, mode, dims):
+def foldback(T, Tl, mode, dims):
     """
     Computes the tensor with dimension dims given an unfolding with its mode. Attention: dims are the dimensions of the 
     output tensor, not the input.
     """
  
     L = len(dims)
-    T = empty(dims, order='F')
     func_name = "foldback" + str(mode) + "_order" + str(L)
     T = getattr(crt, func_name)(T, Tl, dims)
     
@@ -118,21 +117,21 @@ def normalize(factors):
     Lambda and the normalized factors. 
     """
 
-    r = factors[0].shape[1]
-    Lambda = zeros(r)
+    R = factors[0].shape[1]
+    Lambda = zeros(R)
     L = len(factors)
     
-    for l in range(r):
+    for r in range(R):
         norms = zeros(L)
-        for ll in range(L):
-            W = factors[ll]
+        for l in range(L):
+            W = factors[l]
             # Save norm of the l-th column of the ll factor and normalize the current factor.
-            norms[ll] = norm(W[:, l])
-            W[:, l] = W[:, l]/norms[ll]
+            norms[l] = norm(W[:, r])
+            W[:, r] = W[:, r]/norms[l]
             # Update factors accordingly.
-            factors[ll] = W 
+            factors[l] = W
 
-        Lambda[l] = prod(norms)
+        Lambda[r] = prod(norms)
         
     return Lambda, factors
 
@@ -163,31 +162,31 @@ def denormalize(Lambda, X, Y, Z):
 
 
 @njit(nogil=True)
-def equalize(X, Y, Z, r):
+def equalize(X, Y, Z, R):
     """ 
-    After a Gauss-Newton iteration we have an approximated CPD with factors X_l ⊗ Y_l ⊗ Z_l. They may have very
+    After a Gauss-Newton iteration we have an approximated CPD with factors X_r ⊗ Y_r ⊗ Z_r. They may have very
     different magnitudes and this can have effect on the convergence rate. To improve this we try to equalize their
-    magnitudes by introducing scalars a, b, c such that X_l ⊗ Y_l ⊗ Z_l = (a*X_l) ⊗ (b*Y_l) ⊗ (c*Z_l) and
-    |a*X_l| = |b*Y_l| = |c*Z_l|. Notice that we must have a*b*c = 1.
+    magnitudes by introducing scalars a, b, c such that X_r ⊗ Y_r ⊗ Z_r = (a*X_r) ⊗ (b*Y_r) ⊗ (c*Z_r) and
+    |a*X_r| = |b*Y_r| = |c*Z_r|. Notice that we must have a*b*c = 1.
     
     To find good values for a, b, c, we can search for critical points of the function 
-    f(a,b,c) = (|a*X_l|-|b*Y_l|)^2 + (|a*X_l|-|c*Z_l|)^2 + (|b*Y_l|-|c*Z_l|)^2.
+    f(a,b,c) = (|a*X_r|-|b*Y_r|)^2 + (|a*X_r|-|c*Z_r|)^2 + (|b*Y_r|-|c*Z_r|)^2.
     Using Lagrange multipliers we find the solution 
-        a = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|X_l|,
-        b = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Y_l|,
-        c = (|X_l|*|Y_l|*|Z_l|)^(1/3)/|Z_l|.    
+        a = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|X_r|,
+        b = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|Y_r|,
+        c = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|Z_r|.
     We can see that this solution satisfy the conditions mentioned.
     """
     
-    for l in range(r):
-        X_nr = norm(X[:, l])
-        Y_nr = norm(Y[:, l])
-        Z_nr = norm(Z[:, l])
+    for r in range(R):
+        X_nr = norm(X[:, r])
+        Y_nr = norm(Y[:, r])
+        Z_nr = norm(Z[:, r])
         if (X_nr != 0) and (Y_nr != 0) and (Z_nr != 0):
             numerator = (X_nr*Y_nr*Z_nr)**(1/3)
-            X[:, l] = (numerator/X_nr)*X[:, l]
-            Y[:, l] = (numerator/Y_nr)*Y[:, l]
-            Z[:, l] = (numerator/Z_nr)*Z[:, l]
+            X[:, r] = (numerator/X_nr)*X[:, r]
+            Y[:, r] = (numerator/Y_nr)*Y[:, r]
+            Z[:, r] = (numerator/Z_nr)*Z[:, r]
             
     return X, Y, Z
 
@@ -241,35 +240,35 @@ def transform(X, Y, Z, a, b, factor, symm, c):
 
 
 @njit(nogil=True, parallel=True)
-def vec(M, Bv, num_rows, r):
+def vec(M, Bv, num_rows, R):
     """ 
-    Take a matrix M with shape (num_rows, r) and stack vertically its columns to form the matrix Bv = vec(M) with shape 
-    (num_rows*r,).
+    Take a matrix M with shape (num_rows, R) and stack vertically its columns to form the matrix Bv = vec(M) with shape
+    (num_rows*R,).
     """
     
-    for j in prange(r):
-        Bv[j*num_rows:(j+1)*num_rows] = M[:, j]
+    for r in prange(R):
+        Bv[r*num_rows:(r+1)*num_rows] = M[:, r]
         
     return Bv
 
 
 @njit(nogil=True, parallel=True)
-def vect(M, Bv, num_cols, r):
+def vect(M, Bv, num_cols, R):
     """ 
-    Take a matrix M with shape (r, num_cols) and stack vertically its rows to form the matrix Bv = vec(M) with shape 
-    (num_cols*r,).
+    Take a matrix M with shape (R, num_cols) and stack vertically its rows to form the matrix Bv = vec(M) with shape
+    (num_cols*R,).
     """
     
-    for i in prange(r):
-        Bv[i*num_cols:(i+1)*num_cols] = M[i, :]
+    for r in prange(R):
+        Bv[r*num_cols:(r+1)*num_cols] = M[r, :]
         
     return Bv
 
 
-def inflate(T, r, dims):
+def inflate(T, R, dims):
     """
     Let T be a tensor of shape dims. If rank > dims[l], this function increases T dimensions such that each new
-    dimension satisfies new_dims[l] = r. The new entries are all random number very close to zero.
+    dimension satisfies new_dims[l] = R. The new entries are all random number very close to zero.
     """
 
     L = len(dims)
@@ -278,10 +277,10 @@ def inflate(T, r, dims):
 
     for l in range(L):
         slices.append(slice(dims[l]))
-        if dims[l] >= r:
+        if dims[l] >= R:
             new_dims[l] = dims[l]
         else:
-            new_dims[l] = r
+            new_dims[l] = R
             
     new_T = 1e-12*randn(*new_dims)
     new_T[tuple(slices)] = T

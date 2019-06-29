@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, zeros, empty, float64
+from numpy import dot, zeros, empty, float64, array, sort, ceil, prod
 from numpy.linalg import norm
 from numba import njit, prange
 
@@ -51,48 +51,47 @@ def multilin_mult(U, T1, dims):
         unfolding2 = dot(U[l], unfolding1)
         # Update the current dimension of dims_out.
         dims_out[l] = U[l].shape[0]
-        S = cnv.foldback(unfolding2, l+1, dims_out)
+        S = empty(dims_out)
+        S = cnv.foldback(S, unfolding2, l+1, dims_out)
         if l < L-1:            
             unfolding1 = cnv.unfold(S, l+2, S.shape)
         else:
             return S
         
 
-def multirank_approx(T, r1, r2, r3, options):
+def multirank_approx(T, multi_rank, options):
     """
-    This function computes an approximation of T with multilinear rank = (r1,r2,r3). Truncation the central tensor of
+    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the central tensor of
     the MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
     
     Inputs
     ------
-    T: 3-D float ndarray
-    r1, r2, r3: int
-        (r1,r2,r3) is the desired low multilinear rank.
+    T: L-D float ndarray
+    multi_rank: list of int
+        The desired low multilinear rank.
         
     Outputs
     -------
-    T_approx: 3-D float ndarray
-        The approximating tensor with multilinear rank = (r1,r2,r3).
+    T_approx: L-D float ndarray
+        The approximating tensor with multilinear rank = multi_rank.
     """
     
     # Compute dimensions and norm of T.
-    m, n, p = T.shape
+    dims = T.shape
+    sorted_dims = sort(array(dims))
+    L = len(dims)
     Tsize = norm(T)
     
-    # Compute the MLSVD of T.
+    # Compute truncated MLSVD of T.
     options = aux.complete_options(options)
-    r = min(m, n, p)
-    S, multi_rank, U1, U2, U3, sigma1, sigma2, sigma3 = cmpr.mlsvd(T, Tsize, r, options)
-    U1 = U1[:, 0:r1]
-    U2 = U2[:, 0:r2]
-    U3 = U3[:, 0:r3]
-    
-    # Truncate S to a smaller shape (r1,r2,r3) and construct the tensor T_approx = (U1,U2,U3)*S.
-    S = S[0:r1, 0:r2, 0:r3]
-    U = [U1, U2, U3]
-    dims = (r1, r2, r3)   
-    S1 = cnv.unfold(S, 1, dims)         
-    T_approx = multilin_mult(U, S, S1)
+    options.display = 0
+    options.trunc_dims = multi_rank
+    R_gen = int(ceil( prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
+    S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R_gen, options)
+
+    # Construct the corresponding tensor T_approx.
+    S1 = cnv.unfold(S, 1, multi_rank)
+    T_approx = multilin_mult(U, S1, multi_rank)
     
     return T_approx
 
@@ -145,13 +144,13 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
 
 
 @njit(nogil=True, parallel=True)
-def hadamard(A, B, M, r):
+def hadamard(A, B, M, R):
     """
-    Computes M = A * B, where * is the Hadamard product. Since all Hadamard products in this context are between r x r 
+    Computes M = A * B, where * is the Hadamard product. Since all Hadamard products in this context are between R x R
     matrices, we assume this without verifications.
     """
     
-    for i in prange(r):
-        M[i, :] = A[i, :]*B[i, :]
+    for r in prange(R):
+        M[r, :] = A[r, :]*B[r, :]
 
     return M 

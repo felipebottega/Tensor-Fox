@@ -91,20 +91,19 @@ def infotens(T):
     print('Generic rank of the tensor space of T =', R_gen)
     print()
     
-    # Multilinear rank (only for third order tensors).
-    if L == 3:
-        print('Computing multilinear rank...')
-        print('------------------------------------')
-        try:
-            S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = \
-                cmpr.trimlsvd(T, Tsize, R_gen, 0, 1, 3)
-            print('Estimated multirank(T) =', S.shape)
-            print('|T - (U1, U2, U3)*S|/|T| =', rel_error)
-            print()
-        except SystemExit:  
-            print()      
+    # Multilinear rank.
+    class options:
+        display = 3
+
+    options = aux.complete_options(options)
+    print('Computing multilinear rank...')
+    print('------------------------------------')
+    S, U, UT, sigmas, rel_error = cmpr.mlsvd(T, Tsize, R_gen, options)
+    print('Estimated multirank(T) =', S.shape)
+    print('|T - (U_1, ..., U_' + str(L) + ')*S|/|T| =', rel_error)
+    print()
     
-    # Estimative of the rank of T.
+    # Estimate of the rank of T.
     print('Computing rank...')
     r, error_per_rank = tfx.rank(T, plot=False)
     print()
@@ -112,7 +111,7 @@ def infotens(T):
     return
 
 
-def rank1_plot(X, Y, Z, m, n, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False):
+def rank1_plot(X, Y, Z, m, n, R, k=0, num_rows=5, num_cols=5, greys=True, rgb=False, save=False):
     """
     This function generates an image with the frontal sections of all rank one terms (in coordinates) of some CPD. It
     also saves the image in a file.
@@ -122,7 +121,7 @@ def rank1_plot(X, Y, Z, m, n, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=Fa
     ------
     X, Y, Z: float ndarray
         Their are the CPD of some tensor.
-    m, n, r: int
+    m, n, R: int
     k: int
         Slice we want to visualize.
     num_rows, num_cols: int
@@ -136,27 +135,27 @@ def rank1_plot(X, Y, Z, m, n, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=Fa
         If True, it will show all the RGB evolution of the slices. Default is rgb=False.
     """
 
-    sections = aux.rank1(X, Y, Z, m, n, r, k)
-    l = 0
+    sections = aux.rank1(X, Y, Z, m, n, R, k)
+    r = 0
     count = 0
     
-    while l < r:
+    while r < R:
         fig, ax = plt.subplots(num_rows, num_cols, figsize=(30, 30), sharex='col', sharey='row')     
         for i in range(num_rows):
             for j in range(num_cols):
                 ax[i, j].xaxis.set_major_locator(plt.NullLocator())
                 ax[i, j].yaxis.set_major_locator(plt.NullLocator())
-                if l < r:
+                if r < R:
                     if greys:
-                        temp = sections[:, :, l]
+                        temp = sections[:, :, r]
                         ax[i, j].imshow(temp, cmap='gray')
                     elif rgb:
                         temp = zeros((m, n, 3))
-                        temp[:, :, k] = sections[:, :, l]
+                        temp[:, :, k] = sections[:, :, r]
                         ax[i, j].imshow(array(temp, dtype=uint8))
                     else:
                         return
-                l += 1
+                r += 1
     
         if save:
             name = 'fig_' + str(count) + '.png'
@@ -166,10 +165,10 @@ def rank1_plot(X, Y, Z, m, n, r, k=0, num_rows=5, num_cols=5, greys=True, rgb=Fa
     return 
 
 
-def rank_progress(X, Y, Z, m, n, r, k=0, greys=True, rgb=False):
+def rank_progress(X, Y, Z, m, n, R, k=0, greys=True, rgb=False):
     """
-    Plots the partial sums of rank one terms coresponding to the k-th slice of the CPD. The last image should match the 
-    original CPD. Use rgb=True only for tensors of the form (m, n, 3) enconding RGB format. The program will display the 
+    Plots the partial sums of rank one terms corresponding to the k-th slice of the CPD. The last image should match the
+    original CPD. Use rgb=True only for tensors of the form (m, n, 3) encoding RGB format. The program will display the
     red rank one terms, then it will add the green rank one terms and then the blue rank one terms. This ordering may
     cause some distortions on the final image.
 
@@ -177,7 +176,7 @@ def rank_progress(X, Y, Z, m, n, r, k=0, greys=True, rgb=False):
     ------
     X, Y, Z: float ndarrays
         Their are the CPD of some tensor.
-    m, n, p, r: int
+    m, n, p, R: int
     k: int
         Slice we want to visualize.
     greys: bool
@@ -190,11 +189,11 @@ def rank_progress(X, Y, Z, m, n, r, k=0, greys=True, rgb=False):
     
     if greys:
         temp = zeros((m, n))
-        sections = aux.rank1(X, Y, Z, m, n, r, k)
-        for l in range(r):
-            temp = temp + sections[:, :, l]
+        sections = aux.rank1(X, Y, Z, m, n, R, k)
+        for r in range(R):
+            temp = temp + sections[:, :, r]
             plt.imshow(temp, cmap='gray')
-            name = 'factor_' + str(l+1) + '.png'
+            name = 'factor_' + str(r+1) + '.png'
             plt.savefig(name) 
             plt.show()
             
@@ -202,9 +201,9 @@ def rank_progress(X, Y, Z, m, n, r, k=0, greys=True, rgb=False):
         count = 0
         temp = zeros((m, n, 3))
         for color_choice in [0, 1, 2]:
-            sections = aux.rank1(X, Y, Z, m, n, r, color_choice)
-            for l in range(r):
-                temp[:, :, color_choice] = temp[:, :, color_choice] + sections[:, :, l]
+            sections = aux.rank1(X, Y, Z, m, n, R, color_choice)
+            for r in range(R):
+                temp[:, :, color_choice] = temp[:, :, color_choice] + sections[:, :, r]
                 plt.imshow(array(temp, dtype=uint8))
                 name = 'factor_' + str(count) + '.png'
                 plt.savefig(name)
@@ -331,7 +330,7 @@ def test_tensors(tensors_list, options_list, trials, display):
    
         maxiter = output.options.maxiter
         tol = output.options.tol
-        init = output.options.init_method
+        init = output.options.initialization
         temp1 = output.options.method_parameters
         if T.ndim > 3:
             temp2 = output.options.bicpd_method_parameters

@@ -1,15 +1,15 @@
 """
  Compression Module
  ==================
- This module is responsible for all routines related to the compression of tensors, which ammounts to computing its
+ This module is responsible for all routines related to the compression of tensors, which amounts to computing its
 MLSVD and truncating it.
 """
 
 # Python modules
 import numpy as np
-from numpy import eye, zeros, ones, empty, prod, float64, int64, copy, dot, sort, argsort
+from numpy import eye, ones, empty, prod, float64, copy
 from sklearn.utils.extmath import randomized_svd as rand_svd
-from decimal import Decimal
+import sys
 
 # Tensor Fox modules
 import Auxiliar as aux
@@ -17,10 +17,32 @@ import Conversion as cnv
 import MultilinearAlgebra as mlinalg
 
 
-def mlsvd(T, Tsize, r, options):
+def mlsvd(T, Tsize, R, options):
     """
-    This function computes the full MLSVD of tensors of any order. The output is such that T = (U_1,...,U_L)*S, and UT
-    is the list of the transposes of U.
+    This function computes a truncated MLSVD of tensors of any order. The output is such that T = (U_1,...,U_L)*S, and
+    UT is the list of the transposes of U.
+
+    Inputs
+    ------
+    T: float L-D ndarray
+        Objective tensor in coordinates.
+    Tsize: float
+        Frobenius norm of T.
+    R: int
+        The desired rank of the approximating tensor.
+    options: class with the parameters previously defined.
+
+    Outputs
+    -------
+    S: float L-D ndarray
+        Central tensor of the MLSVD.
+    U: list of float 2-D ndarrays
+        List with truncated matrices of the original U.
+    UT: list of float 2-D ndarrays
+        List with truncated matrices of the original UT.
+        Transposes of each array in U.
+    sigmas: list of float 1-D ndarrays
+        List with truncated arrays of the original sigmas.
     """
 
     # INITIALIZE RELEVANT VARIABLES.    
@@ -58,7 +80,7 @@ def mlsvd(T, Tsize, r, options):
         Tl = cnv.unfold(T, l+1, dims)
         if l == 0:
             T1 = copy(Tl)
-        low_rank = min(r, dims[l])
+        low_rank = min(R, dims[l])
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=2, power_iteration_normalizer='none')
         sigmas.append(sigma_l)
         U.append(Ul)
@@ -69,7 +91,7 @@ def mlsvd(T, Tsize, r, options):
         S = mlinalg.multilin_mult(UT, T1, dims)
         if display > 2 or display < -1:
             S1 = cnv.unfold(S, 1, dims)
-            best_error = aux.compute_error(T, Tsize, S, S1, U, dims)
+            best_error = aux.compute_error(T, Tsize, S1, U, dims)
             return S, U, UT, sigmas, best_error
         else:
             return S, U, UT, sigmas
@@ -81,12 +103,14 @@ def mlsvd(T, Tsize, r, options):
         best_U = []
         best_UT = []
         for l in range(L):
+            if trunc_dims[l] > U[l].shape[1]:
+                sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
             best_U.append( U[l][:, :trunc_dims[l]] )
             best_UT.append( UT[l][:trunc_dims[l], :] )
         S = mlinalg.multilin_mult(best_UT, T1, dims)
         if display > 2 or display < -1:
             S1 = cnv.unfold(S, 1, trunc_dims)
-            best_error = aux.compute_error(T, Tsize, S, S1, best_U, trunc_dims)
+            best_error = aux.compute_error(T, Tsize, S1, best_U, trunc_dims)
             return S, best_U, best_UT, sigmas, best_error
         else:
             return S, best_U, best_UT, sigmas
@@ -98,9 +122,9 @@ def mlsvd(T, Tsize, r, options):
     S = mlinalg.multilin_mult(UT, T1, dims)
 
     # Compute error of compressed tensor.
-    if display > 2 or display < -1:
+    if display > 2 or (L > 3 and display < -1):
         S1 = cnv.unfold(S, 1, S.shape)
-        best_error = aux.compute_error(T, Tsize, S, S1, U, S.shape)
+        best_error = aux.compute_error(T, Tsize, S1, U, S.shape)
         return S, U, UT, sigmas, best_error
 
     return S, U, UT, sigmas
@@ -114,39 +138,25 @@ def clean_compression(sigmas, U, UT, mlsvd_tol):
 
     Inputs
     ------
-    T: float 3-D ndarray
-    T1: float 2-D ndarray
-        First unfolding of T. This matrix is used compute the multilinear multiplication (U1^T, U2^T, U3^T)*T = S.
-    Tsize: float
-    S: float 3-D ndarray
-        Central tensor obtained by the mlsvd.
-    sigma1, sigma2, sigma3: float 1-D ndarrays
-        Each one of these array is an ordered list (ascendent) with the singular values of the respective unfolding.
-    U1, U2, U3: float 2-D ndarrays
-    m, n, p, r: int
-    level: 0, 1, 2, 3
-        0 means the stopping conditions are very weak, while 3  means the stopping conditions are very hard.
-    stage: 1, 2
-        1 means we are at the first stage of cleaning. At this stage we can stop the program for a specific condition.
-        After that the function is called again to improve the truncation. The second time we have stage == 2, so the
-        mentioned condition won't be verified anymore.
+    sigmas: list of float 1-D ndarrays
+        Each one of these arrays is an ordered list (ascendent) with the singular values of the respective unfolding.
+    U: list of float 2-D ndarrays
+        Each one of these arrays is the orthogonal matrix of the MLSVD of T.
+    UT: list of float 2-D ndarrays
+        Transposes of each array in U.
+    mlsvd_tol: float
+        Tolerance criterion for the truncation. The idea is to obtain a truncation (U_1,...,U_L)*S such that
+        |T - (U_1,...,U_L)*S| / |T| < mlsvd_tol.
 
     Outputs
     -------
-    best_S: float 3-D ndarray
-        Best truncation of S obtained.
-    best_energy: float
-        Energy that best_S retained with respect to S.
-    best_R1, best_R2, best_R3: int
-        Dimensions of best_S.
-    best_U1, best_U2, best_U3: float 2-D ndarrays
-        Truncated versions of U1, U2, U3.
-    best_sigma1, best_sigma2, best_sigma3: float 1-D ndarrays
-        Truncated versions of sigma1, sigma2, sigma3.
-    mlsvd_stop: 0,1,2,3,4,5,6 or 7
-    situation: str
-        1) situation == 'random' means the function stopped with random truncation
-        2) situation == 'ok' means the function stopped normally, without random truncation
+    U: list of float 2-D ndarrays
+        List with truncated matrices of the original U.
+    UT: list of float 2-D ndarrays
+        List with truncated matrices of the original UT.
+        Transposes of each array in U.
+    sigmas: list of float 1-D ndarrays
+        List with truncated arrays of the original sigmas.
     """
 
     # INITIALIZE RELEVANT VARIABLES.
@@ -167,7 +177,7 @@ def clean_compression(sigmas, U, UT, mlsvd_tol):
     return U, UT, sigmas
 
 
-def test_truncation(T, r, trunc_list, display=True, n_iter=2, power_iteration_normalizer='none'):
+def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_normalizer='none'):
     """
     This function test one or several possible truncations for the MLSVD of T, showing the  error of the truncations. It
     is possible to accomplish the same results calling the function mlsvd with display=3 but this is not advisable since
@@ -190,7 +200,7 @@ def test_truncation(T, r, trunc_list, display=True, n_iter=2, power_iteration_no
         Tl = cnv.unfold(T, l + 1, dims)
         if l == 0:
             T1 = copy(Tl)
-        low_rank = min(r, dims[l])
+        low_rank = min(R, dims[l])
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=n_iter, power_iteration_normalizer=power_iteration_normalizer)
         sigmas.append(sigma_l)
         U.append(Ul)
@@ -214,7 +224,7 @@ def test_truncation(T, r, trunc_list, display=True, n_iter=2, power_iteration_no
         
         # Error of truncation.
         S1 = cnv.unfold(S, 1, current_dims)
-        current_error = aux.compute_error(T, Tsize, S, S1, current_U, current_dims)
+        current_error = aux.compute_error(T, Tsize, S1, current_U, current_dims)
         trunc_error.append(current_error)
 
         # Display results.
