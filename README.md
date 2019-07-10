@@ -13,11 +13,11 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Motivation
 
- Multidimensional data structures are common these days, and extracting useful information from them is crucial for several applications. For bidimensional data structures (i.e., matrices), one can rely in decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
+ Multidimensional data structures are common these days, and extracting useful information from them is crucial for several applications. For bidimensional data structures (i.e., matrices), one can rely on decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
- Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimates. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines in the context of tensors. 
+ Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
 
 ## :fox_face: Getting Started
 
@@ -30,9 +30,9 @@ In order to have everything working properly, all files of Tensor Fox must be in
     matplotlib
     numba
 
-Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS. That is all! Tensor Fox is read to go! 
+Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). One other alternative to installing all these modules manually is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. 
 
-Let's start importing Tensor Fox and other necessary modules for now.
+That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 
@@ -106,12 +106,12 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 |---|---|
 | cpd| computes the CPD of a tensor **T** with rank *R*. |
 | rank| estimates the rank of a tensor.|
-| stats| given a tensor **T** and a rank *R*, this fucntions computes some statistics regarding the CPD computation. |
+| stats| given a tensor **T** and a rank *R*, this function computes some statistics regarding the CPD computation. |
 | foxit| does the same job as the *cpd* function but at the end it prints and plots relevant information. |
    
 |**Auxiliar**|  |
 |---|---|
-| tens2matlab| given a tensor, this function saves the tensor in a file in Matlab format. |
+| tens2matlab| given a tensor, this function saves the tensor in Matlab format file. |
 | sort_dims| given a tensor, this function sort its dimensions in descending order and returns the sorted tensor. |
 | rank1| given the factors of a CPD, this function converts them into a matrix, which is the first frontal slice of the tensor in coordinates obtained by this rank-1 term. |
    
@@ -131,7 +131,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
    
 | **Critical**| |
 |---|---|
-|   | this module responsible for the most costly parts of Tensor Fox (basically it is a module of boring loops) |
+|   | this module responsible for the most costly parts of Tensor Fox (basically it is a module with a bunch of loops) |
 
 | **Display**|  |
 |---|---|
