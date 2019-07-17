@@ -68,13 +68,13 @@ def consistency(R, dims, symm):
     return
 
 
-def tens2matlab(T):
+def tens2matlab(T, filename):
     """ 
-    This function creates a matlab file containing the tensor T. 
+    This function creates a matlab file containing the tensor T. The parameter filename should be a string.
     """
     
     # Save the tensor in matlab format.
-    scipy.io.savemat('tensor.mat', dict(T=T))
+    scipy.io.savemat(filename + '.mat', {filename:T})
     
     return
 
