@@ -281,7 +281,7 @@ def make_options(options):
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
             self.trunc_dims = 0
-            self.mlsvd_tol = 1e-6
+            self.mlsvd_tol = 1e-16
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -377,7 +377,7 @@ def complete_options(options):
             self.bi_method_tol = 1e-6
             self.initialization = 'random'
             self.trunc_dims = 0
-            self.mlsvd_tol = 1e-6
+            self.mlsvd_tol = 1e-16
             self.init_damp = 1
             self.refine = False
             self.symm = False

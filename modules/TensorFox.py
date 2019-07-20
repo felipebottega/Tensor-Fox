@@ -256,6 +256,7 @@ def highcpd(T, R, options):
         factors.append(cpd_list[l][1])
     B = dot(G[-1].T, best_Z)
     factors.append( B )
+    factors = cnv.equalize(factors, R)
 
     if display > 2 or display < -1:
         G_approx = [G[0]]

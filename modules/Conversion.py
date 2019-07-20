@@ -5,7 +5,7 @@
 """
 
 # Python modules
-from numpy import empty, zeros, prod, int64, dot, log, exp
+from numpy import empty, array, zeros, prod, int64, dot, log, exp
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
@@ -54,7 +54,7 @@ def x2cpd(x, X, Y, Z, m, n, p, R):
         Z[:, r] = x[s:s+p]
         s = s+p
             
-    X, Y, Z = equalize(X, Y, Z, R)
+    X, Y, Z = equalize([X, Y, Z], R)
           
     return X, Y, Z
 
@@ -162,33 +162,33 @@ def denormalize(Lambda, X, Y, Z):
 
 
 @njit(nogil=True)
-def equalize(X, Y, Z, R):
+def equalize(factors, R):
     """ 
-    After a Gauss-Newton iteration we have an approximated CPD with factors X_r ⊗ Y_r ⊗ Z_r. They may have very
-    different magnitudes and this can have effect on the convergence rate. To improve this we try to equalize their
-    magnitudes by introducing scalars a, b, c such that X_r ⊗ Y_r ⊗ Z_r = (a*X_r) ⊗ (b*Y_r) ⊗ (c*Z_r) and
-    |a*X_r| = |b*Y_r| = |c*Z_r|. Notice that we must have a*b*c = 1.
+    Let W[0], ..., W[L-1] = factors. After a Gauss-Newton iteration we have an approximated CPD with factors 
+    W[0]_r ⊗ ... ⊗ W[L-1]_r. They may have very different magnitudes and this can have effect on the convergence 
+    rate. To improve this we try to equalize their magnitudes by introducing scalars a_0, ..., a_{L-1} such that 
+    W[0]_r ⊗ ... ⊗ W[L-1]_r = (a_0*W[0]_r) ⊗ ... ⊗ (a_{L-1}*W[L-1]_r) and |a_0*W[0]_r| = ... = |a_{L-1}*W[L-1]_r|. 
+    Note that we must have a_0*...*a_{L-1} = 1.
     
-    To find good values for a, b, c, we can search for critical points of the function 
-    f(a,b,c) = (|a*X_r|-|b*Y_r|)^2 + (|a*X_r|-|c*Z_r|)^2 + (|b*Y_r|-|c*Z_r|)^2.
+    To find good values for the a_l's, we can search for critical points of the function 
+    f(a_0,...,a_{L-1}) = sum_{i, j=0...L-1} (|a_i*W[i]_r|-|a_j*W[j]_r|)^2 .
     Using Lagrange multipliers we find the solution 
-        a = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|X_r|,
-        b = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|Y_r|,
-        c = (|X_r|*|Y_r|*|Z_r|)^(1/3)/|Z_r|.
+        a_0 = (|W[0]_r|*...*|W[L-1]_r|)^(1/L)/|W[0]_r|,
+        ...
+        a_L = (|W[0]_r|*...*|W[L-1]_r|)^(1/L)/|W[L-1]_r|.
     We can see that this solution satisfy the conditions mentioned.
     """
     
+    L = len(factors)
+
     for r in range(R):
-        X_nr = norm(X[:, r])
-        Y_nr = norm(Y[:, r])
-        Z_nr = norm(Z[:, r])
-        if (X_nr != 0) and (Y_nr != 0) and (Z_nr != 0):
-            numerator = (X_nr*Y_nr*Z_nr)**(1/3)
-            X[:, r] = (numerator/X_nr)*X[:, r]
-            Y[:, r] = (numerator/Y_nr)*Y[:, r]
-            Z[:, r] = (numerator/Z_nr)*Z[:, r]
+        norm_r = array([norm(factors[l][:, r]) for l in range(L)])
+        if prod(norm_r) != 0.0:
+            numerator = prod(norm_r)**(1/L)
+            for l in range(L):
+                factors[l][:, r] = (numerator/norm_r[l]) * factors[l][:, r]
             
-    return X, Y, Z
+    return factors
 
 
 @njit(nogil=True)

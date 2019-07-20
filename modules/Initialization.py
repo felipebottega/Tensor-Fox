@@ -88,7 +88,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
     X, Y, Z = clean_zeros(S, X, Y, Z)
 
     # Make all factors balanced.
-    X, Y, Z = cnv.equalize(X, Y, Z, R)
+    X, Y, Z = cnv.equalize([X, Y, Z], R)
 
     # Apply additional transformations if requested.
     X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
