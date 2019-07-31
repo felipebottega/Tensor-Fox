@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sign, sqrt, dot, arange, hstack
+from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
@@ -128,7 +128,6 @@ def dGN(T, X, Y, Z, R, options):
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(m, n, p, R)
-    lsmr_data = lsmr_prepare_data(m, n, p, R)
 
     if display > 1:
         if display == 4:
@@ -162,10 +161,10 @@ def dGN(T, X, Y, Z, R, options):
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
         y, grad, itn, residualnorm = compute_step(X, Y, Z,
-                                                  lsmr_data, data,
+                                                  data,
                                                   y, res,
                                                   m, n, p, R,
-                                                  fix_mode, damp, method_info, it)
+                                                  damp, method_info, it)
 
         # Update point obtained by the iteration.         
         x = x + y
@@ -258,7 +257,7 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, R, fix_mode, damp, method_info, it):
+def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, method_info, it):
     """    
     This function uses the adequate method to compute the step based on the user choice, otherwise the default
     is used.
@@ -281,337 +280,10 @@ def compute_step(X, Y, Z, lsmr_data, data, y, res, m, n, p, R, fix_mode, damp, m
                                         y, -res,
                                         m, n, p, R,
                                         damp, method_maxiter, inner_tol)
-    elif method == 'lsmr':
-        y, grad, itn, residualnorm = lsmr(X, Y, Z,
-                                          -res, lsmr_data,
-                                          m, n, p, R,
-                                          fix_mode, inner_tol, inner_tol, inner_maxiter)
-    elif method == 'lsmr_static':
-        y, grad, itn, residualnorm = lsmr(X, Y, Z,
-                                          -res, lsmr_data,
-                                          m, n, p, R,
-                                          fix_mode, inner_tol, inner_tol, method_maxiter)
     else:
         sys.exit('Wrong method parameter specification.')
 
     return y, grad, itn, residualnorm
-
-
-def lsmr(X, Y, Z, b, data, m, n, p, R, fix_mode, atol, btol, maxiter):
-    """
-    LSMR stands for 'least squares with minimal residual'. This LSMR function is an 
-    adaptation of the scipy's LSMR function. You can see the original in the link below:
-    https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.sparse.linalg.lsmr.html
-    
-    The principal changes are in the matrix-vector multiplications. They are specialized to 
-    this particular tensor problem, where the sparse matrix has some special structure. We
-    use the arrays data and col to refer to Dres, and the arrays datat and colt to refer to 
-    Dres.transpose.
-    
-    Inputs
-    ------
-    b: 1-D float ndarray
-        b will receive the array -res
-    r, m, n, p: int
-    atol, btol : float
-        Stopping tolerances. `lsmr` continues iterations until a
-        certain backward error estimate is smaller than some quantity
-        depending on atol and btol.  Let ``r = b - Ax`` be the
-        residual vector for the current approximate solution ``x``.
-        If ``Ax = b`` seems to be consistent, ``lsmr`` terminates
-        when ``norm(r) <= atol * norm(A) * norm(x) + btol * norm(b)``.
-        Otherwise, lsmr terminates when ``norm(A^{T} r) <=
-        atol * norm(A) * norm(r)``.  If both tolerances are 1.0e-6 (say),
-        the final ``norm(r)`` should be accurate to about 6
-        digits. (The final x will usually have fewer correct digits,
-        depending on ``cond(A)`` and the size of LAMBDA.)  If `atol`
-        or `btol` is None, a default value of 1.0e-6 will be used.
-        Ideally, they should be estimates of the relative error in the
-        entries of A and B respectively.  For example, if the entries
-        of `A` have 7 correct digits, set atol = 1e-7. This prevents
-        the algorithm from doing unnecessary work beyond the
-        uncertainty of the input data.
-    maxiter : int
-        `lsmr` terminates if the number of iterations reaches
-        `maxiter`.  The default is ``maxiter = 100``.  For
-        ill-conditioned systems, a larger value of `maxiter` may be
-        needed.
-        
-    Outputs
-    -------
-    x : ndarray of float
-        Least-square solution returned.
-    istop : int
-        istop gives the reason for stopping::
-          istop   = 0 means x=0 is a solution.
-                  = 1 means x is an approximate solution to A*x = B,
-                      according to atol and btol.
-                  = 2 means x approximately solves the least-squares problem
-                      according to atol.
-                  = 3 means COND(A) seems to be greater than CONLIM.
-                  = 4 is the same as 1 with atol = btol = eps (machine
-                      precision)
-                  = 5 is the same as 2 with atol = eps.
-                  = 6 is the same as 3 with CONLIM = 1/eps.
-                  = 7 means ITN reached maxiter before the other stopping
-                      conditions were satisfied.
-    itn : int
-        Number of iterations used.
-    normr : float
-        ``norm(b-Ax)``
-    normar : float
-        ``norm(A^T (b - Ax))``
-    norma : float
-        ``norm(A)``
-    conda : float
-        Condition number of A.
-    normx : float
-        ``norm(x)``
-    """
-
-    maxiter = min(maxiter, R * (m + n + p))
-
-    # Update data for the next Gauss-Newton iteration.
-    w_X, Bv_X, M_X, \
-        w_Y, Mw_Y, Bv_Y, M_Y, \
-        w_Z, Bv_Z, M_Z, \
-        w_Xt, Bu_Xt, \
-        w_Yt, Bu_Yt, \
-        w_Zt, Bu_Zt, \
-        N1, N2, NX, NY, NZ = data
-
-    damp = 0
-
-    # Initialize arrays.
-    u = b
-    beta = norm(u)
-    v = zeros(R * (m + n + p), dtype=float64)
-    alpha = 0
-
-    if beta > 0:
-        u = (1 / beta) * u
-        v = rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
-        alpha = norm(v)
-
-    if alpha > 0:
-        v = (1 / alpha) * v
-
-    if fix_mode == 0:
-        v[:R * m] = zeros(R * m)
-    elif fix_mode == 1:
-        v[R * m:R * (m + n)] = zeros(R * n)
-    elif fix_mode == 2:
-        v[R * (m + n):R * (m + n + p)] = zeros(R * p)
-
-    grad = copy(v)
-
-    # Initialize variables for 1st iteration.
-    itn = 0
-    zetabar = alpha * beta
-    alphabar = alpha
-    rho = 1
-    rhobar = 1
-    cbar = 1
-    sbar = 0
-
-    h = copy(v)
-    hbar = zeros(R * (m + n + p), dtype=float64)
-    x = zeros(R * (m + n + p), dtype=float64)
-
-    # Initialize variables for estimation of ||r||.
-    betadd = beta
-    betad = 0
-    rhodold = 1
-    tautildeold = 0
-    thetatilde = 0
-    zeta = 0
-    d = 0
-
-    # Initialize variables for estimation of ||A|| and cond(A).
-    normA2 = alpha * alpha
-    maxrbar = 0
-    minrbar = 1e+100
-    normA = sqrt(normA2)
-    condA = 1
-    normx = 0
-
-    # Items for use in stopping rules.
-    normb = beta
-    istop = 0
-    ctol = 0
-    normr = beta
-
-    # Reverse the order here from the original matlab code because
-    # there was an error on return when arnorm==0.
-    normar = alpha * beta
-    if normar == 0:
-        return x, istop, itn, normr, normar, normA, condA, normx
-
-    # Main iteration loop.
-    while itn < maxiter:
-        itn = itn + 1
-
-        # Perform the next step of the bidiagonalization to obtain the
-        # next  beta, u, alpha, v.  These satisfy the relations
-        #         beta*u  =  a*v   -  alpha*u,
-        #        alpha*v  =  A'*u  -  beta*v.
-
-        u = lsmr_matvec(v,
-                        w_X, Bv_X, M_X,
-                        w_Y, Mw_Y, Bv_Y, M_Y,
-                        w_Z, Bv_Z, M_Z,
-                        m, n, p, R) - alpha * u
-        beta = norm(u)
-
-        if beta > 0:
-            u = (1 / beta) * u
-            v = rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
-            alpha = norm(v)
-            if alpha > 0:
-                v = (1 / alpha) * v
-
-        # At this point, beta = beta_{k+1}, alpha = alpha_{k+1}.
-
-        # Construct rotation Qhat_{k,2k+1}.
-        chat, shat, alphahat = sym_ortho(alphabar, damp)
-
-        # Use a plane rotation (Q_i) to turn B_i to R_i.
-        rhoold = rho
-        c, s, rho = sym_ortho(alphahat, beta)
-        thetanew = s * alpha
-        alphabar = c * alpha
-
-        # Use a plane rotation (Qbar_i) to turn R_i^T to R_i^bar.
-        rhobarold = rhobar
-        zetaold = zeta
-        thetabar = sbar * rho
-        rhotemp = cbar * rho
-        cbar, sbar, rhobar = sym_ortho(cbar * rho, thetanew)
-        zeta = cbar * zetabar
-        zetabar = - sbar * zetabar
-
-        # Update h, h_hat, x.
-        hbar = h - (thetabar * rho / (rhoold * rhobarold)) * hbar
-        x = x + (zeta / (rho * rhobar)) * hbar
-        h = v - (thetanew / rho) * h
-
-        # Estimate of ||r||.
-
-        # Apply rotation Qhat_{k,2k+1}.
-        betaacute = chat * betadd
-        betacheck = -shat * betadd
-
-        # Apply rotation Q_{k,k+1}.
-        betahat = c * betaacute
-        betadd = -s * betaacute
-
-        # Apply rotation Qtilde_{k-1}.
-        # betad = betad_{k-1} here.
-
-        thetatildeold = thetatilde
-        ctildeold, stildeold, rhotildeold = sym_ortho(rhodold, thetabar)
-        thetatilde = stildeold * rhobar
-        rhodold = ctildeold * rhobar
-        betad = - stildeold * betad + ctildeold * betahat
-
-        # betad   = betad_k here.
-        # rhodold = rhod_k  here.
-
-        tautildeold = (zetaold - thetatildeold * tautildeold) / rhotildeold
-        taud = (zeta - thetatilde * tautildeold) / rhodold
-        d = d + betacheck * betacheck
-        normr = sqrt(d + (betad - taud) ** 2 + betadd * betadd)
-
-        # Estimate ||A||.
-        normA2 = normA2 + beta * beta
-        normA = sqrt(normA2)
-        normA2 = normA2 + alpha * alpha
-
-        # Estimate cond(A).
-        maxrbar = max(maxrbar, rhobarold)
-        if itn > 1:
-            minrbar = min(minrbar, rhobarold)
-        condA = max(maxrbar, rhotemp) / min(minrbar, rhotemp)
-
-        # Test for convergence.
-
-        # Compute norms for convergence testing.
-        normar = np.abs(zetabar)
-        normx = norm(x)
-
-        # Now use these norms to estimate certain other quantities,
-        # some of which will be small near a solution.
-        test1 = normr / normb
-        if (normA * normr) != 0:
-            test2 = normar / (normA * normr)
-        else:
-            test2 = inf
-        test3 = 1 / condA
-        t1 = test1 / (1 + normA * normx / normb)
-        rtol = btol + atol * normA * normx / normb
-
-        # The following tests guard against extremely small values of
-        # atol, btol or ctol.  (The user may have set any or all of
-        # the parameters atol, btol to 0.)
-        # The effect is equivalent to the normAl tests using
-        # atol = eps,  btol = eps.
-        if itn >= maxiter:
-            istop = 7
-        if 1 + test3 <= 1:
-            istop = 6
-        if 1 + test2 <= 1:
-            istop = 5
-        if 1 + t1 <= 1:
-            istop = 4
-
-        # Allow for tolerances set by the user.
-        if test3 <= ctol:
-            istop = 3
-        if test2 <= atol:
-            istop = 2
-        if test1 <= rtol:
-            istop = 1
-
-        if istop > 0:
-            break
-
-    return x, grad, itn, normr
-
-
-def sym_ortho(a, b):
-    """
-    Stable implementation of Givens rotation.
-    
-    Notes
-    -----
-    The routine 'SymOrtho' was added for numerical stability. This is
-    recommended by S.-C. Choi in [1]_.  It removes the unpleasant potential of
-    ``1/eps`` in some important places (see, for example text following
-    "Compute the next plane rotation Qk" in minres.py). This function is useful
-    for the LSMR function.
-    
-    References
-    ----------
-    .. [1] S.-C. Choi, "Iterative Methods for Singular Linear Equations
-           and Least-Squares Problems", Dissertation,
-           http://www.stanford.edu/group/SOL/dissertations/sou-cheng-choi-thesis.pdf
-    """
-
-    if b == 0:
-        return sign(a), 0, np.abs(a)
-    elif a == 0:
-        return 0, sign(b), np.abs(b)
-    elif np.abs(b) > np.abs(a):
-        tau = a / b
-        s = sign(b) / sqrt(1 + tau * tau)
-        c = s * tau
-        r = b / s
-    else:
-        tau = b / a
-        c = sign(a) / sqrt(1 + tau * tau)
-        s = c * tau
-        r = a / c
-    return c, s, r
 
 
 @njit(nogil=True, parallel=True)
@@ -880,7 +552,7 @@ def matvec(X, Y, Z,
            B_XYt_v, B_XZt_v, B_YZt_v,
            v, m, n, p, R):
     """
-    Makes the matrix-vector computation (Dres.transpose*Dres)*v. 
+    Makes the matrix-vector computation (Df^T * Df)*v.
     """
 
     # Split v into three blocks, convert them into matrices and transpose them. 
@@ -966,88 +638,6 @@ def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R):
         result[R*(m+n) + r*p: R*(m+n) + (r+1)*p] = aux3
         
     return -result
-
-
-def lsmr_prepare_data(m, n, p, R):
-    """
-    This function creates several auxiliar matrices which will be used later 
-    to accelerate matrix-vector products.
-    """
-
-    "B_X"
-    w_X = empty(R, dtype=float64)
-    Bv_X = empty(m * n * p, dtype=float64)
-    M_X = empty((n * p, R), dtype=float64)
-
-    "B_Y"
-    w_Y = empty(R, dtype=float64)
-    Mw_Y = empty(m * p, dtype=float64)
-    Bv_Y = empty(m * n * p, dtype=float64)
-    M_Y = empty((m * p, R), dtype=float64)
-
-    "B_Z"
-    w_Z = empty(p * R, dtype=float64)
-    Bv_Z = empty(m * n * p, dtype=float64)
-    M_Z = empty((m * n, R), dtype=float64)
-
-    "B_X^T"
-    w_Xt = empty(n * p, dtype=float64)
-    Bu_Xt = empty(R * m, dtype=float64)
-
-    "B_Y^T"
-    w_Yt = empty(m * p, dtype=float64)
-    Bu_Yt = empty(R * n, dtype=float64)
-
-    "B_Z^T"
-    w_Zt = empty((p, m * n), dtype=float64)
-    Bu_Zt = empty(R * p, dtype=float64)
-
-    # Arrays to be used in the rmatvec function.
-    N1 = empty((n, m, p), dtype=float64)
-    N2 = empty((m, n, p), dtype=float64)
-    NX = [empty((m, R), dtype=float64) for j in range(n)]
-    NY = [empty((n, R), dtype=float64) for i in range(m)]
-    NZ = [empty((R, p), dtype=float64) for i in range(m)]
-
-    lsmr_data = [w_X, Bv_X, M_X,
-                 w_Y, Mw_Y, Bv_Y, M_Y,
-                 w_Z, Bv_Z, M_Z,
-                 w_Xt, Bu_Xt,
-                 w_Yt, Bu_Yt,
-                 w_Zt, Bu_Zt,
-                 N1, N2, NX, NY, NZ]
-
-    return lsmr_data
-
-
-@njit(nogil=True)
-def lsmr_matvec(v, w_X, Bv_X, M_X, w_Y, Mw_Y, Bv_Y, M_Y, w_Z, Bv_Z, M_Z, m, n, p, R):
-    """    
-    Computes the matrix-vector product Dres*v.
-    """
-
-    values = arange(R)
-    values1 = arange(m * n)
-
-    "B_X"
-    for i in range(m):
-        w_X = v[i + m * values]
-        Bv_X[i * n * p: (i + 1) * n * p] = dot(M_X, w_X)
-
-    "B_Y"
-    for j in range(n):
-        w_Y = v[m * R + j + n * values]
-        Mw_Y = dot(M_Y, w_Y)
-        for i in range(m):
-            Bv_Y[j * p + i * n * p: (j + 1) * p + i * n * p] = Mw_Y[i * p: (i + 1) * p]
-
-    "B_Z"
-    w_Z = v[R * (m + n):]
-    w_Z = w_Z.reshape(R, p).T
-    for k in range(p):
-        Bv_Z[k + p * values1] = dot(M_Z, w_Z[k, :])
-
-    return Bv_X + Bv_Y + Bv_Z
 
 
 @njit(nogil=True)

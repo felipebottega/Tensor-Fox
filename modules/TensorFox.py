@@ -882,11 +882,7 @@ def foxit(T, R, options=False, bestof=1):
     print('    maximum of iterations:', options.maxiter)
     print('    tolerance:', options.tol)
     print('    initialization:', options.initialization)
-    if options.method == 'lsmr_static':
-        print('    algorithm: least squares with minimal residual (static)', )
-    elif options.method == 'lsmr':
-        print('    algorithm: least squares with minimal residual (dynamic)', )
-    elif options.method == 'cg_static':
+    if options.method == 'cg_static':
         print('    algorithm: conjugate gradient (static)')
     elif options.method == 'cg':
         print('    algorithm: conjugate gradient (dynamic)')

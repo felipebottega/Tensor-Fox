@@ -327,9 +327,9 @@ def make_options(options):
     if 'method' in dir(options):
         temp_options.method_parameters[0] = options.method
         # Set default maxiter for each possible algorithm.
-        if options.method == 'lsmr' or options.method == 'cg':
+        if options.method == 'cg':
             temp_options.method_parameters[1] = 1
-        elif options.method == 'lsmr_static' or options.method == 'cg_static':
+        elif options.method == 'cg_static':
             temp_options.method_parameters[1] = 20
         elif options.method == 'als':
             temp_options.method_parameters[1] = 500
@@ -341,9 +341,9 @@ def make_options(options):
     if 'bi_method' in dir(options):
         temp_options.bi_method_parameters[0] = options.bi_method
         # Set default maxiter for each possible algorithm (bi).
-        if options.bi_method == 'lsmr' or options.bi_method == 'cg':
+        if options.bi_method == 'cg':
             temp_options.bi_method_parameters[1] = 1
-        elif options.bi_method == 'lsmr_static' or options.bi_method == 'cg_static':
+        elif options.bi_method == 'cg_static':
             temp_options.bi_method_parameters[1] = 20
         elif options.bi_method == 'als':
             temp_options.bi_method_parameters[1] = 500
