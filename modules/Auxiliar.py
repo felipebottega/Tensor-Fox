@@ -205,15 +205,17 @@ def output_info(T_orig, Tsize, T_approx,
             print()
             print('Main stop:')
             if self.stop[0] == 0:
-                print('0 - Steps are too small.')
+                print('0 - Relative error is small enough.')
             if self.stop[0] == 1:
-                print('1 - The improvement in the relative error is too small.')
+                print('1 - Steps are small enough.')
             if self.stop[0] == 2:
-                print('2 - The gradient is close enough to 0.')
+                print('2 - Improvement in the relative error is small enough.')
             if self.stop[0] == 3:
-                print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
+                print('3 - Gradient is small enough.')
             if self.stop[0] == 4:
-                print('4 - Limit of iterations was been reached.')
+                print('4 - Average of the last k = 1 + int(maxiter/10) relative errors is small enough.')
+            if self.stop[0] == 5:
+                print('5 - Limit of iterations was reached.')
             if self.stop[0] == 6:
                 print('6 - dGN diverged.')
 
@@ -221,20 +223,22 @@ def output_info(T_orig, Tsize, T_approx,
             print()
             print('Refinement stop:')
             if self.stop[1] == 0:
-                print('0 - Steps are too small.')
+                print('0 - Relative error is small enough.')
             if self.stop[1] == 1:
-                print('1 - The improvement in the relative error is too small.')
+                print('1 - Steps are small enough.')
             if self.stop[1] == 2:
-                print('2 - The gradient is close enough to 0.')
+                print('2 - Improvement in the relative error is small enough.')
             if self.stop[1] == 3:
-                print('3 - The average of the last k relative errors is too small, where k = 1 + int(maxiter/10).')
+                print('3 - Gradient is small enough.')
             if self.stop[1] == 4:
-                print('4 - Limit of iterations was been reached.')
+                print('4 - Average of the last k = 1 + int(maxiter/10) relative errors is small enough.')
             if self.stop[1] == 5:
-                print('5 - No refinement was performed.')
+                print('5 - Limit of iterations was reached.')
             if self.stop[1] == 6:
                 print('6 - dGN diverged.')
-
+            if self.stop[1] == 7:
+                print('7 - No refinement was performed.')
+           
             return ''
 
     output = output()
@@ -261,6 +265,18 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     return final_outputs
 
 
+def show_options(output):
+    """ This function display all parameter options used. """
+
+    members_names = [attr for attr in dir(output.options) if not attr.startswith("__")]
+    members = [getattr(output.options, attr) for attr in dir(output.options) if not attr.startswith("__")]
+    L = len(members)
+    for m in range(L):
+        print(members_names[m], ':', members[m])
+
+    return
+
+
 def make_options(options):
     """
     This function constructs the whole class of options based on the options the user requested. 
@@ -272,11 +288,13 @@ def make_options(options):
         def __init__(self):
             self.maxiter = 200  
             self.tol = 1e-6
-            # method_parameters[0] == True indicates the program to use default parameters.
-            # method_parameters[1] is the method used to compute each iteration of the dGN function.
-            # method_parameters[2] is the maximum number of iterations for static methods, or the multiplying factor for 
+            self.tol_step = 1e-6
+            self.tol_improv = 1e-6
+            self.tol_grad = 1e-6
+            # method_parameters[0] is the method used to compute each iteration of the dGN function.
+            # method_parameters[1] is the maximum number of iterations for static methods, or the multiplying factor for 
             # randomized methods. 
-            # method_parameters[3] is the tolerance to stop the iterations of the method.
+            # method_parameters[2] is the tolerance to stop the iterations of the method.
             self.method_parameters = ['cg', 1, 1e-6] 
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
@@ -299,6 +317,12 @@ def make_options(options):
     if 'tol' in dir(options):
         temp_options.tol = options.tol
         temp_options.method_parameters[2] = temp_options.tol
+    if 'tol_step' in dir(options):
+        temp_options.tol_step = options.tol_step
+    if 'tol_improv' in dir(options):
+        temp_options.tol_improv = options.tol_improv
+    if 'tol_grad' in dir(options):
+        temp_options.tol_grad = options.tol_grad
         
     if 'method' in dir(options):
         temp_options.method_parameters[0] = options.method
@@ -369,6 +393,9 @@ def complete_options(options):
         def __init__(self):
             self.maxiter = 200  
             self.tol = 1e-6
+            self.tol_step = 1e-6
+            self.tol_improv = 1e-6
+            self.tol_grad = 1e-6
             self.method = 'cg'
             self.method_maxiter = 1
             self.method_tol = 1e-6
@@ -395,6 +422,12 @@ def complete_options(options):
     if 'tol' in dir(options):
         temp_options.tol = options.tol
         temp_options.method_tol = options.tol
+    if 'tol_step' in dir(options):
+        temp_options.tol_step = options.tol_step
+    if 'tol_improv' in dir(options):
+        temp_options.tol_improv = options.tol_improv
+    if 'tol_grad' in dir(options):
+        temp_options.tol_grad = options.tol_grad
         
     if 'method' in dir(options):
         temp_options.method = options.method

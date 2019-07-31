@@ -56,19 +56,20 @@ def dGN(T, X, Y, Z, R, options):
         current iteration and the previous one.
     gradients: float 1-D ndarray
         Gradient of the error function at each iteration.
-    stop: 0, 1, 2, 3 or 4
+    stop: 0, 1, 2, 3, 4, 5 or 6
         This value indicates why the dGN function stopped. Below we summarize the cases.
-        0: step_sizes[it] < tol. This means the steps are too small.
-        1: improv < tol. This means the improvement in the error is too small.
-        2: gradients[it] < tol. This means the gradient is close enough to 0.
-        3: mean(abs(errors[it-k : it] - errors[it-k-1 : it-1]))/Tsize < 10*tol. This means the average of the last k 
-           relative errors is too small. Keeping track of the averages is useful when the errors improvements are just a 
-           little above the threshold for a long time. We want them above the threshold indeed, but not too close for a 
-           long time. 
-        4: limit of iterations reached.
-        5: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when
+        0: errors[it] < tol. Relative error is small enough.
+        1: step_sizes[it] < tol_steps. Steps are small enough.
+        2: improv[it] < tol_improv. Improvement in the relative error is small enough.
+        3: gradients[it] < tol_grad. Gradient is small enough (infinity norm).
+        4: mean(abs(errors[it-k : it] - errors[it-k-1 : it-1]))/Tsize < 10*tol_improv. Average of the last
+            k = 1 + int(maxiter/10) relative errors is small enough. Keeping track of the averages is useful when the
+            errors improvements are just a little above the threshold for a long time. We want them above the threshold
+            indeed, but not too close for a long time.
+        5: limit of iterations reached.
+        6: dGN diverged.
+        7: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when
         the program can't give a stopping condition in the refinement stage).
-        6: dGN diverged. 
     """
 
     # INITIALIZE RELEVANT VARIABLES 
@@ -77,6 +78,9 @@ def dGN(T, X, Y, Z, R, options):
     init_damp = options.init_damp
     maxiter = options.maxiter
     tol = options.tol
+    tol_step = options.tol_step
+    tol_improv = options.tol_improv
+    tol_grad = options.tol_grad
     symm = options.symm
     display = options.display
     low, upp, factor = options.constraints
@@ -106,7 +110,7 @@ def dGN(T, X, Y, Z, R, options):
     Tsize = norm(T)
     error = 1
     best_error = inf
-    stop = 4
+    stop = 5
     damp = init_damp * mean(np.abs(T))
     const = 1 + int(maxiter / 10)
 
@@ -191,8 +195,8 @@ def dGN(T, X, Y, Z, R, options):
         damp = update_damp(damp, old_error, error, residualnorm)
 
         # Save relevant information about the current iteration.
-        step_sizes[it] = norm(x - old_x)
         errors[it] = error
+        step_sizes[it] = norm(x - old_x)
         gradients[it] = norm(grad, inf)
         if it == 0:
             improv[it] = errors[it]
@@ -220,31 +224,34 @@ def dGN(T, X, Y, Z, R, options):
 
         # Stopping conditions.
         if it > 1:
-            if step_sizes[it] < tol:
+            if errors[it] < tol:
                 stop = 0
                 break
-            if improv[it] < tol:
+            if step_sizes[it] < tol_step:
                 stop = 1
                 break
-            if gradients[it] < tol:
+            if improv[it] < tol_improv:
                 stop = 2
                 break
-                # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than
-                # 10*tol, then we stop iterating. We don't want to waste time computing with 'almost negligible'
-                # improvements for long time.
+            if gradients[it] < tol_grad:
+                stop = 3
+                break
+            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than
+            # 10*tol, then we stop iterating. We don't want to waste time computing with 'almost negligible'
+            # improvements for long time.
             if it > const and it % const == 0:
-                if mean(np.abs(errors[it - const:it] - errors[it - const - 1:it - 1])) < 10 * tol:
-                    stop = 3
+                if mean(np.abs(errors[it - const:it] - errors[it - const - 1:it - 1])) < 10 * tol_improv:
+                    stop = 4
                     break
-                    # Prevent blow ups.
+            # Prevent blow ups.
             if error > max(1, Tsize ** 2) / tol:
                 stop = 6
                 break
 
                 # SAVE LAST COMPUTED INFORMATION
 
-    step_sizes = step_sizes[0:it + 1]
     errors = errors[0:it + 1]
+    step_sizes = step_sizes[0:it + 1]
     improv = improv[0:it + 1]
     gradients = gradients[0:it + 1]
 
