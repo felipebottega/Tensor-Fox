@@ -89,9 +89,10 @@ def mlsvd(T, Tsize, R, options):
     # mlsvd_tol = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
     if mlsvd_tol == 0:
         S = mlinalg.multilin_mult(UT, T1, dims)
+        new_dims = [min(R, dims[l]) for l in range(L)]
         if display > 2 or display < -1:
-            S1 = cnv.unfold(S, 1, dims)
-            best_error = aux.compute_error(T, Tsize, S1, U, dims)
+            S1 = cnv.unfold(S, 1, new_dims)
+            best_error = aux.compute_error(T, Tsize, S1, U, new_dims)
             return S, U, UT, sigmas, best_error
         else:
             return S, U, UT, sigmas
