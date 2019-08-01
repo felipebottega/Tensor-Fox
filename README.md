@@ -142,7 +142,6 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 |---|---|
 | dGN| [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function adapted for the tensor problem.. |
 | cg| [conjugate gradient](https://en.wikipedia.org/wiki/Conjugate_gradient_method) function adapted for the tensor problem. |
-| lsmr| [LSMR](http://web.stanford.edu/group/SOL/software/lsmr/) function adapted for the tensor problem. |
 | regularization| computes the [Tikhonov matrix](https://en.wikipedia.org/wiki/Tikhonov_regularization) for the inner algorithm. |
 | precond| computes the [preconditioner matrix](https://en.wikipedia.org/wiki/Preconditioner) for the inner algorithm.  |
    
