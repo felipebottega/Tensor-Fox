@@ -70,13 +70,17 @@ def als(T, X, Y, Z, R, options):
     # INITIALIZE RELEVANT VARIABLES 
 
     # Extract all variable from the class of options.
+    maxiter = options.maxiter
+    tol = options.tol
+    tol_step = options.tol_step
+    tol_improv = options.tol_improv
+    tol_grad = options.tol_grad
     symm = options.symm
     display = options.display
     low, upp, factor = options.constraints
     c = options.constant_norm
-    method_info = options.method_parameters
-    
-    # Verify if some factor should be fixed or not. This nnly happens in the bicpd function.
+
+    # Verify if some factor should be fixed or not. This only happens in the bicpd function.
     fix_mode = -1
     T1 = cnv.unfold(T, 1, T.shape)
     T2 = cnv.unfold(T, 2, T.shape)
@@ -100,10 +104,9 @@ def als(T, X, Y, Z, R, options):
     # Set the other variables.
     m, n, p = T.shape
     Tsize = norm(T)
-    method, maxiter, tol = method_info 
     error = 1
     best_error = inf
-    stop = 4
+    stop = 5
     const = 1 + int(maxiter/10)
                                
     # INITIALIZE RELEVANT ARRAYS
@@ -118,17 +121,19 @@ def als(T, X, Y, Z, R, options):
 
     if display > 1:
         if display == 4:
-            print('   ', 
-                  '{:^9}'.format('Iteration'), 
+            print('   ',
+                  '{:^9}'.format('Iteration'),
                   '| {:^11}'.format('Rel error'),
+                  '| {:^11}'.format('Step size'),
                   '| {:^11}'.format('Improvement'),
                   '| {:^11}'.format('norm(grad)'))
         else:
-            print('   ', 
-                  '{:^9}'.format('Iteration'), 
+            print('   ',
+                  '{:^9}'.format('Iteration'),
                   '| {:^9}'.format('Rel error'),
+                  '| {:^11}'.format('Step size'),
                   '| {:^10}'.format('Improvement'),
-                  '| {:^10}'.format('norm(grad)'))                
+                  '| {:^10}'.format('norm(grad)'))               
     
     # START ALS ITERATIONS
     
@@ -173,40 +178,45 @@ def als(T, X, Y, Z, R, options):
         # Show information about current iteration.
         if display > 1:
             if display == 4:
-                print('    ', 
-                      '{:^8}'.format(it+1),
+                print('    ',
+                      '{:^8}'.format(it + 1),
                       '| {:^10.5e}'.format(errors[it]),
+                      '| {:^10.5e}'.format(step_sizes[it]),
                       '| {:^10.5e}'.format(improv[it]),
                       '| {:^11.5e}'.format(gradients[it]))
             else:
-                print('   ', 
-                      '{:^9}'.format(it+1),
+                print('   ',
+                      '{:^9}'.format(it + 1),
                       '| {:^9.2e}'.format(errors[it]),
+                      '| {:^11.2e}'.format(step_sizes[it]),
                       '| {:^11.2e}'.format(improv[it]),
                       '| {:^10.2e}'.format(gradients[it]))
            
         # Stopping conditions.
         if it > 1:
-            if step_sizes[it] < tol:
+            if errors[it] < tol:
                 stop = 0
                 break
-            if improv[it] < tol:
+            if step_sizes[it] < tol_step:
                 stop = 1
                 break
-            if gradients[it] < tol:
+            if improv[it] < tol_improv:
                 stop = 2
-                break 
-            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than 10*tol,
-            # then we stop iterating. We don't want to waste time computing with 'almost negligible' improvements for
-            # long time.
+                break
+            if gradients[it] < tol_grad:
+                stop = 3
+                break
+            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than
+            # 10*tol, then we stop iterating. We don't want to waste time computing with 'almost negligible'
+            # improvements for long time.
             if it > const and it % const == 0:
-                if mean(np.abs(errors[it-const: it] - errors[it-const-1: it-1])) < 10*tol:
-                    stop = 3
-                    break  
+                if mean(np.abs(errors[it - const:it] - errors[it - const - 1:it - 1])) < 10 * tol_improv:
+                    stop = 4
+                    break
             # Prevent blow ups.
-            if error > max(1, Tsize**2)/tol:
+            if error > max(1, Tsize ** 2) / tol:
                 stop = 6
-                break 
+                break
     
     # SAVE LAST COMPUTED INFORMATION
     

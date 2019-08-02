@@ -54,15 +54,15 @@ def mlsvd(T, Tsize, R, options):
     # Extract all variable from the class of options.
     trunc_dims = options.trunc_dims
     display = options.display
-    mlsvd_tol = options.mlsvd_tol
-    if type(mlsvd_tol) == list:
+    tol_mlsvd = options.tol_mlsvd
+    if type(tol_mlsvd) == list:
         if L > 3:
-            mlsvd_tol = mlsvd_tol[0]
+            tol_mlsvd = tol_mlsvd[0]
         else:
-            mlsvd_tol = mlsvd_tol[1]
+            tol_mlsvd = tol_mlsvd[1]
 
-    # mlsvd_tol = -1 means no truncation and no compression, in other words, the original tensor.
-    if mlsvd_tol == -1:
+    # tol_mlsvd = -1 means no truncation and no compression, in other words, the original tensor.
+    if tol_mlsvd == -1:
         U = [ eye(dims[l]) for l in range(L) ]
         UT = U
         sigmas = [ ones(dims[l]) for l in range(L) ]
@@ -86,8 +86,8 @@ def mlsvd(T, Tsize, R, options):
         U.append(Ul)
         UT.append(Ul.T)
 
-    # mlsvd_tol = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
-    if mlsvd_tol == 0:
+    # tol_mlsvd = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
+    if tol_mlsvd == 0:
         S = mlinalg.multilin_mult(UT, T1, dims)
         new_dims = [min(R, dims[l]) for l in range(L)]
         if display > 2 or display < -1:
@@ -117,7 +117,7 @@ def mlsvd(T, Tsize, R, options):
             return S, best_U, best_UT, sigmas
 
     # Clean SVD's, because the original SVD factors may have unnecessary information due to noise or numerical error.
-    U, UT, sigmas = clean_compression(sigmas, U, UT, mlsvd_tol)
+    U, UT, sigmas = clean_compression(sigmas, U, UT, tol_mlsvd)
 
     # Compute (U_1^T,...,U_L^T)*T = S.
     S = mlinalg.multilin_mult(UT, T1, dims)
@@ -131,7 +131,7 @@ def mlsvd(T, Tsize, R, options):
     return S, U, UT, sigmas
 
 
-def clean_compression(sigmas, U, UT, mlsvd_tol):
+def clean_compression(sigmas, U, UT, tol_mlsvd):
     """
     This function try different threshold values to truncate the mlsvd. The conditions to accept a truncation are
     defined by the parameter level. Higher level means harder constraints, which translates to bigger tensors after the
@@ -145,9 +145,9 @@ def clean_compression(sigmas, U, UT, mlsvd_tol):
         Each one of these arrays is the orthogonal matrix of the MLSVD of T.
     UT: list of float 2-D ndarrays
         Transposes of each array in U.
-    mlsvd_tol: float
+    tol_mlsvd: float
         Tolerance criterion for the truncation. The idea is to obtain a truncation (U_1,...,U_L)*S such that
-        |T - (U_1,...,U_L)*S| / |T| < mlsvd_tol.
+        |T - (U_1,...,U_L)*S| / |T| < tol_mlsvd.
 
     Outputs
     -------
@@ -162,7 +162,7 @@ def clean_compression(sigmas, U, UT, mlsvd_tol):
 
     # INITIALIZE RELEVANT VARIABLES.
     L = len(sigmas)
-    eps = mlsvd_tol/L
+    eps = tol_mlsvd/L
 
     # COMPUTE TRUNCATION FOR EACH MODE.
     for l in range(L):

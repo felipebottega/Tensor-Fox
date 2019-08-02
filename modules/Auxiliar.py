@@ -265,25 +265,19 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     return final_outputs
 
 
-def show_options(output):
-    """ This function display all parameter options used. """
-
-    members_names = [attr for attr in dir(output.options) if not attr.startswith("__")]
-    members = [getattr(output.options, attr) for attr in dir(output.options) if not attr.startswith("__")]
-    L = len(members)
-    for m in range(L):
-        print(members_names[m], ':', members[m])
-
-    return
-
-
 def make_options(options):
     """
     This function constructs the whole class of options based on the options the user requested. 
     This is the format read by the program.
+
+    Some observations about the CG parameters:
+        - method is the method used to compute each iteration, the choices are 'cg', 'cg_static' and 'als'.
+        - cg_maxiter is the maximum number of iterations for 'cg_static'.
+        - cg_factor is the multiplying factor cg_factor for 'cg'. 
+        - cg_tol is the tolerance error to stop the iterations of the method.
     """
 
-    # Default options
+    # Initialize default options.
     class temp_options:
         def __init__(self):
             self.maxiter = 200  
@@ -291,15 +285,14 @@ def make_options(options):
             self.tol_step = 1e-6
             self.tol_improv = 1e-6
             self.tol_grad = 1e-6
-            # method_parameters[0] is the method used to compute each iteration of the dGN function.
-            # method_parameters[1] is the maximum number of iterations for static methods, or the multiplying factor for 
-            # randomized methods. 
-            # method_parameters[2] is the tolerance to stop the iterations of the method.
-            self.method_parameters = ['cg', 1, 1e-6] 
+            self.method = 'cg'
+            self.cg_maxiter = 300
+            self.cg_factor = 1
+            self.cg_tol = 1e-6
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
             self.trunc_dims = 0
-            self.mlsvd_tol = 1e-16
+            self.tol_mlsvd = 1e-16
             self.init_damp = 1
             self.refine = False
             self.symm = False
@@ -311,12 +304,11 @@ def make_options(options):
 
     temp_options = temp_options()
 
-    # User defined options
+    # User defined options.
     if 'maxiter' in dir(options):
         temp_options.maxiter = options.maxiter
     if 'tol' in dir(options):
         temp_options.tol = options.tol
-        temp_options.method_parameters[2] = temp_options.tol
     if 'tol_step' in dir(options):
         temp_options.tol_step = options.tol_step
     if 'tol_improv' in dir(options):
@@ -325,26 +317,21 @@ def make_options(options):
         temp_options.tol_grad = options.tol_grad
         
     if 'method' in dir(options):
-        temp_options.method_parameters[0] = options.method
-        # Set default maxiter for each possible algorithm.
-        if options.method == 'cg':
-            temp_options.method_parameters[1] = 1
-        elif options.method == 'cg_static':
-            temp_options.method_parameters[1] = 20
-        elif options.method == 'als':
-            temp_options.method_parameters[1] = 500
-    if 'method_maxiter' in dir(options):
-        temp_options.method_parameters[1] = options.method_maxiter   
-    if 'method_tol' in dir(options):
-        temp_options.method_parameters[2] = options.method_tol 
+        temp_options.method = options.method
+    if 'cg_maxiter' in dir(options):
+        temp_options.cg_maxiter = options.cg_maxiter
+    if 'cg_factor' in dir(options):
+        temp_options.cg_factor = options.cg_factor   
+    if 'cg_tol' in dir(options):
+        temp_options.cg_tol = options.cg_tol 
         
     if 'bi_method' in dir(options):
         temp_options.bi_method_parameters[0] = options.bi_method
-        # Set default maxiter for each possible algorithm (bi).
+        # Set default maxiter for each possible algorithm (bicpd).
         if options.bi_method == 'cg':
             temp_options.bi_method_parameters[1] = 1
         elif options.bi_method == 'cg_static':
-            temp_options.bi_method_parameters[1] = 20
+            temp_options.bi_method_parameters[1] = 300
         elif options.bi_method == 'als':
             temp_options.bi_method_parameters[1] = 500
     if 'bi_method_maxiter' in dir(options):
@@ -356,8 +343,8 @@ def make_options(options):
         temp_options.initialization = options.initialization
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
-    if 'mlsvd_tol' in dir(options):
-        temp_options.mlsvd_tol = options.mlsvd_tol
+    if 'tol_mlsvd' in dir(options):
+        temp_options.tol_mlsvd = options.tol_mlsvd
     if 'init_damp' in dir(options):
         temp_options.init_damp = options.init_damp
     if 'refine' in dir(options):
@@ -372,97 +359,6 @@ def make_options(options):
         temp_options.constraints[2] = options.factor
     if 'constant_norm' in dir(options):
         temp_options.constant_norm = options.constant_norm
-    if 'trials' in dir(options):
-        temp_options.trials = options.trials
-    if 'display' in dir(options):
-        temp_options.display = options.display
-    if 'epochs' in dir(options):
-        temp_options.epochs = options.epochs
-    
-    return temp_options
-
-
-def complete_options(options):
-    """
-    This function constructs the whole class of options based on the options the user requested. This function is 
-    specific to the stats, foxit and find_factor functions.
-    """
-
-    # Default options
-    class temp_options:
-        def __init__(self):
-            self.maxiter = 200  
-            self.tol = 1e-6
-            self.tol_step = 1e-6
-            self.tol_improv = 1e-6
-            self.tol_grad = 1e-6
-            self.method = 'cg'
-            self.method_maxiter = 1
-            self.method_tol = 1e-6
-            self.bi_method = 'als'
-            self.bi_method_maxiter = 500
-            self.bi_method_tol = 1e-6
-            self.initialization = 'random'
-            self.trunc_dims = 0
-            self.mlsvd_tol = 1e-16
-            self.init_damp = 1
-            self.refine = False
-            self.symm = False
-            self.constraints = [0, 0, 0]
-            self.constant_norm = 0
-            self.trials = 10
-            self.display = 0
-            self.epochs = 1
-            
-    temp_options = temp_options()
-
-    # User defined options
-    if 'maxiter' in dir(options):
-        temp_options.maxiter = options.maxiter
-    if 'tol' in dir(options):
-        temp_options.tol = options.tol
-        temp_options.method_tol = options.tol
-    if 'tol_step' in dir(options):
-        temp_options.tol_step = options.tol_step
-    if 'tol_improv' in dir(options):
-        temp_options.tol_improv = options.tol_improv
-    if 'tol_grad' in dir(options):
-        temp_options.tol_grad = options.tol_grad
-        
-    if 'method' in dir(options):
-        temp_options.method = options.method
-    if 'method_maxiter' in dir(options):
-        temp_options.method_maxiter = options.method_maxiter
-    if 'method_tol' in dir(options):
-        temp_options.method_tol = options.method_tol
-        
-    if 'bi_method' in dir(options):
-        temp_options.bi_method = options.bi_method
-    if 'bi_method_maxiter' in dir(options):
-        temp_options.bi_method_maxiter = options.bi_method_maxiter
-    if 'bi_method_tol' in dir(options):
-        temp_options.bi_method_tol = options.bi_method_tol    
-        
-    if 'initialization' in dir(options):
-        temp_options.initialization = options.initialization
-    if 'trunc_dims' in dir(options):
-        temp_options.trunc_dims = options.trunc_dims
-    if 'mlsvd_tol' in dir(options):
-        temp_options.mlsvd_tol = options.mlsvd_tol
-    if 'init_damp' in dir(options):
-        temp_options.init_damp = options.init_damp
-    if 'refine' in dir(options):
-        temp_options.refine = options.refine
-    if 'symm' in dir(options):
-        temp_options.symm = options.symm
-    if 'low' in dir(options):
-        temp_options.constraints[0] = options.low
-    if 'upp' in dir(options):
-        temp_options.constraints[1] = options.upp
-    if 'constant_norm' in dir(options):
-        temp_options.constant_norm = options.constant_norm
-    if 'factor' in dir(options):
-        temp_options.constraints[2] = options.factor
     if 'trials' in dir(options):
         temp_options.trials = options.trials
     if 'display' in dir(options):

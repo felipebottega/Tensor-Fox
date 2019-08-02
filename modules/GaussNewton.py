@@ -85,7 +85,7 @@ def dGN(T, X, Y, Z, R, options):
     display = options.display
     low, upp, factor = options.constraints
     c = options.constant_norm
-    method_info = options.method_parameters
+    method_info = [options.method, options.cg_maxiter, options.cg_factor, options.cg_tol]
 
     # Verify if some factor should be fixed or not. This only happens in the bi function.
     fix_mode = -1
@@ -263,29 +263,23 @@ def dGN(T, X, Y, Z, R, options):
 
 def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, method_info, it):
     """    
-    This function uses the adequate method to compute the step based on the user choice, otherwise the default
-    is used.
+    This function uses the adequate method to compute the step based on the user choice.
     """
 
-    # Parameters for the inner method of tri CPD's.
-    method, method_maxiter, method_tol = method_info
-    inner_maxiter = 1 + int(method_maxiter * randint(1 + it ** 0.4, 2 + it ** 0.9))
-    inner_tol = method_tol
-
+    # Parameters for the cg method of tri CPDs.
+    method, cg_maxiter, cg_factor, cg_tol = method_info
     if method == 'cg':
-        y, grad, itn, residualnorm = cg(X, Y, Z,
-                                        data,
-                                        y, -res,
-                                        m, n, p, R,
-                                        damp, inner_maxiter, inner_tol)
+        cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
     elif method == 'cg_static':
-        y, grad, itn, residualnorm = cg(X, Y, Z,
+        pass
+    else:
+        sys.exit("Wrong method name. Must be 'cg', 'cg_static' or 'als'.")
+
+    y, grad, itn, residualnorm = cg(X, Y, Z,
                                         data,
                                         y, -res,
                                         m, n, p, R,
-                                        damp, method_maxiter, inner_tol)
-    else:
-        sys.exit('Wrong method parameter specification.')
+                                        damp, cg_maxiter, cg_tol)
 
     return y, grad, itn, residualnorm
 

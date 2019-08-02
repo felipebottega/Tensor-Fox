@@ -95,11 +95,11 @@ def infotens(T):
     class options:
         display = 3
 
-    options = aux.complete_options(options)
+    options = aux.make_options(options)
     print('Computing multilinear rank...')
     print('------------------------------------')
     S, U, UT, sigmas, rel_error = cmpr.mlsvd(T, Tsize, R_gen, options)
-    print('Estimated multirank(T) =', S.shape)
+    print('multirank(T) =', S.shape)
     print('|T - (U_1, ..., U_' + str(L) + ')*S|/|T| =', rel_error)
     print()
     
@@ -331,7 +331,12 @@ def test_tensors(tensors_list, options_list, trials, display):
         maxiter = output.options.maxiter
         tol = output.options.tol
         init = output.options.initialization
-        temp1 = output.options.method_parameters
+        if output.options.method == 'cg':
+            temp1 = [output.options.method, output.options.cg_factor, output.options.cg_tol]
+        elif output.options.method == 'cg_static':
+            temp1 = [output.options.method, output.options.cg_maxiter, output.options.cg_tol]
+        elif output.options.method == 'als':
+            temp1 = [output.options.method, '', '']
         if T.ndim > 3:
             temp2 = output.options.bicpd_method_parameters
         else:
@@ -426,4 +431,16 @@ def make_plots(names,
     plt.ylabel('Seconds (average)')
     plt.show()
     
+    return
+
+
+def show_options(output):
+    """ This function display all parameter options used. """
+
+    members_names = [attr for attr in dir(output.options) if not attr.startswith("__")]
+    members = [getattr(output.options, attr) for attr in dir(output.options) if not attr.startswith("__")]
+    L = len(members)
+    for m in range(L):
+        print(members_names[m], ':', members[m])
+
     return
