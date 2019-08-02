@@ -883,6 +883,7 @@ def foxit(T, R, options=False, bestof=1):
     for i in range(bestof):
         factors, T_approx, outputs = cpd(T, R, options)
         if outputs.rel_error < best_error:
+            best_error = outputs.rel_error
             best_factors = copy(factors)
             best_T_approx = copy(T_approx)
             best_outputs = cp.deepcopy(outputs)
