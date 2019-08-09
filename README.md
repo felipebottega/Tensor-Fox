@@ -30,7 +30,7 @@ In order to have everything working properly, all files of Tensor Fox must be in
     matplotlib
     numba
 
-Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead if installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. 
+Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. 
 
 That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
