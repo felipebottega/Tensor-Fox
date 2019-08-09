@@ -239,11 +239,12 @@ def dGN(T, X, Y, Z, R, options):
             if gradients[it] < tol_grad:
                 stop = 3
                 break
-            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than
-            # 10*tol, then we stop iterating. We don't want to waste time computing with 'almost negligible'
-            # improvements for long time.
-            if it > const and it % const == 0:
-                if mean(np.abs(errors[it - const:it] - errors[it - const - 1:it - 1])) < 10 * tol_improv:
+            # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
+            # program to continue iterating when the error starts to oscillate.
+            if it > 2*const and it % const == 0:
+                mean1 = mean(errors[it - 2*const: it - const])
+                mean2 = mean(errors[it-const: it])
+                if mean1 - mean2 <= tol_improv:
                     stop = 4
                     break
             # Prevent blow ups.
