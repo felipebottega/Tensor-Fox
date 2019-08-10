@@ -297,7 +297,7 @@ def make_options(options):
             self.refine = False
             self.symm = False
             self.constraints = [0, 0, 0]
-            self.constant_norm = 0
+            self.factors_norm = 0
             self.trials = 10
             self.display = 0
             self.epochs = 1
@@ -357,8 +357,8 @@ def make_options(options):
         temp_options.constraints[1] = options.upp
     if 'factor' in dir(options):
         temp_options.constraints[2] = options.factor
-    if 'constant_norm' in dir(options):
-        temp_options.constant_norm = options.constant_norm
+    if 'factors_norm' in dir(options):
+        temp_options.factors_norm = options.factors_norm
     if 'trials' in dir(options):
         temp_options.trials = options.trials
     if 'display' in dir(options):

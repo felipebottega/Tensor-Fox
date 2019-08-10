@@ -57,7 +57,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
     # Extract all variable from the class of options.
     initialization = options.initialization
     low, upp, factor = options.constraints
-    c = options.constant_norm
+    c = options.factors_norm
     symm = options.symm
     display = options.display
 

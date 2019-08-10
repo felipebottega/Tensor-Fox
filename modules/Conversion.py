@@ -5,7 +5,7 @@
 """
 
 # Python modules
-from numpy import empty, array, zeros, prod, int64, dot, log, exp
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, copy
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
@@ -192,13 +192,17 @@ def equalize(factors, R):
 
 
 @njit(nogil=True)
-def transform(X, Y, Z, a, b, factor, symm, c):
+def transform(X, Y, Z, a, b, factor, symm, factors_norm):
     """
     Depending on the choice of the user, this function can project the entries of X, Y, Z in a given interval (this is 
     very useful with we have constraints at out disposal), it can make the corresponding tensor symmetric or
     non-negative. It is advisable to transform the tensor so that its entries have mean zero and variance 1, this way
     choosing low=-1 and upp=1 works the best way possible. We also remark that it is always better to choose low and upp
     such that low = -upp.
+    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the 
+    factors X, Y, Z.
+    The parameter factors_norm forces the factor matrices X, Y, Z to always have the same prescribed norm, which is the
+    value factors_norm.
     
     Inputs
     ------
@@ -209,7 +213,7 @@ def transform(X, Y, Z, a, b, factor, symm, c):
     r: int
     low, upp: float
     symm: bool
-    fix: float 2-D ndarray of shape (m, r)
+    factors_norm: float
         
     Outputs
     -------
@@ -231,10 +235,10 @@ def transform(X, Y, Z, a, b, factor, symm, c):
         Y = X
         Z = X
 
-    if c > 0:
-        X = c * (1/norm(X)) * X
-        Y = c * (1/norm(Y)) * Y
-        Z = c * (1/norm(Z)) * Z
+    if factors_norm > 0:
+        X = factors_norm * (1/norm(X)) * X
+        Y = factors_norm * (1/norm(Y)) * Y
+        Z = factors_norm * (1/norm(Z)) * Z
     
     return X, Y, Z
 
