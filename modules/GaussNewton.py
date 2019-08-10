@@ -9,7 +9,7 @@ method.
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot
 from numpy.linalg import norm
-from numpy.random import randint, randn
+from numpy.random import randint
 import sys
 from numba import njit, prange
 
@@ -239,13 +239,12 @@ def dGN(T, X, Y, Z, R, options):
             if gradients[it] < tol_grad:
                 stop = 3
                 break
-            # Let const=1+int(maxiter/10). If the average of the last const improvements difference is less than 
-            # 10*tol_improv, then we stop iterating. The idea is that we don't want to waste time computing with 
-            # 'almost negligible' improvements for too much time.
+            # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
+            # program to continue iterating when the error starts to oscillate.
             if it > 2*const and it % const == 0:
                 mean1 = mean(errors[it - 2*const: it - const])
                 mean2 = mean(errors[it-const: it])
-                if mean2 >= mean1 - tol_improv:
+                if mean1 - mean2 <= tol_improv:
                     stop = 4
                     break
             # Prevent blow ups.
