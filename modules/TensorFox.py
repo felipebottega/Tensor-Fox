@@ -139,6 +139,7 @@ def cpd(T, R, options=False):
     
     # Set options
     options = aux.make_options(options)
+    method = options.method
     display = options.display
     tol_mlsvd = options.tol_mlsvd
     if type(tol_mlsvd) == list:
@@ -148,17 +149,17 @@ def cpd(T, R, options=False):
             tol_mlsvd = tol_mlsvd[1]
                    
     # Test consistency of dimensions and rank.
-    aux.consistency(R, dims, options.symm)
+    aux.consistency(R, dims, options)
         
-    # Verify if T is a third order tensor.
+    # Verify if T is a third order tensor and the method is dGN or ALS.
     L = len(dims)
-    if L == 3:
+    if (L == 3 and method == 'dGN') or (L == 3 and method == 'als'):
         X, Y, Z, T_approx, output = tricpd(T, R, options)
         return [X, Y, Z], T_approx, output   
     
     # START COMPUTATIONS
     
-    if L > 3:
+    else:
 
         # COMPRESSION STAGE
 
@@ -239,7 +240,7 @@ def highcpd(T, R, options):
     """
     This function makes the calls in order to compute the tensor train of T and obtain the final CPD from it. It is 
     important to realize that this function is limited to tensor where each one of its factors is a full rank matrix. 
-    In particular, the rank r must be smaller than all dimensions of T.
+    In particular, the rank R must be smaller than all dimensions of T.
     """     
 
     # Create relevant values.
@@ -351,7 +352,7 @@ def tricpd(T, R, options):
     Tsize = norm(T)
                    
     # Test consistency of dimensions and rank.
-    aux.consistency(R, (m, n, p), symm)
+    aux.consistency(R, (m, n, p), options)
 
     # Change ordering of indexes to improve performance if possible.
     T, ordering = aux.sort_dims(T, m, n, p)
@@ -364,7 +365,7 @@ def tricpd(T, R, options):
         print('Computing MLSVD')
     
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
-    if display > 2:
+    if display > 2 or display < -1:
         S, U, UT, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
     else:
         S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R, options)
@@ -398,7 +399,7 @@ def tricpd(T, R, options):
     # GENERATION OF STARTING POINT STAGE
         
     # Generate initial to start dGN.
-    if display > 2:
+    if display > 2 or display < -1:
         X, Y, Z, rel_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
     else:  
         X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
@@ -442,6 +443,7 @@ def tricpd(T, R, options):
             T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
             rel_error = norm(T - T_approx)/Tsize
             print('    Initial guess relative error = {:5e}'.format(rel_error))
+
         if display > 0:
             print('-----------------------------------------------------------------------------------------------')
             print('Computing CPD')
@@ -515,7 +517,7 @@ def bicpd(T, R, fixed_factor, options):
     ordering = [0, 1, 2]
                            
     # Test consistency of dimensions and rank.
-    aux.consistency(R, (m, n, p), symm)
+    aux.consistency(R, (m, n, p), options)
     
     # COMPRESSION STAGE
     
@@ -524,7 +526,7 @@ def bicpd(T, R, fixed_factor, options):
         print('Computing MLSVD of T')
 
     # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
-    if display > 2:
+    if display > 2 or display < -1:
         S, U, UT, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
     else:
         S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R, options)
@@ -558,7 +560,7 @@ def bicpd(T, R, fixed_factor, options):
     # GENERATION OF STARTING POINT STAGE
         
     # Generate initial to start dGN.
-    if display > 2:
+    if display > 2 or display < -1:
         X, Y, Z, rel_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
     else:  
         X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)

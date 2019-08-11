@@ -123,7 +123,7 @@ def mlsvd(T, Tsize, R, options):
     S = mlinalg.multilin_mult(UT, T1, dims)
 
     # Compute error of compressed tensor.
-    if display > 2 or (L > 3 and display < -1):
+    if display > 2 or display < -1:
         S1 = cnv.unfold(S, 1, S.shape)
         best_error = aux.compute_error(T, Tsize, S1, U, S.shape)
         return S, U, UT, sigmas, best_error

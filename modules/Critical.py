@@ -2350,6 +2350,21 @@ def foldback12_order12(T, Tl, dims):
 
 
 @njit(nogil=True, parallel=True)
+def tt_error_order3(T, G0, G1, G2, dims, L):
+    a, b, c = dims
+    T_approx = empty(dims, dtype=float64)
+
+    for i0 in prange(a):
+        for i1 in range(b):
+            for i2 in range(c):
+                A = G0[i0, :]
+                B = dot(A, G1[:, i1, :])
+                T_approx[i0, i1, i2] = dot(B, G2[:, i2])
+
+    return T_approx
+
+
+@njit(nogil=True, parallel=True)
 def tt_error_order4(T, G0, G1, G2, G3, dims, L):
     a, b, c, d = dims
     T_approx = empty(dims, dtype = float64)

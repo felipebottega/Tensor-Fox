@@ -78,7 +78,7 @@ def als(T, X, Y, Z, R, options):
     symm = options.symm
     display = options.display
     low, upp, factor = options.constraints
-    c = options.constant_norm
+    factors_norm = options.factors_norm
 
     # Verify if some factor should be fixed or not. This only happens in the bicpd function.
     fix_mode = -1
@@ -147,7 +147,7 @@ def als(T, X, Y, Z, R, options):
         x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
                                      
         # Transform factors X, Y, Z.
-        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
+        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
         if fix_mode == 0:
             X = copy(X_orig)
         elif fix_mode == 1:
@@ -191,7 +191,7 @@ def als(T, X, Y, Z, R, options):
                       '| {:^11.2e}'.format(step_sizes[it]),
                       '| {:^11.2e}'.format(improv[it]),
                       '| {:^10.2e}'.format(gradients[it]))
-           
+
         # Stopping conditions.
         if it > 1:
             if errors[it] < tol:
@@ -206,11 +206,12 @@ def als(T, X, Y, Z, R, options):
             if gradients[it] < tol_grad:
                 stop = 3
                 break
-            # Let const=1 + int(maxiter/10). If the average of the last const error improvements is less than
-            # 10*tol, then we stop iterating. We don't want to waste time computing with 'almost negligible'
-            # improvements for long time.
-            if it > const and it % const == 0:
-                if mean(np.abs(errors[it - const:it] - errors[it - const - 1:it - 1])) < 10 * tol_improv:
+            # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
+            # program to continue iterating when the error starts to oscillate.
+            if it > 2 * const and it % const == 0:
+                mean1 = mean(errors[it - 2 * const: it - const])
+                mean2 = mean(errors[it - const: it])
+                if mean1 - mean2 <= tol_improv:
                     stop = 4
                     break
             # Prevent blow ups.

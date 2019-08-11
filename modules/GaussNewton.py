@@ -85,7 +85,7 @@ def dGN(T, X, Y, Z, R, options):
     display = options.display
     low, upp, factor = options.constraints
     factors_norm = options.factors_norm
-    method_info = [options.method, options.cg_maxiter, options.cg_factor, options.cg_tol]
+    inner_method_info = [options.inner_method, options.cg_maxiter, options.cg_factor, options.cg_tol]
 
     # Verify if some factor should be fixed or not. This only happens in the bi function.
     fix_mode = -1
@@ -93,17 +93,17 @@ def dGN(T, X, Y, Z, R, options):
         fix_mode = 0
         X_orig = copy(X[0])
         X = X[0]
-        method_info = options.bi_method_parameters
+        inner_method_info = options.bi_method_parameters
     elif type(Y) == list:
         fix_mode = 1
         Y_orig = copy(Y[0])
         Y = Y[0]
-        method_info = options.bi_method_parameters
+        inner_method_info = options.bi_method_parameters
     elif type(Z) == list:
         fix_mode = 2
         Z_orig = copy(Z[0])
         Z = Z[0]
-        method_info = options.bi_method_parameters
+        inner_method_info = options.bi_method_parameters
 
     # Set the other variables.
     m, n, p = T.shape
@@ -166,7 +166,7 @@ def dGN(T, X, Y, Z, R, options):
                                                   data,
                                                   y, res,
                                                   m, n, p, R,
-                                                  damp, method_info, it)
+                                                  damp, inner_method_info, it)
 
         # Update point obtained by the iteration.         
         x = x + y
@@ -262,19 +262,19 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, method_info, it):
+def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, inner_method_info, it):
     """    
-    This function uses the adequate method to compute the step based on the user choice.
+    This function uses the adequate inner method to compute the step based on the user choice.
     """
 
     # Parameters for the cg method of tri CPDs.
-    method, cg_maxiter, cg_factor, cg_tol = method_info
-    if method == 'cg':
+    inner_method, cg_maxiter, cg_factor, cg_tol = inner_method_info
+    if inner_method == 'cg':
         cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-    elif method == 'cg_static':
+    elif inner_method == 'cg_static':
         pass
     else:
-        sys.exit("Wrong method name. Must be 'cg', 'cg_static' or 'als'.")
+        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static'.")
 
     y, grad, itn, residualnorm = cg(X, Y, Z,
                                         data,

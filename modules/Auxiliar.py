@@ -20,7 +20,7 @@ import MultilinearAlgebra as mlinalg
 import TensorFox as tfx
 
 
-def consistency(R, dims, symm):
+def consistency(R, dims, options):
     """ 
     This function checks the validity of rank and dimensions before anything is done in the program. 
     """
@@ -52,18 +52,22 @@ def consistency(R, dims, symm):
         msg = 'Rank must be greater than 1 for tensor with order greater than 3.'
         sys.exit(msg)
 
-    if L > 3 and R > min(dims):
+    if options.method == 'ttcpd' and R > min(dims):
         warnings.warn('For tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
                       ' least one of the dimensions of the tensor. The ideal would to be smaller or equal than all' 
                       ' dimensions. In the case this condition is not met the computations can be slower and the'
                       ' program may not converge to a good solution.', category=Warning, stacklevel=3)
 
-    if symm:
+    if options.symm:
         for i in range(L):
             for j in range(L):
                 if dims[i] != dims[j]:
                     msg = 'Symmetric tensors must have equal dimensions.'
                     sys.exit(msg)
+
+    if options.method != 'dGN' and options.method != 'als' and options.method != 'ttcpd':
+        msg = "Wrong method name. Must be 'dGN', 'als' or 'ttcpd'."
+        sys.exit(msg)
         
     return
 
@@ -271,10 +275,10 @@ def make_options(options):
     This is the format read by the program.
 
     Some observations about the CG parameters:
-        - method is the method used to compute each iteration, the choices are 'cg', 'cg_static' and 'als'.
+        - inner_method is the name of the method used to compute each iteration, the choices are 'cg' or 'cg_static'.
         - cg_maxiter is the maximum number of iterations for 'cg_static'.
         - cg_factor is the multiplying factor cg_factor for 'cg'. 
-        - cg_tol is the tolerance error to stop the iterations of the method.
+        - cg_tol is the tolerance error to stop the iterations of the inner method.
     """
 
     # Initialize default options.
@@ -285,7 +289,8 @@ def make_options(options):
             self.tol_step = 1e-6
             self.tol_improv = 1e-6
             self.tol_grad = 1e-6
-            self.method = 'cg'
+            self.method = 'dGN'
+            self.inner_method = 'cg'
             self.cg_maxiter = 300
             self.cg_factor = 1
             self.cg_tol = 1e-6
@@ -315,9 +320,11 @@ def make_options(options):
         temp_options.tol_improv = options.tol_improv
     if 'tol_grad' in dir(options):
         temp_options.tol_grad = options.tol_grad
-        
     if 'method' in dir(options):
         temp_options.method = options.method
+        
+    if 'inner_method' in dir(options):
+        temp_options.inner_method = options.inner_method
     if 'cg_maxiter' in dir(options):
         temp_options.cg_maxiter = options.cg_maxiter
     if 'cg_factor' in dir(options):
@@ -394,6 +401,9 @@ def tt_error(T, G, dims, L):
     tensor associated to G.
     """
 
+    if L == 3:
+        G0, G1, G2 = G
+        T_approx = crt.tt_error_order3(T, G0, G1, G2, dims, L)
     if L == 4:
         G0, G1, G2, G3 = G
         T_approx = crt.tt_error_order4(T, G0, G1, G2, G3, dims, L)
@@ -495,16 +505,19 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
         
     if display < 0:
         print('CPD 1 error =', best_error)
-                
+
+    low = 2
+    upp = L - 2
+
     for epoch in range(epochs):
         
         if display < 0 < epoch:
             print()
             print('Epoch ', epoch+1)
-    
+
         # Following the tensor train from G[1] to G[L-2].
         if epoch % 2 == 0:
-            for l in range(2, L-1):
+            for l in range(low, L-1):
                 best_error = inf
                 fixed_X = pinv(best_Z.T)
                 for trial in range(max_trials):
@@ -528,7 +541,11 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
 
         # Following the tensor train backwards, from G[L-2] to G[L].
         else:
-            for l in reversed(range(1, L-2)):
+            # low and upp must be different for the third order case.
+            if L == 3:
+                low = 1
+                upp = L - 1
+            for l in reversed(range(1, upp)):
                 best_error = inf
                 fixed_Z = pinv(best_X.T)
                 for trial in range(max_trials):
