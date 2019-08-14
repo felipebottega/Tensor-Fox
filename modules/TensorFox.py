@@ -137,7 +137,7 @@ def cpd(T, R, options=False):
     Tsize = norm(T)
     T_orig = copy(T)
     
-    # Set options
+    # Set options.
     options = aux.make_options(options)
     method = options.method
     display = options.display
