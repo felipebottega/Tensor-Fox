@@ -51,7 +51,8 @@ def mlsvd(T, Tsize, R, options):
     dims = T.shape
     L = len(dims)
 
-    # Extract all variable from the class of options.
+    # Set options.
+    options = aux.make_options(options)
     trunc_dims = options.trunc_dims
     display = options.display
     tol_mlsvd = options.tol_mlsvd
