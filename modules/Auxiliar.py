@@ -6,7 +6,7 @@ user to use directly, but most of them are  just some piece of another (and more
 """ 
 
 # Python modules
-from numpy import zeros, prod, diag, dot, empty, float64, argsort, array, size, inf
+from numpy import prod, diag, dot, empty, float64, argsort, array, size, inf
 from numpy.linalg import norm, pinv
 import sys
 import warnings
@@ -282,7 +282,7 @@ def make_options(options):
             self.inner_method = 'cg'
             self.cg_maxiter = 300
             self.cg_factor = 1
-            self.cg_tol = 1e-6
+            self.cg_tol = 1e-12
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
             self.trunc_dims = 0
