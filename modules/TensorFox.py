@@ -591,7 +591,7 @@ def bicpd(T, R, fixed_factor, options):
             elif fixed_factor[1] == 2:
                 S_init = cnv.cpd2tens(S_init, [X, Y, Z[0]], (R1, R2, R3))
             S1_init = cnv.unfold(S_init, 1, (R1, R2, R3))
-            rel_error = aux.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
+            rel_error = mlinalg.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
             print('    Initial guess relative error = {:5e}'.format(rel_error))           
     
     # DAMPED GAUSS-NEWTON STAGE 

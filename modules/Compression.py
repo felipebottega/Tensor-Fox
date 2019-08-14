@@ -92,7 +92,7 @@ def mlsvd(T, Tsize, R, options):
         new_dims = [min(R, dims[l]) for l in range(L)]
         if display > 2 or display < -1:
             S1 = cnv.unfold(S, 1, new_dims)
-            best_error = aux.compute_error(T, Tsize, S1, U, new_dims)
+            best_error = mlinalg.compute_error(T, Tsize, S1, U, new_dims)
             return S, U, UT, sigmas, best_error
         else:
             return S, U, UT, sigmas
@@ -111,7 +111,7 @@ def mlsvd(T, Tsize, R, options):
         S = mlinalg.multilin_mult(best_UT, T1, dims)
         if display > 2 or display < -1:
             S1 = cnv.unfold(S, 1, trunc_dims)
-            best_error = aux.compute_error(T, Tsize, S1, best_U, trunc_dims)
+            best_error = mlinalg.compute_error(T, Tsize, S1, best_U, trunc_dims)
             return S, best_U, best_UT, sigmas, best_error
         else:
             return S, best_U, best_UT, sigmas
@@ -125,7 +125,7 @@ def mlsvd(T, Tsize, R, options):
     # Compute error of compressed tensor.
     if display > 2 or display < -1:
         S1 = cnv.unfold(S, 1, S.shape)
-        best_error = aux.compute_error(T, Tsize, S1, U, S.shape)
+        best_error = mlinalg.compute_error(T, Tsize, S1, U, S.shape)
         return S, U, UT, sigmas, best_error
 
     return S, U, UT, sigmas
@@ -225,7 +225,7 @@ def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_no
         
         # Error of truncation.
         S1 = cnv.unfold(S, 1, current_dims)
-        current_error = aux.compute_error(T, Tsize, S1, current_U, current_dims)
+        current_error = mlinalg.compute_error(T, Tsize, S1, current_U, current_dims)
         trunc_error.append(current_error)
 
         # Display results.

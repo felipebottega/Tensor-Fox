@@ -18,6 +18,7 @@ import pandas as pd
 # Tensor Fox modules
 import Auxiliar as aux
 import Compression as cmpr
+import MultilinearAlgebra as mlinalg
 import TensorFox as tfx
 
 
@@ -135,7 +136,7 @@ def rank1_plot(X, Y, Z, m, n, R, k=0, num_rows=5, num_cols=5, greys=True, rgb=Fa
         If True, it will show all the RGB evolution of the slices. Default is rgb=False.
     """
 
-    sections = aux.rank1(X, Y, Z, m, n, R, k)
+    sections = mlinalg.rank1(X, Y, Z, m, n, R, k)
     r = 0
     count = 0
     
@@ -189,7 +190,7 @@ def rank_progress(X, Y, Z, m, n, R, k=0, greys=True, rgb=False):
     
     if greys:
         temp = zeros((m, n))
-        sections = aux.rank1(X, Y, Z, m, n, R, k)
+        sections = mlinalg.rank1(X, Y, Z, m, n, R, k)
         for r in range(R):
             temp = temp + sections[:, :, r]
             plt.imshow(temp, cmap='gray')
@@ -201,7 +202,7 @@ def rank_progress(X, Y, Z, m, n, R, k=0, greys=True, rgb=False):
         count = 0
         temp = zeros((m, n, 3))
         for color_choice in [0, 1, 2]:
-            sections = aux.rank1(X, Y, Z, m, n, R, color_choice)
+            sections = mlinalg.rank1(X, Y, Z, m, n, R, color_choice)
             for r in range(R):
                 temp[:, :, color_choice] = temp[:, :, color_choice] + sections[:, :, r]
                 plt.imshow(array(temp, dtype=uint8))
@@ -331,12 +332,12 @@ def test_tensors(tensors_list, options_list, trials, display):
         maxiter = output.options.maxiter
         tol = output.options.tol
         init = output.options.initialization
-        if output.options.method == 'cg':
-            temp1 = [output.options.method, output.options.cg_factor, output.options.cg_tol]
-        elif output.options.method == 'cg_static':
-            temp1 = [output.options.method, output.options.cg_maxiter, output.options.cg_tol]
-        elif output.options.method == 'als':
-            temp1 = [output.options.method, '', '']
+        if output.options.inner_method == 'cg':
+            temp1 = [output.options.inner_method, output.options.cg_factor, output.options.cg_tol]
+        elif output.options.inner_method == 'cg_static':
+            temp1 = [output.options.inner_method, output.options.cg_maxiter, output.options.cg_tol]
+        elif output.options.inner_method == 'als':
+            temp1 = [output.options.inner_method, '', '']
         if T.ndim > 3:
             temp2 = output.options.bicpd_method_parameters
         else:

@@ -17,6 +17,7 @@ from numba import jit, njit
 # Tensor Fox modules
 import Auxiliar as aux
 import Conversion as cnv
+import MultilinearAlgebra as mlinalg
 
 
 def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
@@ -98,7 +99,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
         S_init = empty((R1, R2, R3), dtype=float64)
         S_init = cnv.cpd2tens(S_init, [X, Y, Z], (R1, R2, R3))
         S1_init = cnv.unfold(S_init, 1, (R1, R2, R3))
-        rel_error = aux.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
+        rel_error = mlinalg.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
         return X, Y, Z, rel_error
 
     return X, Y, Z

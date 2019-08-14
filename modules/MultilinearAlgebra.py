@@ -6,8 +6,11 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, zeros, empty, float64, array, sort, ceil, prod
-from numpy.linalg import norm
+from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt
+from numpy.linalg import norm, svd
+import numpy.matlib
+import scipy as scp
+from itertools import permutations
 from numba import njit, prange
 
 # Tensor Fox modules
@@ -144,13 +147,268 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
 
 
 @njit(nogil=True, parallel=True)
-def hadamard(A, B, M, R):
+def hadamard(A, B, M):
     """
     Computes M = A * B, where * is the Hadamard product. Since all Hadamard products in this context are between R x R
     matrices, we assume this without verifications.
     """
+
+    R = A.shape[0]
     
     for r in prange(R):
         M[r, :] = A[r, :]*B[r, :]
 
-    return M 
+    return M
+
+
+def cond(factors):
+    """
+    Computes the geometric condition number of 'factors', where factors is a list with the factor matrices of some CPD.
+    Warning: this function requires a lot of memory.
+
+    References
+    ----------
+    P. Breiding and N. Vannieuwenhoven, "A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
+    Problem", arXiv:1709.00033v2 (2018).
+    P. Breiding and N. Vannieuwenhoven, "The Condition Number of Join Decompositions", arXiv:1611.08117v3 (2018).
+    """
+
+    def trd_jacobian(A):
+        """
+        Computes the derivative of the map S^r -> s_r(S).
+        """
+
+        L = len(A)
+        dims = array([A[i].shape[0] for i in range(L)])
+        N = 1 + np.sum(dims - 1)
+        r = A[0].shape[1]
+        Pi = np.prod(dims)
+        Sigma = 1 + np.sum(dims - 1)
+
+        idxSet = zeros((L - 1, r))
+        for k in range(1, L):
+            idxSet[k - 1, :] = argmax(np.abs(A[k]), 0)
+
+        J = zeros((Pi, r * Sigma))
+        off = 0
+        for i in range(r):
+            F = [np.matlib.repmat(scp.linalg.orth(A[j][:, i].reshape(A[j].shape[0], 1)), 1, dims[0]) for j in range(L)]
+            F[0] = identity(dims[0])
+            F_inverse = [F[i] for i in reversed(range(L))]
+            G = khatri_rao_factors(F_inverse)
+            J[:, off: off + dims[0]] = G
+            off = off + dims[0]
+
+            for k in range(1, L):
+                F = [np.matlib.repmat(scp.linalg.orth(A[j][:, i].reshape(A[j].shape[0], 1)), 1, dims[k] - 1) for j in
+                     range(L)]
+                I = identity(dims[k])
+                ri = int(idxSet[k - 1, i])
+                cols1 = [i for i in range(ri)]
+                cols2 = [i for i in range(ri + 1, dims[k])]
+                F[k] = I[:, cols1 + cols2]
+                F_inverse = [F[i] for i in reversed(range(L))]
+                G = khatri_rao_factors(F_inverse)
+                J[:, off: off + dims[k] - 1] = G
+                off = off + dims[k] - 1
+
+            u, s, vt = svd(J[:, off - N + 1:off], full_matrices=False)
+            J[:, off - N + 1:off] = u
+
+        return J
+
+    L = len(factors)
+    dims = array([factors[l].shape[0] for l in range(L)])
+    R = factors[0].shape[1]
+
+    # Verify if current rank is bigger than the generic rank of the space.
+    P = prod(dims)
+    S = R * (1 + np.sum(dims - 1))
+    if P < S:
+        J = []
+        cN = inf
+        return cN, J
+
+    J = trd_jacobian(factors)
+    u, s, vt = svd(J, full_matrices=False)
+    cN = s[-1] ** (-1)
+
+    return cN, J
+
+
+def khatri_rao_factors(factors):
+    """
+    Computes the Khatri-Rao products between  the factor matrices.
+    """
+
+    L = len(factors)
+    A = factors[0]
+    for l in range(1, L):
+        m, R = factors[l].shape
+        B = zeros((m * A.shape[0], R))
+        B = khatri_rao(A, factors[l], B);
+        A = B
+
+    return B
+
+
+def compute_error(T, Tsize, S1, U, dims):
+    """
+    Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
+    """
+
+    T_compress = multilin_mult(U, S1, dims)
+    error = norm(T - T_compress)/Tsize
+    return error
+
+
+def rank1_terms_list(factors):
+    """
+    Compute each rank 1 term, as a multidimensional array, of the CPD. Let T be the corresponding the tensor, in
+    coordinates, of thr CPD given by factors, and let rank1_terms = [T_1, T_2, ..., T_R] be the output of this function.
+    Then we have that T_1 + T_2 + ... + T_R = T.
+
+    Inputs
+    ------
+    factors: list of float 2-D ndarrays with shape (dims[i], R) each
+        The CPD factors of some tensor.
+
+    Outputs
+    -------
+    rank1_terms: list of float ndarrays
+        Each tensor rank1_terms[r] is the r-th rank-1 term of the given CPD.
+    """
+
+    R = factors[0].shape[1]
+    L = len(factors)
+    dims = [factors[l].shape[0] for l in range(L)]
+    rank1_terms = []
+
+    for r in range(R):
+        vectors = []
+        T_approx = zeros(dims, dtype=float64)
+        for l in range(L):
+            # vectors[l] = [w_r^(1),w_r^(2),...,w_r^(L)], which represents w_r^(1) ⊗ w_r^(2) ⊗ ... ⊗ w_r^(L).
+            v = factors[l][:, r]
+            vectors.append(v.reshape(v.size, 1))
+        term = cnv.cpd2tens(T_approx, vectors, dims)
+        rank1_terms.append(term)
+
+    return rank1_terms
+
+
+@njit(nogil=True, parallel=True)
+def rank1(X, Y, Z, m, n, R, k):
+    """
+    Computes the k-th slice of each rank 1 term of the CPD given by X, Y, Z.  By doing this for all R terms we have a
+    tensor with R slices, each one representing a rank-1 term of the original CPD.
+
+    Inputs
+    ------
+    X, Y, Z: 2-D float ndarray
+        The CPD factors of some tensor.
+    m, n, p, R: int
+    k: int
+        Slice we want to compute.
+
+    Outputs
+    -------
+    rank1_slices: 3-D float ndarray
+        Each matrix rank1_slices[:, :, l] is the k-th slice associated with the l-th factor in the CPD of some tensor.
+    """
+
+    # Each frontal slice of rank1_slices is the coordinate representation of a
+    # rank one term of the CPD given by (X,Y,Z)*Lambda.
+    rank1_slices = zeros((m, n, R), dtype=float64)
+
+    for r in prange(R):
+        for i in range(m):
+            for j in range(n):
+                rank1_slices[i, j, r] = X[i, r] * Y[j, r] * Z[k, r]
+
+    return rank1_slices
+
+
+def forward_error(orig_factors, approx_factors, trials=1000, random=True):
+    """
+    Let T = T_1 + T_2 + ... + T_R be the decomposition of T as sum of rank-1 terms and let
+    T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly
+    T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely
+    without changing the tensor. While |T - T_approx| is the backward error of the CPD computation problem, we have that
+    min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
+    is an element of the permutation group S_R.
+
+    Given the rank R, this function may try all R! possible permutations, but this can be computationally unfeasible.
+    Use the parameter 'trials' to give a limit of trials before stopping testing permutation. Additionally, you can set
+    the parameter 'random' to True, then the function loops over random permutations. This approach may be best when R
+    is big, since the deterministic approach keep the first rank-1 terms fixed for a long time.
+    We remark that the forward error is always equal or greater than the backward error.
+
+    Inputs
+    ------
+    orig_factors: list of ndarrays
+        The elements of the list are the factor matrices of the original tensor.
+    approx_factors: list of ndarrays
+        The elements of the list are the factor matrices of the approximated tensor.
+    trials: int
+        Number of of trials before stopping testing permutation. Default is 1000.
+    random: bool
+        If True, the function makes the loops over random permutation of the rank-1 terms. Otherwise it follows a
+        deterministic approach. Default is True.
+
+    Outputs
+    -------
+    best_error: float
+        Relative error of the best permutation found.
+    best_rank1_terms: list
+        List with the rank-1 terms in the best ordering found.
+    best_s: list
+        The indexes of the best permutation found.
+    """
+
+    R = orig_factors[0].shape[1]
+    best_error = inf
+    orig_rank1 = rank1_terms_list(orig_factors)
+    approx_rank1 = rank1_terms_list(approx_factors)
+
+    # Norm of the original set of rank-1 terms.
+    orig_rank1_size = 0
+    for r in range(R):
+        orig_rank1_size += norm(orig_rank1[r])**2
+    orig_rank1_size = sqrt(orig_rank1_size)
+
+    # Start the search for the best rank-1 permutation.
+    if random:
+        for i in range(trials):
+            s = list(np.random.permutation(range(R)))
+            f_error = 0
+            for r in range(R):
+                f_error += norm(orig_rank1[r] - approx_rank1[s[r]]) ** 2
+            f_error = sqrt(f_error)
+            if f_error < best_error:
+                best_error = f_error
+                best_s = s.copy()
+
+    else:
+        i = 0
+        S = permutations(range(R))
+        for s in S:
+            s = list(s)
+            f_error = 0
+            for r in range(R):
+                f_error += norm( orig_rank1[r] - approx_rank1[s[r]] )**2
+            f_error = sqrt(f_error)
+            if f_error < best_error:
+                best_error = f_error
+                best_s = s.copy()
+
+            # Verify if maximum of attemps is reached.
+            i += 1
+            if i > trials:
+                break
+
+    # Rearrange approx_factors with the best permutation found.
+    best_rank1_terms = [approx_rank1[best_s[r]] for r in range(R)]
+
+    return best_error/orig_rank1_size, best_rank1_terms, best_s
+

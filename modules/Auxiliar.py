@@ -12,11 +12,10 @@ import sys
 import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
-from numba import njit, prange
+from numba import njit
 
 # Tensor Fox modules
 import Critical as crt
-import MultilinearAlgebra as mlinalg
 import TensorFox as tfx
 
 
@@ -53,9 +52,9 @@ def consistency(R, dims, options):
         sys.exit(msg)
 
     if options.method == 'ttcpd' and R > min(dims):
-        warnings.warn('For tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
-                      ' least one of the dimensions of the tensor. The ideal would to be smaller or equal than all' 
-                      ' dimensions. In the case this condition is not met the computations can be slower and the'
+        warnings.warn('\nFor tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
+                      ' least one of the dimensions of the tensor.\nThe ideal would to be smaller or equal than all' 
+                      ' dimensions.\nIn the case this condition is not met the computations can be slower and the'
                       ' program may not converge to a good solution.', category=Warning, stacklevel=3)
 
     if options.symm:
@@ -163,16 +162,6 @@ def unsort_dims(X, Y, Z, ordering):
         return Z, Y, X
 
 
-def compute_error(T, Tsize, S1, U, dims):
-    """
-    Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
-    """
-
-    T_compress = mlinalg.multilin_mult(U, S1, dims)
-    error = norm(T - T_compress)/Tsize 
-    return error
-
-
 def output_info(T_orig, Tsize, T_approx, 
                 step_sizes_main, step_sizes_refine, 
                 errors_main, errors_refine, 
@@ -217,7 +206,7 @@ def output_info(T_orig, Tsize, T_approx,
             if self.stop[0] == 3:
                 print('3 - Gradient is small enough.')
             if self.stop[0] == 4:
-                print('4 - Average of the last k = 1 + int(maxiter/10) relative errors is small enough.')
+                print('4 - Average of relative errors increased.')
             if self.stop[0] == 5:
                 print('5 - Limit of iterations was reached.')
             if self.stop[0] == 6:
@@ -235,7 +224,7 @@ def output_info(T_orig, Tsize, T_approx,
             if self.stop[1] == 3:
                 print('3 - Gradient is small enough.')
             if self.stop[1] == 4:
-                print('4 - Average of the last k = 1 + int(maxiter/10) relative errors is small enough.')
+                print('4 - Average of relative errors increased.')
             if self.stop[1] == 5:
                 print('5 - Limit of iterations was reached.')
             if self.stop[1] == 6:
@@ -434,39 +423,6 @@ def tt_error(T, G, dims, L):
 
     error = norm(T - T_approx)/norm(T)
     return error
-
-
-@njit(nogil=True, parallel=True)
-def rank1(X, Y, Z, m, n, R, k):
-    """
-    Compute each rank 1 term of the CPD given by X, Y, Z. Them this function converts these factors into a matrix, which 
-    is the first frontal slice of the tensor in coordinates obtained by this rank 1 term. By doing this for all R terms,
-    we have a tensor with R slices, each one representing a rank-1 term of the original CPD.
-
-    Inputs
-    ------
-    X, Y, Z: 2-D float ndarray
-        The CPD factors of some tensor.
-    m, n, p, R: int
-    k: int
-        Slice we want to compute.
-
-    Outputs
-    -------
-    rank1_sections: 3-D float ndarray
-        Each matrix rank1_slices[:, :, l] is the k-th slices associated with the l-th factor in the CPD of some tensor.
-    """
-    
-    # Each frontal slice of rank1_slices is the coordinate representation of a
-    # rank one term of the CPD given by (X,Y,Z)*Lambda.
-    rank1_slices = zeros((m, n, R), dtype=float64)
-
-    for r in prange(R):
-        for i in range(m):
-            for j in range(n):
-                rank1_slices[i, j, r] = X[i, r]*Y[j, r]*Z[k, r]
-                        
-    return rank1_slices
 
 
 def cpd_cores(G, max_trials, epochs, R, display, options):

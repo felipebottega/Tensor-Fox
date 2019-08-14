@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot
+from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, hstack
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
@@ -118,7 +118,6 @@ def dGN(T, X, Y, Z, R, options):
 
     x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
     y = zeros(R * (m + n + p), dtype=float64)
-    res = empty(m * n * p, dtype=float64)
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
     improv = empty(maxiter)
@@ -128,6 +127,11 @@ def dGN(T, X, Y, Z, R, options):
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(m, n, p, R)
+
+    # Compute unfoldings.
+    T1 = cnv.unfold(T, 1, (m, n, p))
+    T2 = cnv.unfold(T, 2, (m, n, p))
+    T3 = cnv.unfold(T, 3, (m, n, p))
 
     if display > 1:
         if display == 4:
@@ -152,9 +156,6 @@ def dGN(T, X, Y, Z, R, options):
             # START GAUSS-NEWTON ITERATIONS
 
     for it in range(maxiter):
-        # Update all residuals at x. 
-        res = residual(res, T, T_approx, m, n, p)
-
         # Keep the previous value of x and error to compare with the new ones in the next iteration.
         old_x = x
         old_error = error
@@ -162,9 +163,8 @@ def dGN(T, X, Y, Z, R, options):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
-        y, grad, itn, residualnorm = compute_step(X, Y, Z,
-                                                  data,
-                                                  y, res,
+        y, grad, itn, residualnorm = compute_step(T1, T2, T3, X, Y, Z,
+                                                  data, y,
                                                   m, n, p, R,
                                                   damp, inner_method_info, it)
 
@@ -262,7 +262,49 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, inner_method_info, it):
+def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ):
+    """
+    This function computes the gradient of the error function at (X, Y, Z).
+    """
+
+    # Initialize first variables.
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    R = X.shape[1]
+
+    # X part.
+    NX = mlinalg.khatri_rao(Z, Y, NX)
+    dot(Y.T, Y, out=AX)
+    dot(Z.T, Z, out=BX)
+    HX = mlinalg.hadamard(AX, BX, HX)
+    dot(X, HX, out=CX)
+    dot(T1, NX, out=DX)
+    gX = CX - DX
+    ggX = gX.T.reshape(m*R,)
+
+    # Y part.
+    NY = mlinalg.khatri_rao(Z, X, NY)
+    dot(X.T, X, out=AY)
+    dot(Z.T, Z, out=BY)
+    HY = mlinalg.hadamard(AY, BY, HY)
+    dot(Y, HY, out=CY)
+    dot(T2, NY, out=DY)
+    gY = CY - DY
+    ggY = gY.T.reshape(n*R,)
+
+    # Z part.
+    NZ = mlinalg.khatri_rao(Y, X, NZ)
+    dot(X.T, X, out=AZ)
+    dot(Y.T, Y, out=BZ)
+    HZ = mlinalg.hadamard(AZ, BZ, HZ)
+    dot(Z, HZ, out=CZ)
+    dot(T3, NZ, out=DZ)
+    gZ = CZ - DZ
+    ggZ = gZ.T.reshape(p*R,)
+
+    return -concatenate((ggX, ggY, ggZ))
+
+
+def compute_step(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, inner_method_info, it):
     """    
     This function uses the adequate inner method to compute the step based on the user choice.
     """
@@ -276,49 +318,12 @@ def compute_step(X, Y, Z, data, y, res, m, n, p, R, damp, inner_method_info, it)
     else:
         sys.exit("Wrong inner method name. Must be 'cg', 'cg_static'.")
 
-    y, grad, itn, residualnorm = cg(X, Y, Z,
-                                        data,
-                                        y, -res,
+    y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z,
+                                        data, y,
                                         m, n, p, R,
                                         damp, cg_maxiter, cg_tol)
 
     return y, grad, itn, residualnorm
-
-
-@njit(nogil=True, parallel=True)
-def residual(res, T, T_approx, m, n, p):
-    """
-    This function computes (updates) the residuals between a 3-D tensor T in R^m⊗R^n⊗R^p and an approximation T_approx
-    of rank r. The tensor T_approx is of the form T_approx = X_1⊗Y_1⊗Z_1 + ... + X_r⊗Y_r⊗Z_r, where
-    X = [X_1, ..., X_r],
-    Y = [Y_1, ..., Y_r],
-    Z = [Z_1, ..., Z_r].
-    
-    The 'residual map' is a map res:R^{r+r(m+n+p)}->R^{m*n*p}. For each i,j,k=0...n, the residual r_{i,j,k} is given by 
-    res_{i,j,k} = T_{i,j,k} - sum_{l=1}^r X_{il}*Y_{jl}*Z_{kl}.
-    
-    Inputs
-    ------
-    res: float 1-D ndarray with m*n*p entries 
-        Each entry is a residual.
-    T: float 3-D ndarray
-    T_approx: float 3-D ndarray
-        T_aux is the current tensor obtained by the iteration of dGN. 
-    m,n,p: int
-    
-    Outputs
-    -------
-    res: float 1-D ndarray with m*n*p entries 
-        Each entry is a residual.
-    """
-
-    for j in prange(n):
-        for k in range(p):
-            for i in range(m):
-                s = n * p * i + p * j + k
-                res[s] = T[i, j, k] - T_approx[i, j, k]
-
-    return res
 
 
 def update_damp(damp, old_error, error, residualnorm):
@@ -336,7 +341,7 @@ def update_damp(damp, old_error, error, residualnorm):
     return damp
 
 
-def cg(X, Y, Z, data, y, b, m, n, p, R, damp, maxiter, tol):
+def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
@@ -358,7 +363,8 @@ def cg(X, Y, Z, data, y, b, m, n, p, R, damp, maxiter, tol):
         B_XYt_v, B_XZt_v, B_YZt_v, \
         X_norms, Y_norms, Z_norms, \
         gamma_X, gamma_Y, gamma_Z, Gamma, \
-        M, L, residual_cg, P, Q, z, N1, N2, NX, NY, NZ = data
+        M, L, residual_cg, P, Q, z, \
+        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
 
     # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
@@ -373,8 +379,8 @@ def cg(X, Y, Z, data, y, b, m, n, p, R, damp, maxiter, tol):
 
     y = 0 * y
 
-    # grad = Dres^T*res is the gradient of the error function E.
-    grad = rmatvec(b, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R)
+    # CG iterations.
+    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = norm(residual_cg)**2
@@ -415,8 +421,8 @@ def cg(X, Y, Z, data, y, b, m, n, p, R, damp, maxiter, tol):
         if residualnorm < tol:
             break
 
-            # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual
-            # norms from itn-const to itn.
+        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms
+        # from itn-const to itn.
         if itn >= 2 * const and itn % const == 0:
             if mean(residualnorm_list[itn - 2 * const:itn - const]) < mean(residualnorm_list[itn - const:itn]):
                 break
@@ -492,12 +498,26 @@ def prepare_data(m, n, p, R):
     Q = empty(R * (m + n + p), dtype=float64)
     z = empty(R * (m + n + p), dtype=float64)
 
-    # Arrays to be used in the rmatvec function.
-    N1 = empty((n, m, p), dtype=float64)
-    N2 = empty((m, n, p), dtype=float64)
-    NX = [empty((m, R), dtype=float64) for j in range(n)]
-    NY = [empty((n, R), dtype=float64) for i in range(m)]
-    NZ = [empty((R, p), dtype=float64) for i in range(m)]
+    # Arrays to be used in the compute_grad function.
+    NX = empty((n*p, R), dtype=float64)
+    NY = empty((m*p, R), dtype=float64)
+    NZ = empty((m*n, R), dtype=float64)
+    AX = empty((R, R), dtype=float64)
+    BX = empty((R, R), dtype=float64)
+    CX = empty((m, R), dtype=float64)
+    DX = empty((m, R), dtype=float64)
+    HX = empty((R, R), dtype=float64)
+    AY = empty((R, R), dtype=float64)
+    BY = empty((R, R), dtype=float64)
+    CY = empty((n, R), dtype=float64)
+    DY = empty((n, R), dtype=float64)
+    HY = empty((R, R), dtype=float64)
+    AZ = empty((R, R), dtype=float64)
+    BZ = empty((R, R), dtype=float64)
+    CZ = empty((p, R), dtype=float64)
+    DZ = empty((p, R), dtype=float64)
+    HZ = empty((R, R), dtype=float64)
+
 
     data = [Gr_X, Gr_Y, Gr_Z,
             Gr_XY, Gr_XZ, Gr_YZ,
@@ -513,7 +533,8 @@ def prepare_data(m, n, p, R):
             B_XYt_v, B_XZt_v, B_YZt_v,
             X_norms, Y_norms, Z_norms,
             gamma_X, gamma_Y, gamma_Z, Gamma,
-            M, L, residual_cg, P, Q, z, N1, N2, NX, NY, NZ]
+            M, L, residual_cg, P, Q, z,
+            NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ ,HZ]
 
     return data
 
@@ -528,9 +549,9 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     dot(X.T, X, out=Gr_X)
     dot(Y.T, Y, out=Gr_Y)
     dot(Z.T, Z, out=Gr_Z)
-    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY, R)
-    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ, R)
-    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ, R)
+    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY)
+    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ)
+    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ)
 
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
@@ -566,12 +587,12 @@ def matvec(X, Y, Z,
     dot(V_Zt, Z, out=V_Zt_dot_Z)
 
     # Compute the Hadamard products
-    Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y, R)
-    Gr_Y_V_Zt_dot_Z = mlinalg.hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z, R)
-    Gr_X_V_Zt_dot_Z = mlinalg.hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, R)
-    Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X, R)
-    Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X, R)
-    Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y, R)
+    Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y)
+    Gr_Y_V_Zt_dot_Z = mlinalg.hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z)
+    Gr_X_V_Zt_dot_Z = mlinalg.hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z)
+    Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X)
+    Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X)
+    Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y)
 
     # Compute the final products
     dot(X, Gr_Z_V_Yt_dot_Y, out=X_dot_Gr_Z_V_Yt_dot_Y)
@@ -598,45 +619,6 @@ def matvec(X, Y, Z,
     B_YZt_v = cnv.vec(Z_dot_Gr_X_V_Yt_dot_Y, B_YZt_v, p, R)
 
     return concatenate((B_X_v + B_XY_v + B_XZ_v, B_XYt_v + B_Y_v + B_YZ_v, B_XZt_v + B_YZt_v + B_Z_v))
-
-
-@njit(nogil=True, parallel=True)
-def rmatvec(u, X, Y, Z, N1, N2, NX, NY, NZ, m, n, p, R):
-    result = empty(R*(m+n+p), dtype=float64)
-    aux1 = zeros(m, dtype=float64)
-    aux2 = zeros(n, dtype=float64)
-    aux3 = zeros(p, dtype=float64)
-    
-    # Compute auxiliary matrices.
-    for i in prange(m):
-        for j in range(n):
-            v = u[(i*n + j)*p: (i*n + j + 1)*p]
-            N1[j, i, :] = v
-            N2[i, j, :] = v
-        dot(N2[i, :, :], Z, out=NY[i])
-        dot(Y.T, N2[i, :, :], out=NZ[i])
-        
-    for j in prange(n):
-        dot(N1[j, :, :], Z, out=NX[j])
-
-    # Compute resulting vector by blocks.
-    for r in prange(R):
-        # X piece
-        aux1 *= 0
-        for j in range(n):
-            aux1 += Y[j, r] * NX[j][:, r]
-        result[r*m: (r+1)*m ] = aux1
-
-        # Y and Z pieces
-        aux2 *= 0
-        aux3 *= 0
-        for i in range(m):
-            aux2 += X[i, r] * NY[i][:, r]
-            aux3 += X[i, r] * NZ[i][r, :]
-        result[R*m + r*n: R*m + (r+1)*n] = aux2
-        result[R*(m+n) + r*p: R*(m+n) + (r+1)*p] = aux3
-        
-    return -result
 
 
 @njit(nogil=True)
