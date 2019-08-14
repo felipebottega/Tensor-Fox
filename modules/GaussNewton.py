@@ -7,11 +7,11 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, hstack
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
-from numba import njit, prange
+from numba import njit
 
 # Tensor Fox modules
 import Conversion as cnv
@@ -76,6 +76,7 @@ def dGN(T, X, Y, Z, R, options):
 
     # Extract all variable from the class of options.
     init_damp = options.init_damp
+    num_damps = options.num_damps
     maxiter = options.maxiter
     tol = options.tol
     tol_step = options.tol_step
@@ -167,7 +168,8 @@ def dGN(T, X, Y, Z, R, options):
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
         T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
-                                                                               X_orig, Y_orig, Z_orig, data, x, y, damp,
+                                                                               X_orig, Y_orig, Z_orig, data, x, y,
+                                                                               init_damp, num_damps, damp,
                                                                                inner_method_info, low, upp, factor,
                                                                                symm, factors_norm, fix_mode, it)
 
@@ -248,8 +250,8 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, damp,
-                 inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
+def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y,
+                 init_damp, num_damps, damp, inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -260,33 +262,33 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     inner_method, cg_maxiter, cg_factor, cg_tol = inner_method_info
 
     # Call the inner method.
-    if inner_method == 'cg':
-        cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-    elif inner_method == 'cg_static':
-        pass
+    if inner_method == 'cg' or inner_method == 'cg_static':
+        if inner_method == 'cg':
+            cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
+
+        y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
+
+        # Update point obtained by the iteration.
+        x = x + y
+
+        # Compute factors X, Y, Z.
+        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
+        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
+        if fix_mode == 0:
+            X = copy(X_orig)
+        elif fix_mode == 1:
+            Y = copy(Y_orig)
+        elif fix_mode == 2:
+            Z = copy(Z_orig)
+
+        # Compute error.
+        T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
+        error = norm(T - T_approx) / Tsize
+
+        return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
+
     else:
         sys.exit("Wrong inner method name. Must be 'cg', 'cg_static'.")
-
-    y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
-
-    # Update point obtained by the iteration.
-    x = x + y
-
-    # Compute factors X, Y, Z.
-    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
-    X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
-    if fix_mode == 0:
-        X = copy(X_orig)
-    elif fix_mode == 1:
-        Y = copy(Y_orig)
-    elif fix_mode == 2:
-        Z = copy(Z_orig)
-
-    # Compute error.
-    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
-    error = norm(T - T_approx) / Tsize
-
-    return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
 
 
 def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
