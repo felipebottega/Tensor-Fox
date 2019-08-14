@@ -246,7 +246,7 @@ def khatri_rao_factors(factors):
     for l in range(1, L):
         m, R = factors[l].shape
         B = zeros((m * A.shape[0], R))
-        B = khatri_rao(A, factors[l], B);
+        B = khatri_rao(A, factors[l], B)
         A = B
 
     return B
@@ -254,7 +254,7 @@ def khatri_rao_factors(factors):
 
 def compute_error(T, Tsize, S1, U, dims):
     """
-    Compute relative error between T and (U_1,...,U_L)*S using multilinear multiplication, where S.shape == dims.
+    Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S.
     """
 
     T_compress = multilin_mult(U, S1, dims)
