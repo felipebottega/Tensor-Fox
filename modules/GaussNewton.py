@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot
+from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
@@ -76,7 +76,6 @@ def dGN(T, X, Y, Z, R, options):
 
     # Extract all variable from the class of options.
     init_damp = options.init_damp
-    num_damps = options.num_damps
     maxiter = options.maxiter
     tol = options.tol
     tol_step = options.tol_step
@@ -168,8 +167,7 @@ def dGN(T, X, Y, Z, R, options):
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
         T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
-                                                                               X_orig, Y_orig, Z_orig, data, x, y,
-                                                                               init_damp, num_damps, damp,
+                                                                               X_orig, Y_orig, Z_orig, data, x, y, damp,
                                                                                inner_method_info, low, upp, factor,
                                                                                symm, factors_norm, fix_mode, it)
 
@@ -251,7 +249,7 @@ def dGN(T, X, Y, Z, R, options):
 
 
 def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y,
-                 init_damp, num_damps, damp, inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
+                 damp, inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -503,7 +501,6 @@ def prepare_data(m, n, p, R):
     DZ = empty((p, R), dtype=float64)
     HZ = empty((R, R), dtype=float64)
 
-
     data = [Gr_X, Gr_Y, Gr_Z,
             Gr_XY, Gr_XZ, Gr_YZ,
             V_Xt, V_Yt, V_Zt,
@@ -519,7 +516,7 @@ def prepare_data(m, n, p, R):
             X_norms, Y_norms, Z_norms,
             gamma_X, gamma_Y, gamma_Z, Gamma,
             M, L, residual_cg, P, Q, z,
-            NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ ,HZ]
+            NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ]
 
     return data
 
@@ -545,7 +542,6 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
     """
 
-    R = X.shape[1]
     dot(X.T, X, out=Gr_X)
     dot(Y.T, Y, out=Gr_Y)
     dot(Z.T, Z, out=Gr_Z)

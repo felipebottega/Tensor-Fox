@@ -77,7 +77,7 @@ def tens2matlab(T, filename):
     """
     
     # Save the tensor in matlab format.
-    scipy.io.savemat(filename + '.mat', {filename:T})
+    scipy.io.savemat(filename + '.mat', {filename: T})
     
     return
 
