@@ -88,6 +88,9 @@ def dGN(T, X, Y, Z, R, options):
     inner_method_info = [options.inner_method, options.cg_maxiter, options.cg_factor, options.cg_tol]
 
     # Verify if some factor should be fixed or not. This only happens in the bi function.
+    X_orig = []
+    Y_orig = []
+    Z_orig = []
     fix_mode = -1
     if type(X) == list:
         fix_mode = 0
@@ -163,27 +166,10 @@ def dGN(T, X, Y, Z, R, options):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
-        y, grad, itn, residualnorm = compute_step(T1, T2, T3, X, Y, Z,
-                                                  data, y,
-                                                  m, n, p, R,
-                                                  damp, inner_method_info, it)
-
-        # Update point obtained by the iteration.         
-        x = x + y
-
-        # Compute factors X, Y, Z.
-        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
-        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
-        if fix_mode == 0:
-            X = copy(X_orig)
-        elif fix_mode == 1:
-            Y = copy(Y_orig)
-        elif fix_mode == 2:
-            Z = copy(Z_orig)
-
-        # Compute error. 
-        T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
-        error = norm(T - T_approx) / Tsize
+        T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
+                                                                               X_orig, Y_orig, Z_orig, data, x, y, damp,
+                                                                               inner_method_info, low, upp, factor,
+                                                                               symm, factors_norm, fix_mode, it)
 
         # Update best solution.
         if error < best_error:
@@ -262,55 +248,18 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ):
-    """
-    This function computes the gradient of the error function at (X, Y, Z).
+def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, damp,
+                 inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
+    """    
+    This function uses the chosen inner method to compute the next step.
     """
 
     # Initialize first variables.
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
     R = X.shape[1]
-
-    # X part.
-    NX = mlinalg.khatri_rao(Z, Y, NX)
-    dot(Y.T, Y, out=AX)
-    dot(Z.T, Z, out=BX)
-    HX = mlinalg.hadamard(AX, BX, HX)
-    dot(X, HX, out=CX)
-    dot(T1, NX, out=DX)
-    gX = CX - DX
-    ggX = gX.T.reshape(m*R,)
-
-    # Y part.
-    NY = mlinalg.khatri_rao(Z, X, NY)
-    dot(X.T, X, out=AY)
-    dot(Z.T, Z, out=BY)
-    HY = mlinalg.hadamard(AY, BY, HY)
-    dot(Y, HY, out=CY)
-    dot(T2, NY, out=DY)
-    gY = CY - DY
-    ggY = gY.T.reshape(n*R,)
-
-    # Z part.
-    NZ = mlinalg.khatri_rao(Y, X, NZ)
-    dot(X.T, X, out=AZ)
-    dot(Y.T, Y, out=BZ)
-    HZ = mlinalg.hadamard(AZ, BZ, HZ)
-    dot(Z, HZ, out=CZ)
-    dot(T3, NZ, out=DZ)
-    gZ = CZ - DZ
-    ggZ = gZ.T.reshape(p*R,)
-
-    return -concatenate((ggX, ggY, ggZ))
-
-
-def compute_step(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, inner_method_info, it):
-    """    
-    This function uses the adequate inner method to compute the step based on the user choice.
-    """
-
-    # Parameters for the cg method of tri CPDs.
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
     inner_method, cg_maxiter, cg_factor, cg_tol = inner_method_info
+
+    # Call the inner method.
     if inner_method == 'cg':
         cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
     elif inner_method == 'cg_static':
@@ -318,27 +267,26 @@ def compute_step(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, inner_method_in
     else:
         sys.exit("Wrong inner method name. Must be 'cg', 'cg_static'.")
 
-    y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z,
-                                        data, y,
-                                        m, n, p, R,
-                                        damp, cg_maxiter, cg_tol)
+    y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
 
-    return y, grad, itn, residualnorm
+    # Update point obtained by the iteration.
+    x = x + y
 
+    # Compute factors X, Y, Z.
+    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
+    X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
+    if fix_mode == 0:
+        X = copy(X_orig)
+    elif fix_mode == 1:
+        Y = copy(Y_orig)
+    elif fix_mode == 2:
+        Z = copy(Z_orig)
 
-def update_damp(damp, old_error, error, residualnorm):
-    """ 
-    Update rule of the damping parameter for the dGN function. 
-    """
+    # Compute error.
+    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
+    error = norm(T - T_approx) / Tsize
 
-    gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
-
-    if gain_ratio < 0.75:
-        damp = damp / 2
-    elif gain_ratio > 0.9:
-        damp = 1.5 * damp
-
-    return damp
+    return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
 
 
 def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
@@ -375,9 +323,8 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
                        gamma_X, gamma_Y, gamma_Z, Gamma,
                        m, n, p, R)
     M = precond(X, Y, Z, L, M, damp, m, n, p, R)
-    const = 2 + int(maxiter / 5)
 
-    y = 0 * y
+    y *= 0
 
     # CG iterations.
     grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
@@ -421,13 +368,49 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
         if residualnorm < tol:
             break
 
-        # Stop if the average residual norms from itn-2*const to itn-const is less than the average of residual norms
-        # from itn-const to itn.
-        if itn >= 2 * const and itn % const == 0:
-            if mean(residualnorm_list[itn - 2 * const:itn - const]) < mean(residualnorm_list[itn - const:itn]):
-                break
-
     return M * y, grad, itn + 1, residualnorm
+
+
+def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ):
+    """
+    This function computes the gradient of the error function at (X, Y, Z).
+    """
+
+    # Initialize first variables.
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    R = X.shape[1]
+
+    # X part.
+    NX = mlinalg.khatri_rao(Z, Y, NX)
+    dot(Y.T, Y, out=AX)
+    dot(Z.T, Z, out=BX)
+    HX = mlinalg.hadamard(AX, BX, HX)
+    dot(X, HX, out=CX)
+    dot(T1, NX, out=DX)
+    gX = CX - DX
+    ggX = gX.T.reshape(m*R,)
+
+    # Y part.
+    NY = mlinalg.khatri_rao(Z, X, NY)
+    dot(X.T, X, out=AY)
+    dot(Z.T, Z, out=BY)
+    HY = mlinalg.hadamard(AY, BY, HY)
+    dot(Y, HY, out=CY)
+    dot(T2, NY, out=DY)
+    gY = CY - DY
+    ggY = gY.T.reshape(n*R,)
+
+    # Z part.
+    NZ = mlinalg.khatri_rao(Y, X, NZ)
+    dot(X.T, X, out=AZ)
+    dot(Y.T, Y, out=BZ)
+    HZ = mlinalg.hadamard(AZ, BZ, HZ)
+    dot(Z, HZ, out=CZ)
+    dot(T3, NZ, out=DZ)
+    gZ = CZ - DZ
+    ggZ = gZ.T.reshape(p*R,)
+
+    return -concatenate((ggX, ggY, ggZ))
 
 
 def prepare_data(m, n, p, R):
@@ -537,6 +520,21 @@ def prepare_data(m, n, p, R):
             NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ ,HZ]
 
     return data
+
+
+def update_damp(damp, old_error, error, residualnorm):
+    """
+    Update rule of the damping parameter for the dGN function.
+    """
+
+    gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
+
+    if gain_ratio < 0.75:
+        damp = damp / 2
+    elif gain_ratio > 0.9:
+        damp = 1.5 * damp
+
+    return damp
 
 
 @njit(nogil=True)
