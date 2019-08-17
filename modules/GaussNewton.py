@@ -7,10 +7,12 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot
-from numpy.linalg import norm
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity
+from numpy.linalg import norm, lstsq
 from numpy.random import randint
+from scipy.linalg import solve
 import sys
+import warnings
 from numba import njit
 
 # Tensor Fox modules
@@ -85,7 +87,7 @@ def dGN(T, X, Y, Z, R, options):
     display = options.display
     low, upp, factor = options.constraints
     factors_norm = options.factors_norm
-    inner_method_info = [options.inner_method, options.cg_maxiter, options.cg_factor, options.cg_tol]
+    inner_method, cg_maxiter, cg_factor, cg_tol = [options.inner_method, options.cg_maxiter, options.cg_factor, options.cg_tol]
 
     # Verify if some factor should be fixed or not. This only happens in the bi function.
     X_orig = []
@@ -166,10 +168,9 @@ def dGN(T, X, Y, Z, R, options):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
+        inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
         T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
-                                                                               X_orig, Y_orig, Z_orig, data, x, y, damp,
-                                                                               inner_method_info, low, upp, factor,
-                                                                               symm, factors_norm, fix_mode, it)
+                                                                               X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it)
 
         # Update best solution.
         if error < best_error:
@@ -179,7 +180,7 @@ def dGN(T, X, Y, Z, R, options):
             best_Z = copy(Z)
 
         # Update damp. 
-        damp = update_damp(damp, old_error, error, residualnorm)
+        damp = update_damp(damp, old_error, error, residualnorm, inner_method)
 
         # Save relevant information about the current iteration.
         errors[it] = error
@@ -248,8 +249,7 @@ def dGN(T, X, Y, Z, R, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y,
-                 damp, inner_method_info, low, upp, factor, symm, factors_norm, fix_mode, it):
+def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -257,36 +257,145 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     # Initialize first variables.
     R = X.shape[1]
     m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-    inner_method, cg_maxiter, cg_factor, cg_tol = inner_method_info
+    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+    if type(inner_method) == list:
+        inner_method = inner_method[it]
 
     # Call the inner method.
     if inner_method == 'cg' or inner_method == 'cg_static':
         if inner_method == 'cg':
             cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-
         y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
 
-        # Update point obtained by the iteration.
-        x = x + y
+    elif inner_method == 'direct': 
+        y, grad, itn, residualnorm = direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
-        # Compute factors X, Y, Z.
-        X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
-        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
-        if fix_mode == 0:
-            X = copy(X_orig)
-        elif fix_mode == 1:
-            Y = copy(Y_orig)
-        elif fix_mode == 2:
-            Z = copy(Z_orig)
-
-        # Compute error.
-        T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
-        error = norm(T - T_approx) / Tsize
-
-        return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
+    elif inner_method == 'gd':
+        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
     else:
-        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static'.")
+        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'direct' or 'gd'.")
+
+    # Update results.
+    x = x + y
+
+    # Compute new factors X, Y, Z.
+    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
+    X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
+    if fix_mode == 0:
+        X = copy(X_orig)
+    elif fix_mode == 1:
+        Y = copy(Y_orig)
+    elif fix_mode == 2:
+        Z = copy(Z_orig)
+
+    # Compute error.
+    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
+    error = norm(T - T_approx) / Tsize
+
+    return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
+
+
+def direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
+    # Give names to the arrays.
+    Gr_X, Gr_Y, Gr_Z, \
+        Gr_XY, Gr_XZ, Gr_YZ, \
+        V_Xt, V_Yt, V_Zt, \
+        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+        X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+        Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+        B_X_v, B_Y_v, B_Z_v, \
+        B_XY_v, B_XZ_v, B_YZ_v, \
+        B_XYt_v, B_XZt_v, B_YZt_v, \
+        X_norms, Y_norms, Z_norms, \
+        gamma_X, gamma_Y, gamma_Z, Gamma, \
+        M, L, residual_cg, P, Q, z, \
+        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
+
+    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+
+    # Compute the values of all arrays.
+    R = X.shape[1]
+    m, n, p = T.shape
+    Jf = jacobian(X, Y, Z, m, n, p, R) 
+    H = hessian(Jf)
+    L = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
+    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+    
+    # Add regularization.
+    for i in range(R*(m+n+p)):
+        H[i, i] += damp*L[i]
+
+    # Solve system.
+    warnings.filterwarnings("ignore")
+    try:
+        y = solve(H, grad, sym_pos=True, check_finite=False)
+    except np.linalg.LinAlgError:
+        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
+
+    residualnorm = norm(dot(H, y) - grad)
+
+    return y, grad, '-', residualnorm
+
+
+def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
+    # Give names to the arrays.
+    Gr_X, Gr_Y, Gr_Z, \
+        Gr_XY, Gr_XZ, Gr_YZ, \
+        V_Xt, V_Yt, V_Zt, \
+        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
+        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
+        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
+        X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
+        Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
+        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
+        B_X_v, B_Y_v, B_Z_v, \
+        B_XY_v, B_XZ_v, B_YZ_v, \
+        B_XYt_v, B_XZt_v, B_YZt_v, \
+        X_norms, Y_norms, Z_norms, \
+        gamma_X, gamma_Y, gamma_Z, Gamma, \
+        M, L, residual_cg, P, Q, z, \
+        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
+
+    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+
+    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+
+    # Test some values of alpha and keep the best.
+    best_error = inf
+    m, n, p = T.shape
+    R = X.shape[1]
+    alphas = 2**linspace(-32, 1, 16)
+
+    for alpha in alphas:
+        # Update x.
+        temp_x = x - alpha*grad
+
+        # Compute new factors X, Y, Z.
+        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, X, Y, Z, m, n, p, R)
+        X, Y, Z = cnv.transform(temp_X, temp_Y, temp_Z, low, upp, factor, symm, factors_norm)
+        if fix_mode == 0:
+            temp_X = copy(X_orig)
+        elif fix_mode == 1:
+            temp_Y = copy(Y_orig)
+        elif fix_mode == 2:
+            temp_Z = copy(Z_orig)
+
+        # Compute error.
+        T_approx = cnv.cpd2tens(T_approx, [temp_X, temp_Y, temp_Z], (m, n, p))
+        error = norm(T - T_approx) / Tsize
+        
+        # Update best results.
+        if error < best_error:
+            best_error = error
+            best_y = - alpha*grad
+
+    residualnorm = best_error
+
+    return best_y, -grad, '-', residualnorm
 
 
 def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
@@ -327,7 +436,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     y *= 0
 
     # CG iterations.
-    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = norm(residual_cg)**2
@@ -337,6 +446,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
 
     for itn in range(maxiter):
         Q = M * P
+        
         z = matvec(X, Y, Z,
                    Gr_X, Gr_Y, Gr_Z,
                    Gr_XY, Gr_XZ, Gr_YZ,
@@ -363,7 +473,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
         residualnorm = residualnorm_new
         residualnorm_list.append(residualnorm)
         P = residual_cg + beta * P
-
+        
         # Stopping criteria.
         if residualnorm < tol:
             break
@@ -410,7 +520,7 @@ def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY
     gZ = CZ - DZ
     ggZ = gZ.T.reshape(p*R,)
 
-    return -concatenate((ggX, ggY, ggZ))
+    return concatenate((ggX, ggY, ggZ))
 
 
 def prepare_data(m, n, p, R):
@@ -521,10 +631,13 @@ def prepare_data(m, n, p, R):
     return data
 
 
-def update_damp(damp, old_error, error, residualnorm):
+def update_damp(damp, old_error, error, residualnorm, inner_method):
     """
     Update rule of the damping parameter for the dGN function.
     """
+
+    if inner_method == 'gd':
+        residualnorm = 1000
 
     gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
 
@@ -621,7 +734,7 @@ def matvec(X, Y, Z,
 def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R):
     """
     Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make 
-    Dres.transpose*Dres + Gamma diagonally dominant.
+    Jf^T * Jf + Gamma diagonally dominant.
     """
 
     for r in range(R):
@@ -664,3 +777,33 @@ def precond(X, Y, Z, L, M, damp, m, n, p, R):
 
     M = 1 / sqrt(M)
     return M
+
+
+@njit(nogil=True)
+def jacobian(X, Y, Z, m, n, p, r):
+    """
+    This function computes the Jacobian matrix Jf of the residual function. This is a dense mnp x r(m+n+p) matrix.
+    """
+
+    Jf = zeros((m*n*p, r*(m+n+p)))
+    s = 0
+    
+    for i in range(m):
+        for j in range(n):
+            for k in range(p):
+                for l in range(r):
+                    Jf[s, l*m + i] = -Y[j,l]*Z[k,l]
+                    Jf[s, r*m + l*n + j] = -X[i,l]*Z[k,l]
+                    Jf[s, r*(m+n) + l*p + k] = -X[i,l]*Y[j,l]
+                s += 1
+                        
+    return Jf
+
+
+def hessian(Jf):
+    """
+    Approximate Hessian matrix of the error function.
+    """
+
+    H = dot(Jf.T, Jf)
+    return H
