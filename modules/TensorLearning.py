@@ -727,7 +727,7 @@ def W2tens(W):
         Tk = tfx.cnv.cpd2tens(Tk, factors, dims)
         T_list.append(Tk)
 
-    return
+    return T_list
 
 
 def cpd_W(T_list, r, options=False):
@@ -807,9 +807,10 @@ def create_sets(X, Y, display=True):
     for i in range(num_classes):
         c = samples_per_class[i]
         diff = max_class - c
-        for j in range(diff):
-            idx = np.random.randint(c)
-            inputs[i].append(inputs[i][idx])
+        if max_class - c < 1:
+            for j in range(diff):
+                idx = np.random.randint(c)
+                inputs[i].append(inputs[i][idx])
 
     if display:
         print()
@@ -844,13 +845,13 @@ def data2tens(X, Y, display=True):
 
     # Create list with inputs organized by class.
     inputs = create_sets(X, Y, display=display)
-    num_samples = len(inputs[0])
+    num_inputs = len(inputs[0])
     input_size = inputs[0][0].size
     num_classes = len(inputs)
 
     # Create tensor.
-    T = np.zeros((num_samples, input_size, num_classes))
-    for i in range(num_samples):
+    T = np.zeros((num_inputs, input_size, num_classes))
+    for i in range(num_inputs):
         for k in range(num_classes):
             T[i, :, k] = np.array(inputs[k][i])
 
@@ -894,15 +895,16 @@ def mlsvd_train(T, r, options=False):
     num_samples, num_classes = m, p
 
     # Set options
-    options = tfx.aux.complete_options(options)
+    options = tfx.aux.make_options(options)
 
     Tsize = np.linalg.norm(T)
     if options.display == 3:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop, rel_error = \
-            tfx.cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas, rel_error = tfx.cmpr.mlsvd(T, Tsize, r, options)       
     else:
-        S, best_energy, R1, R2, R3, U1, U2, U3, sigma1, sigma2, sigma3, mlsvd_stop = \
-            tfx.cmpr.mlsvd(T, Tsize, r, options)
+        S, U, UT, sigmas = tfx.cmpr.mlsvd(T, Tsize, r, options)
+
+    R1, R2, R3 = S.shape
+    U1, U2, U3 = U
 
     # Sometimes the MLSVD may truncate the last dimension p. We have to repeat the training in this case.
     if R3 != num_classes:
