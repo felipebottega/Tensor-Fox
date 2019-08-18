@@ -336,8 +336,12 @@ def test_tensors(tensors_list, options_list, trials, display):
             temp1 = [output.options.inner_method, output.options.cg_factor, output.options.cg_tol]
         elif output.options.inner_method == 'cg_static':
             temp1 = [output.options.inner_method, output.options.cg_maxiter, output.options.cg_tol]
-        elif output.options.inner_method == 'als':
+        elif output.options.inner_method == 'direct':
             temp1 = [output.options.inner_method, '', '']
+        elif output.options.inner_method == 'cg':
+            temp1 = [output.options.inner_method, '', '']
+        elif output.options.method == 'als' or output.options.method == 'ttcpd':
+            temp1 = [output.options.method, '', '']
         if T.ndim > 3:
             temp2 = output.options.bicpd_method_parameters
         else:

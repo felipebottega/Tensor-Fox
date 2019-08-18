@@ -906,16 +906,24 @@ def foxit(T, R, options=False, bestof=1):
     print('    improvement tolerance:', options.tol_improv)
     print('    gradient norm tolerance:', options.tol_grad)
     print('    inner algorithm parameters:') 
-    if options.method == 'cg_static':
+    if options.inner_method == 'cg_static':
         print('        method: conjugate gradient static')
         print('        cg maximum of iterations:', options.cg_maxiter)
         print('        cg tolerance:', options.cg_tol)
-    elif options.method == 'cg':
+    elif options.inner_method == 'cg':
         print('        method: conjugate gradient dynamic/random')
         print('        cg factor:', options.cg_factor)
         print('        cg tolerance:', options.cg_tol)
+    elif options.inner_method == 'direct':
+        print('        method: direct solver')
+    elif options.inner_method == 'gd':
+        print('        method: gradient descent')
     elif options.method == 'als':
         print('        method: alternating least squares')
+    elif options.method == 'ttcpd':
+        print('        method: tensor train cpd')
+    elif type(options.inner_method) == list:
+        print('        method: hybrid strategy')
     print()
 
     plt.figure(figsize=[9, 6])
