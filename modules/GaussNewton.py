@@ -116,7 +116,10 @@ def dGN(T, X, Y, Z, R, options):
     error = 1
     best_error = inf
     stop = 5
-    damp = init_damp * mean(np.abs(T))
+    if type(init_damp) == list:
+        damp = init_damp[0] 
+    else:   
+        damp = init_damp * mean(np.abs(T))
     const = 1 + int(maxiter / 10)
 
     # INITIALIZE RELEVANT ARRAYS
@@ -180,7 +183,7 @@ def dGN(T, X, Y, Z, R, options):
             best_Z = copy(Z)
 
         # Update damp. 
-        damp = update_damp(damp, old_error, error, residualnorm, inner_method)
+        damp = update_damp(damp, init_damp, old_error, error, residualnorm, it)
 
         # Save relevant information about the current iteration.
         errors[it] = error
@@ -631,20 +634,19 @@ def prepare_data(m, n, p, R):
     return data
 
 
-def update_damp(damp, old_error, error, residualnorm, inner_method):
+def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     """
     Update rule of the damping parameter for the dGN function.
     """
 
-    if inner_method == 'gd':
-        residualnorm = 1000
-
-    gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
-
-    if gain_ratio < 0.75:
-        damp = damp / 2
-    elif gain_ratio > 0.9:
-        damp = 1.5 * damp
+    if type(init_damp) == list:
+        damp = init_damp[it] 
+    else:   
+        gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
+        if gain_ratio < 0.75:
+            damp = damp / 2
+        elif gain_ratio > 0.9:
+            damp = 1.5 * damp
 
     return damp
 
