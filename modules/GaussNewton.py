@@ -640,7 +640,10 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     if type(init_damp) == list:
         damp = init_damp[it] 
     else:   
-        gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
+        if old_error != residualnorm:
+            gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
+        else:
+            gain_ratio = 1.0
         if gain_ratio < 0.75:
             damp = damp / 2
         elif gain_ratio > 0.9:
