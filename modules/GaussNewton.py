@@ -445,8 +445,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     residualnorm = norm(residual_cg)**2
     if residualnorm == 0.0:
         residualnorm = 1e-6
-    residualnorm_list = []
-
+    
     for itn in range(maxiter):
         Q = M * P
         
@@ -474,7 +473,6 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
         residualnorm_new = norm(residual_cg)**2
         beta = residualnorm_new / residualnorm
         residualnorm = residualnorm_new
-        residualnorm_list.append(residualnorm)
         P = residual_cg + beta * P
         
         # Stopping criteria.
