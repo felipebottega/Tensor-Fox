@@ -277,7 +277,7 @@ def clean_zeros(T, X, Y, Z):
     R = X.shape[1]
 
     # Initialize the factors X, Y, Z with small noises to avoid null entries.
-    s = 1 / norm(1 + T.flatten()) ** 2
+    s = 1 / ( 1 + norm(T.flatten()) )**2
 
     for i in range(m):
         for r in range(R):
