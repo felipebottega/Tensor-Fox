@@ -524,3 +524,39 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
                     print('CPD', l, 'error =', best_error)
                    
     return cpd_list, outputs, best_Z
+
+
+def gen_rand_tensor(dims, R):
+    """
+    This function generates a random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where
+    L is the order of T. Each factor matrix of T is a matrix of shape (dims[l], R) with its entries drawn
+    from the standard Gaussian distribution (mean zero and variance one).
+    Let W[l] be the l-th factor matrix of T, then T = (W[0], W[1], ..., W[L-1])*I, where I is a diagonal 
+    tensor of shape R x R x... x R (L times). 
+
+    Input
+    -----
+    dims: tuple or list of ints
+        The dimensions of the tensor
+    R: int
+        The rank of the tensor (must satisfy R < min(dims))
+
+    Output
+    ------
+    T: float ndarray with L dimensions
+        The tensor in coordinate format
+    orig_factors: list
+        List of the factor matrices of T. We have that orig_factors[l] = W[l], as described above.
+    """
+
+    L = len(dims)
+    orig_factors = []
+
+    for l in range(L):
+        M = np.random.randn(dims[l], R)
+        orig_factors.append(M)
+
+    T = np.zeros(dims)
+    T = tfx.cnv.cpd2tens(T, orig_factors, dims) 
+
+    return T, orig_factors
