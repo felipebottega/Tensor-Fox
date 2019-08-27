@@ -292,7 +292,7 @@ def make_options(options):
             self.symm = False
             self.constraints = [0, 0, 0]
             self.factors_norm = 0
-            self.trials = 10
+            self.trials = 3
             self.display = 0
             self.epochs = 1
 
