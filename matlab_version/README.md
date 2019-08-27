@@ -6,7 +6,7 @@ you have just a CPD solver. This version was tested and is stable with Matlab 20
 
 ## Table of Contents
 * [ :fox_face: Installation](#installation)
-* [ :fox_face: Getting Started](#started)
+* [ :fox_face: Getting Started](#started)c
 * [ :fox_face: Future Works](#future)
 * [ :fox_face: Author](#author)
 * [ :fox_face: License](#license)
@@ -81,7 +81,7 @@ tensor of the ith line of the tensor list text file
  - all options structs must be saved as *.mat* files, a *.txt* file with the options paths (one per line, such that ith 
 line correspond to the tensor of the ith line of the tensor list text file) should be created
 
-The parameters for **cplist_tfx** are the text files. Suppose we have 10 tensors saved in a folder called *inputs*,
+The parameters for **cpdlist_tfx** are the text files. Suppose we have 10 tensors saved in a folder called *inputs*,
 and suppose that the options and the txt with ranks also are inside this folder. At the current workspace, create three 
 text files, each one with the paths of the tensors, ranks, and options, respectively. We can call this files by 
 *tensor_paths.txt*, *ranks_path.txt* and *options_paths.txt*. The content of *tensor_paths.txt* and *options_paths.txt*
