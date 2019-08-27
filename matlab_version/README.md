@@ -7,7 +7,6 @@ you have just a CPD solver. This version was tested and is stable with Matlab 20
 ## Table of Contents
 * [ :fox_face: Installation](#installation)
 * [ :fox_face: Getting Started](#started)
-* [ :fox_face: Performance](#performance)
 * [ :fox_face: Future Works](#future)
 * [ :fox_face: Author](#author)
 * [ :fox_face: License](#license)
