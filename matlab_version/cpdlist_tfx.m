@@ -2,8 +2,8 @@ function [errors, timings] = cplist_tfx(tensor_paths, ranks_path, options_paths,
     % Matlab wrapper to the CPD function of Tensor Fox called several times in a sequence.
     % By default no output is saved to the disk, but if this is the desired behavior, set the
     % parameter save_results to 'true'. Then, for each tensor in the list, an output in the
-    % format [factors, T_approx, output] is saved in a folder called 'outputs' located at the
-    % working space of the current Matlab session.
+    % format [factors, output] is saved in a folder called 'outputs' located at the working space 
+    % of the current Matlab session.
     % We remark that the tensors must be as multidimensional arrays in .mat format.
     %
     % Inputs

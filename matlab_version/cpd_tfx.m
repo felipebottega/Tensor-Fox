@@ -1,4 +1,4 @@
-function [factors, T_approx, output] = cp_tfx(T, R, options, load_results)
+function [factors, output] = cp_tfx(T, R, options, load_results)
     % Matlab wrapper for the CP decomposition function of Tensor Fox.
     % By default this function assumes that the user will pass the tensor as an array without saving it to the disk 
     % manually. If the tensor originally comes from a file, you should pass T as a string with the filename where the 
@@ -82,8 +82,6 @@ function [factors, T_approx, output] = cp_tfx(T, R, options, load_results)
     % ---------------------------------
     % factors: ktensor
     %     Each array factors{i} correspond to the i-th factor matrix of the approximated CPD of T.
-    % T_approx: array
-    %     Approximated tensor in coordinate format.
     % output: structure
     %     Structure with all relevant information obtained during the computation of the CPD.
     %
@@ -161,13 +159,6 @@ function [factors, T_approx, output] = cp_tfx(T, R, options, load_results)
             factors{i} = factors_struct.(fn{l});
             i = i+1;
         end
-        factors = ktensor(factors);
-        % Arrange the final tensor so that the columns are normalized.
-        factors = arrange(factors);
-        % Fix the signs
-        factors = fixsigns(factors);
-        % Coordinate approximate tensor. 
-        T_approx = double(factors);
         % Output structure.
         path_output = fullfile(path_ws, 'outputs', 'output.mat');
         output = load(path_output);
