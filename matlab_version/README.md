@@ -27,13 +27,13 @@ If everything is ok you will be able to open Python within Matlab with the excla
 
 ![Alt-Text](readme_files/image1.png)
 
-To exit Python type *exit()*, then you go back to the Matlab session. Make sure Numba and Numpy are updated. Additionaly, 
+To exit Python type `exit()`, then you go back to the Matlab session. Make sure Numba and Numpy are updated. Additionaly, 
 make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other 
 possibility is to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS 
 version, will be installed properly and up to date. This is the preferred way. 
 
 We remark that having the correct BLAS is very important, the performance can drop by orders of magnitude if this is not 
-setup correctly. To check if your Python-Numpy is linked against the correct BLAS, in your Matlab session type *!python* 
+setup correctly. To check if your Python-Numpy is linked against the correct BLAS, in your Matlab session type `!python` 
 to start a Python session, then do as showed below.
 
 ![Alt-Text](readme_files/image2.png)
@@ -82,7 +82,7 @@ tensor of the ith line of the tensor list text file
 line correspond to the tensor of the ith line of the tensor list text file) should be created
 
 The parameters for **cpdlist_tfx** are the text files. Suppose we have 10 tensors saved in a folder called *inputs*,
-and suppose that the options and the txt with ranks also are inside this folder. At the current workspace, create three 
+and suppose that the options and the txt with ranks (called *ranks.txt*) also are inside this folder. At the current workspace, create three 
 text files, each one with the paths of the tensors, ranks, and options, respectively. We can call this files by 
 *tensor_paths.txt*, *ranks_path.txt* and *options_paths.txt*. The content of *tensor_paths.txt* and *options_paths.txt*
 is something like below.
