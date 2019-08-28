@@ -84,8 +84,7 @@ line correspond to the tensor of the ith line of the tensor list text file) shou
 The parameters for **cpdlist_tfx** are the text files. Suppose we have 10 tensors saved in a folder called *inputs*,
 and suppose that the options and the txt with ranks (called *ranks.txt*) also are inside this folder. At the current workspace, create three 
 text files, each one with the paths of the tensors, ranks, and options, respectively. We can call this files by 
-*tensor_paths.txt*, *ranks_path.txt* and *options_paths.txt*. The content of *tensor_paths.txt* and *options_paths.txt*
-is something like below.
+*tensor_paths.txt*, *ranks_path.txt* and *options_paths.txt*. Consider these arguments as pointers to the variables to be used for each CPD. The content of *tensor_paths.txt*, *ranks_path.txt* and *options_paths.txt* is something like below.
 
 ![Alt-Text](readme_files/image7.png)
 
