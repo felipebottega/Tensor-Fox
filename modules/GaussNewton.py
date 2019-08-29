@@ -20,7 +20,7 @@ import Conversion as cnv
 import MultilinearAlgebra as mlinalg
 
 
-def dGN(T, X, Y, Z, R, options):
+def dGN(T, X, Y, Z, R, init_error, options):
     """
     This function uses the Damped Gauss-Newton method to compute an approximation of T with rank r. An initial point to 
     start the iterations must be given. This point is described by the arrays X, Y, Z.    
@@ -114,7 +114,7 @@ def dGN(T, X, Y, Z, R, options):
     m, n, p = T.shape
     Tsize = norm(T)
     error = 1
-    best_error = inf
+    best_error = init_error
     stop = 5
     if type(init_damp) == list:
         damp = init_damp[0] 
@@ -132,6 +132,9 @@ def dGN(T, X, Y, Z, R, options):
     gradients = empty(maxiter)
     T_approx = empty((m, n, p), dtype=float64)
     T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
+    best_X = copy(X)
+    best_Y = copy(Y)
+    best_Z = copy(Z)
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(m, n, p, R)
