@@ -741,11 +741,12 @@ def rank(T, options=False, plot=True):
     print('|T - T_approx|/|T| =', error_per_rank[final_rank - Rmin])
     
     if plot:
-        plt.plot(range(Rmin, r+1), log10(error_per_rank), color='blue')
-        plt.plot(range(Rmin, r+1), log10(error_per_rank), 's', color='blue')
-        plt.plot(final_rank, log10(error_per_rank[final_rank - Rmin]), marker='s', color='red')
+        plt.plot(range(Rmin, r+1), error_per_rank, color='blue')
+        plt.plot(range(Rmin, r+1), error_per_rank, 's', color='blue')
+        plt.plot(final_rank, error_per_rank[final_rank - Rmin], marker='s', color='red')
         plt.xlabel('Rank')
-        plt.ylabel('Relative error in log 10 scale')
+        plt.ylabel('Relative error')
+        plt.yscale('log')
         plt.xticks(range(Rmin, r+1))
         plt.grid()
         plt.show()
