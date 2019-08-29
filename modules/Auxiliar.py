@@ -6,8 +6,9 @@ user to use directly, but most of them are  just some piece of another (and more
 """ 
 
 # Python modules
-from numpy import prod, diag, dot, empty, float64, argsort, array, size, inf
+from numpy import prod, diag, dot, empty, zeros, float64, argsort, array, size, inf
 from numpy.linalg import norm, pinv
+from numpy.random import randn
 import sys
 import warnings
 import scipy.io
@@ -553,10 +554,10 @@ def gen_rand_tensor(dims, R):
     orig_factors = []
 
     for l in range(L):
-        M = np.random.randn(dims[l], R)
+        M = randn(dims[l], R)
         orig_factors.append(M)
 
-    T = np.zeros(dims)
+    T = zeros(dims)
     T = tfx.cnv.cpd2tens(T, orig_factors, dims) 
 
     return T, orig_factors
