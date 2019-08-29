@@ -268,7 +268,7 @@ def test_tensors(tensors_list, options_list, trials, display):
                                'Tol improvement',
                                'Tol gradient',
                                'Initialization',
-                               'Inner algorithm options',
+                               'Inner algorithm',
                                'Bi-CPD parameters',
                                '# Success',
                                '# Fail'])
@@ -348,6 +348,8 @@ def test_tensors(tensors_list, options_list, trials, display):
             temp1 = [output.options.inner_method, '', '']
         elif output.options.inner_method == 'gd':
             temp1 = [output.options.inner_method, '', '']
+        else:
+            temp1 = ['hybrid strategy', '', '']
         if T.ndim > 3:
             temp2 = output.options.bicpd_method_parameters
         else:
