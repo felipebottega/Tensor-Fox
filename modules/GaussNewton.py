@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity, nan
 from numpy.linalg import norm, lstsq
 from numpy.random import randint
 from scipy.linalg import solve
@@ -16,6 +16,7 @@ import warnings
 from numba import njit
 
 # Tensor Fox modules
+import Alternating_Least_Squares as als
 import Conversion as cnv
 import MultilinearAlgebra as mlinalg
 
@@ -279,6 +280,11 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     elif inner_method == 'gd':
         y, grad, itn, residualnorm = gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
+    elif inner_method == 'als':
+        X, Y, Z = als.als_iteration(T1, T2, T3, X, Y, Z, fix_mode)
+        x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
+        y *= 0
+
     else:
         sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'direct' or 'gd'.")
 
@@ -299,6 +305,9 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
     error = norm(T - T_approx) / Tsize
 
+    if inner_method == 'als':
+        return T_approx, X, Y, Z, x, y, [nan], '-', error, error
+    
     return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
 
 
@@ -397,11 +406,11 @@ def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_
         # Update best results.
         if error < best_error:
             best_error = error
-            best_y = - alpha*grad
+            y = - alpha*grad
 
     residualnorm = best_error
 
-    return best_y, -grad, '-', residualnorm
+    return y, -grad, '-', residualnorm
 
 
 def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
