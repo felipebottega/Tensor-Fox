@@ -306,7 +306,7 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     error = norm(T - T_approx) / Tsize
 
     if inner_method == 'als':
-        return T_approx, X, Y, Z, x, y, [nan], '-', error, error
+        return T_approx, X, Y, Z, x, y, [nan], '-', Tsize*error, error
     
     return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
 
@@ -408,7 +408,7 @@ def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_
             best_error = error
             y = - alpha*grad
 
-    residualnorm = best_error
+    residualnorm = Tsize*best_error
 
     return y, -grad, '-', residualnorm
 
