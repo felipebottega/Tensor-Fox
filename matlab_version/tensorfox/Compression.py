@@ -7,7 +7,7 @@ MLSVD and truncating it.
 
 # Python modules
 import numpy as np
-from numpy import eye, ones, empty, prod, float64, copy
+from numpy import identity, ones, empty, prod, float64, copy
 from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
 
@@ -64,7 +64,7 @@ def mlsvd(T, Tsize, R, options):
 
     # tol_mlsvd = -1 means no truncation and no compression, in other words, the original tensor.
     if tol_mlsvd == -1:
-        U = [ eye(dims[l]) for l in range(L) ]
+        U = [ identity(dims[l]) for l in range(L) ]
         UT = U
         sigmas = [ ones(dims[l]) for l in range(L) ]
         if display > 2 or display < -1:

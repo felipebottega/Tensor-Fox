@@ -263,10 +263,13 @@ def test_tensors(tensors_list, options_list, trials, display):
     i = 0
     df = pd.DataFrame(columns=['Tensor name',
                                'Maxiter',
-                               'Tolerance',
+                               'Tol error',
+                               'Tol step size',
+                               'Tol improvement',
+                               'Tol gradient',
                                'Initialization',
                                'Inner algorithm options',
-                               'Bi-CPD inner algorithm options',
+                               'Bi-CPD parameters',
                                '# Success',
                                '# Fail'])
     
@@ -331,6 +334,9 @@ def test_tensors(tensors_list, options_list, trials, display):
    
         maxiter = output.options.maxiter
         tol = output.options.tol
+        tol_step = output.options.tol_step
+        tol_improv = output.options.tol_improv
+        tol_grad = output.options.tol_grad
         init = output.options.initialization
         if output.options.method == 'als' or output.options.method == 'ttcpd':
             temp1 = [output.options.method, '', '']
@@ -348,7 +354,10 @@ def test_tensors(tensors_list, options_list, trials, display):
             temp2 = '          '
         df.loc[i] = [name,
                      maxiter,
-                     tol,
+                     tol, 
+                     tol_step, 
+                     tol_improv, 
+                     tol_grad,
                      init,
                      [temp1[0], temp1[1], temp1[2]],
                      [temp2[0], temp2[1], temp2[2]],

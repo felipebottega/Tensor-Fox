@@ -24,7 +24,7 @@ features of Tensor Fox are the following:
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, zeros, empty, array, nanargmin, log10, diag, arange, prod
+from numpy import inf, copy, dot, zeros, empty, array, nanargmin, log10, arange, prod
 from numpy.linalg import norm
 import sys
 import time
@@ -350,6 +350,7 @@ def tricpd(T, R, options):
     m, n, p = m_orig, n_orig, p_orig
     T_orig = copy(T)
     Tsize = norm(T)
+    init_error = inf
                    
     # Test consistency of dimensions and rank.
     aux.consistency(R, (m, n, p), options)
@@ -400,7 +401,7 @@ def tricpd(T, R, options):
         
     # Generate initial to start dGN.
     if display > 2 or display < -1:
-        X, Y, Z, rel_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        X, Y, Z, init_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
     else:  
         X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
     
@@ -411,7 +412,7 @@ def tricpd(T, R, options):
         else:
             print('Type of initialization:', initialization)
         if display > 2:
-            print('    Initial guess relative error = {:5e}'.format(rel_error))   
+            print('    Initial guess relative error = {:5e}'.format(init_error))
     
     # DAMPED GAUSS-NEWTON STAGE 
     
@@ -423,7 +424,8 @@ def tricpd(T, R, options):
     if method == 'als':
         X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, R, options)
     else:
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, R, options)
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            gn.dGN(S, X, Y, Z, R, init_error, options)
 
     # Use the orthogonal transformations to work in the original space.
     X = dot(U1, X)
@@ -431,6 +433,8 @@ def tricpd(T, R, options):
     Z = dot(U3, Z)
     
     # REFINEMENT STAGE
+
+    init_error = errors_main[-1]
     
     if refine:   
         if display > 0:
@@ -441,8 +445,8 @@ def tricpd(T, R, options):
         if display > 2:
             T_approx = empty((m, n, p))
             T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
-            rel_error = norm(T - T_approx)/Tsize
-            print('    Initial guess relative error = {:5e}'.format(rel_error))
+            init_error = norm(T - T_approx)/Tsize
+            print('    Initial guess relative error = {:5e}'.format(init_error))
 
         if display > 0:
             print('-----------------------------------------------------------------------------------------------')
@@ -453,7 +457,7 @@ def tricpd(T, R, options):
                 als.als(T, X, Y, Z, R, options)
         else:
             X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
-                gn.dGN(T, X, Y, Z, R, options)
+                gn.dGN(T, X, Y, Z, R, init_error, options)
 
     else:
         step_sizes_refine = array([0])
@@ -515,6 +519,7 @@ def bicpd(T, R, fixed_factor, options):
     m, n, p = T.shape
     Tsize = norm(T)
     ordering = [0, 1, 2]
+    init_error = inf
                            
     # Test consistency of dimensions and rank.
     aux.consistency(R, (m, n, p), options)
@@ -561,7 +566,7 @@ def bicpd(T, R, fixed_factor, options):
         
     # Generate initial to start dGN.
     if display > 2 or display < -1:
-        X, Y, Z, rel_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        X, Y, Z, init_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
     else:  
         X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
 
@@ -591,8 +596,8 @@ def bicpd(T, R, fixed_factor, options):
             elif fixed_factor[1] == 2:
                 S_init = cnv.cpd2tens(S_init, [X, Y, Z[0]], (R1, R2, R3))
             S1_init = cnv.unfold(S_init, 1, (R1, R2, R3))
-            rel_error = mlinalg.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
-            print('    Initial guess relative error = {:5e}'.format(rel_error))           
+            init_error = mlinalg.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
+            print('    Initial guess relative error = {:5e}'.format(init_error))
     
     # DAMPED GAUSS-NEWTON STAGE 
     
@@ -604,7 +609,8 @@ def bicpd(T, R, fixed_factor, options):
     if bi_method == 'als':
         X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, R, options)
     else:
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = gn.dGN(S, X, Y, Z, R, options)
+        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            gn.dGN(S, X, Y, Z, R, init_error, options)
  
     # FINAL WORKS
     
@@ -735,11 +741,13 @@ def rank(T, options=False, plot=True):
     print('|T - T_approx|/|T| =', error_per_rank[final_rank - Rmin])
     
     if plot:
-        plt.plot(range(Rmin, r+1), log10(error_per_rank))
-        plt.plot(final_rank, log10(error_per_rank[final_rank - Rmin]), marker='o', color='k')
-        plt.title('Rank trials')
-        plt.xlabel('rank')
-        plt.ylabel(r'$\log_{10} \|T - S\|/|T|$')
+        plt.plot(range(Rmin, r+1), error_per_rank, color='blue')
+        plt.plot(range(Rmin, r+1), error_per_rank, 's', color='blue')
+        plt.plot(final_rank, error_per_rank[final_rank - Rmin], marker='s', color='red')
+        plt.xlabel('Rank')
+        plt.ylabel('Relative error')
+        plt.yscale('log')
+        plt.xticks(range(Rmin, r+1))
         plt.grid()
         plt.show()
             
