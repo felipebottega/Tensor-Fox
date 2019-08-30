@@ -8,6 +8,7 @@
 import numpy as np
 from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt
 from numpy.linalg import norm, svd
+from numpy.random import permutation
 import numpy.matlib
 import scipy as scp
 from itertools import permutations
@@ -360,13 +361,14 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
     -------
     best_error: float
         Relative error of the best permutation found.
-    best_rank1_terms: list
-        List with the rank-1 terms in the best ordering found.
+    best_factors: list
+        List with the new factor matrices of the best permutation.
     best_s: list
         The indexes of the best permutation found.
     """
 
     R = orig_factors[0].shape[1]
+    L = len(orig_factors)
     best_error = inf
     orig_rank1 = rank1_terms_list(orig_factors)
     approx_rank1 = rank1_terms_list(approx_factors)
@@ -380,10 +382,10 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
     # Start the search for the best rank-1 permutation.
     if random:
         for i in range(trials):
-            s = list(np.random.permutation(range(R)))
+            s = list(permutation(range(R)))
             f_error = 0
             for r in range(R):
-                f_error += norm(orig_rank1[r] - approx_rank1[s[r]]) ** 2
+                f_error += norm( orig_rank1[r] - approx_rank1[s[r]] )**2
             f_error = sqrt(f_error)
             if f_error < best_error:
                 best_error = f_error
@@ -408,7 +410,7 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
                 break
 
     # Rearrange approx_factors with the best permutation found.
-    best_rank1_terms = [approx_rank1[best_s[r]] for r in range(R)]
+    best_factors = [approx_factors[l][:, best_s] for l in range(L)]
 
-    return best_error/orig_rank1_size, best_rank1_terms, best_s
+    return best_error/orig_rank1_size, best_factors, best_s
 
