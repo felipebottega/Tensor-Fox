@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt
+from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
 from numpy.random import permutation
 import numpy.matlib
@@ -170,7 +170,7 @@ def cond(factors):
     References
     ----------
     P. Breiding and N. Vannieuwenhoven, "A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
-    Problem", arXiv:1709.00033v2 (2018).
+    Problem", SIAM J. Optim., 28(3), 2435-2465.
     P. Breiding and N. Vannieuwenhoven, "The Condition Number of Join Decompositions", arXiv:1611.08117v3 (2018).
     """
 
@@ -234,7 +234,7 @@ def cond(factors):
     u, s, vt = svd(J, full_matrices=False)
     cN = s[-1] ** (-1)
 
-    return cN, J
+    return cN
 
 
 def khatri_rao_factors(factors):
@@ -330,7 +330,7 @@ def rank1(X, Y, Z, m, n, R, k):
     return rank1_slices
 
 
-def forward_error(orig_factors, approx_factors, trials=1000, random=True):
+def forward_error(orig_factors, approx_factors, trials=1000):
     """
     Let T = T_1 + T_2 + ... + T_R be the decomposition of T as sum of rank-1 terms and let
     T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly
@@ -339,11 +339,8 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
     min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
     is an element of the permutation group S_R.
 
-    Given the rank R, this function may try all R! possible permutations, but this can be computationally unfeasible.
-    Use the parameter 'trials' to give a limit of trials before stopping testing permutation. Additionally, you can set
-    the parameter 'random' to True, then the function loops over random permutations. This approach may be best when R
-    is big, since the deterministic approach keep the first rank-1 terms fixed for a long time.
-    We remark that the forward error is always equal or greater than the backward error.
+    Given the rank R, this function try 'trials' random permutations (not necessarily distinct). We remark that the
+    forward error is always equal or greater than the backward error.
 
     Inputs
     ------
@@ -352,10 +349,7 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
     approx_factors: list of ndarrays
         The elements of the list are the factor matrices of the approximated tensor.
     trials: int
-        Number of of trials before stopping testing permutation. Default is 1000.
-    random: bool
-        If True, the function makes the loops over random permutation of the rank-1 terms. Otherwise it follows a
-        deterministic approach. Default is True.
+        Number of of trials before stopping testing permutation. Default is 100.
 
     Outputs
     -------
@@ -373,44 +367,30 @@ def forward_error(orig_factors, approx_factors, trials=1000, random=True):
     orig_rank1 = rank1_terms_list(orig_factors)
     approx_rank1 = rank1_terms_list(approx_factors)
 
-    # Norm of the original set of rank-1 terms.
-    orig_rank1_size = 0
-    for r in range(R):
-        orig_rank1_size += norm(orig_rank1[r])**2
-    orig_rank1_size = sqrt(orig_rank1_size)
-
-    # Start the search for the best rank-1 permutation.
-    if random:
-        for i in range(trials):
-            s = list(permutation(range(R)))
-            f_error = 0
-            for r in range(R):
-                f_error += norm( orig_rank1[r] - approx_rank1[s[r]] )**2
-            f_error = sqrt(f_error)
-            if f_error < best_error:
-                best_error = f_error
-                best_s = s.copy()
-
-    else:
-        i = 0
-        S = permutations(range(R))
-        for s in S:
-            s = list(s)
-            f_error = 0
-            for r in range(R):
-                f_error += norm( orig_rank1[r] - approx_rank1[s[r]] )**2
-            f_error = sqrt(f_error)
-            if f_error < best_error:
-                best_error = f_error
-                best_s = s.copy()
-
-            # Verify if maximum of attemps is reached.
-            i += 1
-            if i > trials:
-                break
+    best_forward_error, s = search_forward_error(orig_rank1, approx_rank1, R, best_error, trials)
 
     # Rearrange approx_factors with the best permutation found.
-    best_factors = [approx_factors[l][:, best_s] for l in range(L)]
+    new_factors = [approx_factors[l][:, s] for l in range(L)]
 
-    return best_error/orig_rank1_size, best_factors, best_s
+    return best_forward_error, new_factors, s
+
+
+@njit(nogil=True)
+def search_forward_error(orig_rank1, approx_rank1, R, best_error, trials):
+    # Create list with rank 1 flattened terms of original tensor.
+    orig_rank1_flat = [orig_rank1[r].ravel() for r in range(R)]
+
+    # Start the search for the best rank-1 permutation.
+    for i in range(trials):
+        s = permutation(arange(R))
+        f_error = 0
+        for r in range(R):
+            f_error += norm(orig_rank1_flat[r] - approx_rank1[s[r]].ravel())**2
+        f_error = sqrt(f_error)
+        if f_error < best_error:
+            best_error = f_error
+            best_s = s.copy()
+
+    return best_error, best_s
+
 
