@@ -7,7 +7,8 @@ MLSVD and truncating it.
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, prod, float64, copy
+from numpy import identity, ones, empty, array, prod, float64, copy
+from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
 
@@ -106,6 +107,7 @@ def mlsvd(T, Tsize, R, options):
         best_UT = []
         for l in range(L):
             if trunc_dims[l] > U[l].shape[1]:
+                print(trunc_dims[l], U[l].shape)
                 sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
             best_U.append( U[l][:, :trunc_dims[l]] )
             best_UT.append( UT[l][:trunc_dims[l], :] )
@@ -117,7 +119,7 @@ def mlsvd(T, Tsize, R, options):
         else:
             return S, best_U, best_UT, sigmas
 
-    # Clean SVD's, because the original SVD factors may have unnecessary information due to noise or numerical error.
+    # Clean SVD's because the original SVD factors may have unnecessary information due to noise or numerical error.
     U, UT, sigmas = clean_compression(sigmas, U, UT, tol_mlsvd)
 
     # Compute (U_1^T,...,U_L^T)*T = S.
@@ -179,7 +181,7 @@ def clean_compression(sigmas, U, UT, tol_mlsvd):
     return U, UT, sigmas
 
 
-def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_normalizer='none'):
+def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_normalizer='none'):
     """
     This function test one or several possible truncations for the MLSVD of T, showing the  error of the truncations. It
     is possible to accomplish the same results calling the function mlsvd with display=3 but this is not advisable since
@@ -191,7 +193,10 @@ def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_no
     # Set the main variables about T.
     dims = T.shape
     L = len(dims)
-    Tsize = np.linalg.norm(T)
+    Tsize = norm(T)
+
+    # Transform list into array and get the maximum for each dimension.
+    max_trunc_dims = np.max(array(trunc_list), axis=0)
 
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
@@ -202,7 +207,7 @@ def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_no
         Tl = cnv.unfold(T, l + 1, dims)
         if l == 0:
             T1 = copy(Tl)
-        low_rank = min(R, dims[l])
+        low_rank = min(dims[l], max_trunc_dims[l])
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=n_iter, power_iteration_normalizer=power_iteration_normalizer)
         sigmas.append(sigma_l)
         U.append(Ul)
@@ -210,7 +215,7 @@ def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_no
 
     # Save errors in a list.
     trunc_error = []
-    
+
     # Truncated MLSVD.
     for trunc in trunc_list:
         # S, U and UT truncated.
@@ -223,7 +228,7 @@ def test_truncation(T, R, trunc_list, display=True, n_iter=2, power_iteration_no
             current_UT.append(UT[l][:current_dims[l], :])
             current_sigmas.append(sigmas[l][:current_dims[l]])
         S = mlinalg.multilin_mult(current_UT, T1, dims)
-        
+                
         # Error of truncation.
         S1 = cnv.unfold(S, 1, current_dims)
         current_error = mlinalg.compute_error(T, Tsize, S1, current_U, current_dims)
