@@ -437,7 +437,7 @@ def find_class(x, W):
     Outputs
     -------
     x_class: int
-        At the moment the program is limited to classification problem. So each prediction is a number (of a class).
+        At the moment the program is limited to classification problems. So each prediction is a number (of a class).
     """
 
     dot_prods = dot_products(x, W)
@@ -447,7 +447,7 @@ def find_class(x, W):
     return x_class
 
 
-def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=10, display=True):
+def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=1, display=True):
     """
     Function to start the training stage.
 
@@ -466,16 +466,16 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     alpha: float
         Step parameter of the gradient descent algorithm. We must have alpha > 0.
     alpha_decay: float
-        The more the program is closer to the optimum, the more it is necessary to take smaller steps. In this case
+        The more the program is closer to the optimum, the more it is necessary to take smaller steps. In this case it
         is interesting to decrease alpha a little. At each epoch we update date alpha with alpha = alpha_decay * alpha.
         Default is alpha_decay = 1.
     Lambda: float
-        Regularization parameter for the cost function. We must have Lambda >= 0.
+        Regularization parameter for the cost function. We must have Lambda >= 0. Default is Lambda = 0.1.
     epochs: int
-        Number desired of epochs to use in the training stage.
+        Desired number of epochs to use in the training stage. Default is 10 epochs.
     batch: int
         Size of the batch in the learning algorithm. After passing through batch inputs and accumulating their costs,
-        the corresponding gradient is used to make the next step.
+        the corresponding gradient is used to make the next step. Default is 1 batch.
     display: bool
         If set to True (default), the program displays some relevant results and plots about the training stage.
         
@@ -696,68 +696,50 @@ def cpd_predictions(X_test, W, U, mu=0, sigma=1):
     return predictions
 
 
-def W2tens(W):
+def simplify_model(W, r, options=False):
     """
-    With the set of weights W, obtained after training and testing, now we construct the corresponding coordinate
-    tensors and form a list from them. Each T_list[k] is a n x n x ... x n (L times) tensor, representing the tensor
-    Tk in coordinates.
+    With the set of weights W, obtained after training and testing, we can construct the corresponding coordinate
+    tensors and compute a rank-r CPD for them. The idea is to simplify the model, using less rank-1 terms.
 
     Inputs
     ------
     W: 4D array
         Weights obtained after the training stage.
+    r: int
+        Desired rank.
+    options: class
+        Set of options to be used in the CPD computation (see the Tensor Fox documentation for more details).
         
     Outputs
     -------
-    T_list: list of L-D arrays
-        Each T_list[k] is the tensor Tk of the model.
+    new_W: float 4D-ndarray
+        New model based in rank-r approximations. An array with the same shape as W, except for the last dimension.
+    errors: list
+        Each errors[k] is the relative error between the rank-r approximation and Tk.
     """
 
+    # Initialize variables.
     m, L, n, R = W.shape
-    dims = L*(n,)
-    T_list = []
+    new_W = np.zeros((m, L, n, r))
+    dims = L * (n,)
+    Tk = np.empty(dims)
+    errors = []
 
     for k in range(m):
-        # Construct list of factor matrices.
+        # Construct list of factor matrices for Tk.
         factors = []
         for l in range(L):
             factors.append(W[k, l, :, :])
         # Convert factor matrices to coordinates format.
-        Tk = np.zeros(dims)
+        Tk = 0 * Tk
         Tk = tfx.cnv.cpd2tens(Tk, factors, dims)
-        T_list.append(Tk)
+        # Compute rank-r approximation for Tk.
+        factors, T_approx, output = tfx.cpd(Tk, r, options)
+        errors.append(output.rel_error)
+        for l in range(L):
+            new_W[k, l, :, :] = factors[l]
 
-    return T_list
-
-
-def cpd_W(T_list, r, options=False):
-    """
-    With the set of weights W extracted in tensor form inside T_list, we try to find a rank-r CPD for them. The idea is
-    to simplify the model, using less rank-1 terms.
-
-    Inputs
-    ------
-    T_list: list of L-D arrays.
-        Each T_list[k] is the tensor Tk of the model.
-    r: int
-        Desired rank.
-    options: class
-        The options to be used in the CPD computation (see the Tensor Fox documentation for more details).
-        
-    Outputs
-    -------
-    factors_list: list
-        Each factors_list[k] is a list with the factors of the rank-r CPD of Tk.
-    """
-
-    m = len(T_list)
-    factors_list = []
-
-    for k in range(m):
-        factors, T_approx, output = tfx.cpd(T_list[k], r, options)
-        factors_list.append(factors)
-
-    return factors_list
+    return new_W, errors
 
 
 # MLSVD LEARNING
@@ -807,7 +789,7 @@ def create_sets(X, Y, display=True):
     for i in range(num_classes):
         c = samples_per_class[i]
         diff = max_class - c
-        if max_class - c < 1:
+        if diff > 1:
             for j in range(diff):
                 idx = np.random.randint(c)
                 inputs[i].append(inputs[i][idx])
