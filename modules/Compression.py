@@ -143,7 +143,7 @@ def clean_compression(sigmas, U, UT, tol_mlsvd):
     Inputs
     ------
     sigmas: list of float 1-D ndarrays
-        Each one of these arrays is an ordered list (ascendent) with the singular values of the respective unfolding.
+        Each one of these arrays is an ordered list (ascending) with the singular values of the respective unfolding.
     U: list of float 2-D ndarrays
         Each one of these arrays is the orthogonal matrix of the MLSVD of T.
     UT: list of float 2-D ndarrays
@@ -228,7 +228,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
             current_UT.append(UT[l][:current_dims[l], :])
             current_sigmas.append(sigmas[l][:current_dims[l]])
         S = mlinalg.multilin_mult(current_UT, T1, dims)
-                
+
         # Error of truncation.
         S1 = cnv.unfold(S, 1, current_dims)
         current_error = mlinalg.compute_error(T, Tsize, S1, current_U, current_dims)
