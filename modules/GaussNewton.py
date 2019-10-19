@@ -22,7 +22,7 @@ import MultilinearAlgebra as mlinalg
 
 
 def dGN(T, X, Y, Z, R, init_error, options):
-    """conda
+    """
     This function uses the Damped Gauss-Newton method to compute an approximation of T with rank r. An initial point to 
     start the iterations must be given. This point is described by the arrays X, Y, Z.    
     The Damped Gauss-Newton method is a iterative method, updating a point x at each iteration. The last computed x is 
