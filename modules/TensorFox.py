@@ -15,7 +15,7 @@ features of Tensor Fox are the following:
  
  - Rank related statistics, including histograms
  
- - Rank related information about tensors and tensorial spaces
+ - Rank related information about tensors and tensor spaces
  
  - CPD tensor train
  
@@ -274,7 +274,7 @@ def highcpd(T, R, options):
         factors.append(cpd_list[l][1])
     B = dot(G[-1].T, best_Z)
     factors.append( B )
-    factors = cnv.equalize(factors, R)
+    factors = cnv.equalize(tuple(factors), R)
 
     if display > 2 or display < -1:
         G_approx = [G[0]]

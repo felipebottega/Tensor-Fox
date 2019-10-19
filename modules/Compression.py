@@ -22,6 +22,8 @@ def mlsvd(T, Tsize, R, options):
     """
     This function computes a truncated MLSVD of tensors of any order. The output is such that T = (U_1,...,U_L)*S, and
     UT is the list of the transposes of U.
+    The parameter n_iter of the randomized SVD is set to 2. It is only good to increase this value when the tensor has
+    much noise. Still this issue is addressed by the low rank CPD approximation, so n_iter=2 is enough.
 
     Inputs
     ------

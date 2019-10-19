@@ -54,7 +54,7 @@ def x2cpd(x, X, Y, Z, m, n, p, R):
         Z[:, r] = x[s:s+p]
         s = s+p
             
-    X, Y, Z = equalize([X, Y, Z], R)
+    X, Y, Z = equalize((X, Y, Z), R)
           
     return X, Y, Z
 
@@ -82,7 +82,7 @@ def cpd2tens(T_approx, factors, dims):
         M = mlinalg.khatri_rao(factors[l], M, N)
 
     T1_approx = dot(factors[0], M.T)
-    T_approx = foldback(T_approx, T1_approx, 1, dims)
+    T_approx = foldback(T_approx, T1_approx, 1, tuple(dims))
     return T_approx
 
 

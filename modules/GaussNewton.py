@@ -8,7 +8,7 @@ method.
 # Python modules
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity, nan
-from numpy.linalg import norm, lstsq
+from numpy.linalg import norm
 from numpy.random import randint
 from scipy.linalg import solve
 import sys
@@ -22,7 +22,7 @@ import MultilinearAlgebra as mlinalg
 
 
 def dGN(T, X, Y, Z, R, init_error, options):
-    """
+    """conda
     This function uses the Damped Gauss-Newton method to compute an approximation of T with rank r. An initial point to 
     start the iterations must be given. This point is described by the arrays X, Y, Z.    
     The Damped Gauss-Newton method is a iterative method, updating a point x at each iteration. The last computed x is 
@@ -99,17 +99,14 @@ def dGN(T, X, Y, Z, R, init_error, options):
         fix_mode = 0
         X_orig = copy(X[0])
         X = X[0]
-        inner_method_info = options.bi_method_parameters
     elif type(Y) == list:
         fix_mode = 1
         Y_orig = copy(Y[0])
         Y = Y[0]
-        inner_method_info = options.bi_method_parameters
     elif type(Z) == list:
         fix_mode = 2
         Z_orig = copy(Z[0])
         Z = Z[0]
-        inner_method_info = options.bi_method_parameters
 
     # Set the other variables.
     m, n, p = T.shape
@@ -177,7 +174,8 @@ def dGN(T, X, Y, Z, R, init_error, options):
         # A = Dres(x) and b = -res(x).
         inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
         T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
-                                                                               X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it)
+                                                                               X_orig, Y_orig, Z_orig, data, x, y,
+                                                                               inner_parameters, it)
 
         # Update best solution.
         if error < best_error:
@@ -337,7 +335,7 @@ def direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig
     m, n, p = T.shape
     Jf = jacobian(X, Y, Z, m, n, p, R) 
     H = hessian(Jf)
-    L = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
+    L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
     grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
     
     # Add regularization.
@@ -442,11 +440,11 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
                                                      Gr_X, Gr_Y, Gr_Z,
                                                      Gr_XY, Gr_XZ, Gr_YZ)
-    L = regularization(X, Y, Z,
+    L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z,
                        X_norms, Y_norms, Z_norms,
                        gamma_X, gamma_Y, gamma_Z, Gamma,
                        m, n, p, R)
-    M = precond(X, Y, Z, L, M, damp, m, n, p, R)
+    M = precond(X_norms, Y_norms, Z_norms, L, M, damp, m, n, p, R)
 
     y *= 0
 
@@ -753,9 +751,9 @@ def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z
     """
 
     for r in range(R):
-        X_norms[r] = sqrt(dot(X[:, r], X[:, r]))
-        Y_norms[r] = sqrt(dot(Y[:, r], Y[:, r]))
-        Z_norms[r] = sqrt(dot(Z[:, r], Z[:, r]))
+        X_norms[r] = norm(X[:, r])
+        Y_norms[r] = norm(Y[:, r])
+        Z_norms[r] = norm(Z[:, r])
 
     max_XY = np.max(X_norms * Y_norms)
     max_XZ = np.max(X_norms * Z_norms)
@@ -772,11 +770,11 @@ def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z
         Gamma[m * R + r * n:m * R + (r + 1) * n] = gamma_Y[r]
         Gamma[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = gamma_Z[r]
 
-    return Gamma
+    return Gamma, X_norms, Y_norms, Z_norms
 
 
 @njit(nogil=True)
-def precond(X, Y, Z, L, M, damp, m, n, p, R):
+def precond(X_norms, Y_norms, Z_norms, L, M, damp, m, n, p, R):
     """
     This function constructs a preconditioner in order to accelerate the Conjugate Gradient function. It is a diagonal
     preconditioner designed to make Dres.transpose*Dres + Gamma a unit diagonal matrix. Since the matrix is diagonally 
@@ -784,11 +782,9 @@ def precond(X, Y, Z, L, M, damp, m, n, p, R):
     together.
     """
     for r in range(R):
-        M[r * m:(r + 1) * m] = dot(Y[:, r], Y[:, r]) * dot(Z[:, r], Z[:, r]) + damp * L[r * m: (r + 1) * m]
-        M[m * R + r * n:m * R + (r + 1) * n] = \
-            dot(X[:, r], X[:, r]) * dot(Z[:, r], Z[:, r]) + damp * L[m * R + r * n: m * R + (r + 1) * n]
-        M[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = \
-            dot(X[:, r], X[:, r]) * dot(Y[:, r], Y[:, r]) + damp * L[R * (m + n) + r * p: R * (m + n) + (r + 1) * p]
+        M[r * m:(r + 1) * m] = Y_norms[r]**2 * Z_norms[r]**2 + damp * L[r * m: (r + 1) * m]
+        M[m * R + r * n:m * R + (r + 1) * n] = X_norms[r]**2 * Z_norms[r]**2 + damp * L[m * R + r * n: m * R + (r + 1) * n]
+        M[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = X_norms[r]**2 * Y_norms[r]**2 + damp * L[R * (m + n) + r * p: R * (m + n) + (r + 1) * p]
 
     M = 1 / sqrt(M)
     return M
@@ -807,9 +803,9 @@ def jacobian(X, Y, Z, m, n, p, r):
         for j in range(n):
             for k in range(p):
                 for l in range(r):
-                    Jf[s, l*m + i] = -Y[j,l]*Z[k,l]
-                    Jf[s, r*m + l*n + j] = -X[i,l]*Z[k,l]
-                    Jf[s, r*(m+n) + l*p + k] = -X[i,l]*Y[j,l]
+                    Jf[s, l*m + i] = -Y[j, l]*Z[k, l]
+                    Jf[s, r*m + l*n + j] = -X[i, l]*Z[k, l]
+                    Jf[s, r*(m+n) + l*p + k] = -X[i, l]*Y[j, l]
                 s += 1
                         
     return Jf

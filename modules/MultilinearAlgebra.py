@@ -56,7 +56,7 @@ def multilin_mult(U, T1, dims):
         # Update the current dimension of dims_out.
         dims_out[l] = U[l].shape[0]
         S = empty(dims_out)
-        S = cnv.foldback(S, unfolding2, l+1, dims_out)
+        S = cnv.foldback(S, unfolding2, l+1, tuple(dims_out))
         if l < L-1:            
             unfolding1 = cnv.unfold(S, l+2, S.shape)
         else:
