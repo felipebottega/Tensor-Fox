@@ -339,8 +339,8 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
     is an element of the permutation group S_R.
 
-    Given the rank R, this function try 'trials' random permutations (not necessarily distinct). We remark that the
-    forward error is always equal or greater than the backward error.
+    Given the rank R, this function tests 'trials' random permutations (not necessarily distinct). We remark that 
+    the forward error is always equal or greater than the backward error.
 
     Inputs
     ------
@@ -349,7 +349,7 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     approx_factors: list of ndarrays
         The elements of the list are the factor matrices of the approximated tensor.
     trials: int
-        Number of of trials before stopping testing permutation. Default is 100.
+        Number of of trials before stopping testing permutation. Default is 1000.
 
     Outputs
     -------

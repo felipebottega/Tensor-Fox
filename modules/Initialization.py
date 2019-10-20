@@ -84,8 +84,8 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
     else:
         sys.exit('Error with init parameter.')
 
-        # Depending on the tensor, the factors X, Y, Z may have null entries. We want to
-    # avoid that. The solution is to introduce some little random noise. 
+    # Depending on the tensor, the factors X, Y, Z may have null entries. We want to
+    # avoid that. The solution is to introduce very small random noise. 
     X, Y, Z = clean_zeros(S, X, Y, Z)
 
     # Make all factors balanced.
@@ -148,7 +148,6 @@ def smart_random(S, R, R1, R2, R3):
     return best_X, best_Y, best_Z
 
 
-@jit(nogil=True)
 def smart_sample(S, R, R1, R2, R3):
     """
     We consider a distribution that gives more probability to smaller coordinates. This is because these are associated 
@@ -277,19 +276,17 @@ def clean_zeros(T, X, Y, Z):
     R = X.shape[1]
 
     # Initialize the factors X, Y, Z with small noises to avoid null entries.
-    s = 1 / ( 1 + norm(T.flatten()) )**2
-
     for i in range(m):
         for r in range(R):
             if X[i, r] == 0.0:
-                X[i, r] = s * randn()
+                X[i, r] = 1e-16 * randn()
     for j in range(n):
         for r in range(R):
             if Y[j, r] == 0.0:
-                Y[j, r] = s * randn()
+                Y[j, r] = 1e-16 * randn()
     for k in range(p):
         for r in range(R):
             if Z[k, r] == 0.0:
-                Z[k, r] = s * randn()
+                Z[k, r] = 1e-16 * randn()
 
     return X, Y, Z
