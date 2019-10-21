@@ -94,19 +94,18 @@ def unfold(T, mode, dims):
     L = len(dims)
     Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
     func_name = "unfold" + str(mode) + "_order" + str(L)
-    Tl = getattr(crt, func_name)(T, Tl, dims)
+    Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
     return Tl
 
 
 def foldback(T, Tl, mode, dims):
     """
-    Computes the tensor with dimension dims given an unfolding with its mode. Attention: dims are the dimensions of the 
-    output tensor, not the input.
+    Computes the tensor with dimension dims given an unfolding with its mode. 
     """
  
     L = len(dims)
     func_name = "foldback" + str(mode) + "_order" + str(L)
-    T = getattr(crt, func_name)(T, Tl, dims)
+    T = getattr(crt, func_name)(T, Tl, tuple(dims))
     
     return T
 
