@@ -90,16 +90,15 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
     X, Y, Z = clean_zeros(S, X, Y, Z)
 
     # Make all factors balanced.
-    X, Y, Z = cnv.equalize((X, Y, Z), R)
+    X, Y, Z = cnv.equalize([X, Y, Z], R)
 
     # Apply additional transformations if requested.
     X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
 
     if display > 2 or display < -1:
         # Computation of relative error associated with the starting point given.
-        S_init = empty((R1, R2, R3), dtype=float64)
-        S_init = cnv.cpd2tens(S_init, [X, Y, Z], (R1, R2, R3))
-        S1_init = cnv.unfold(S_init, 1, (R1, R2, R3))
+        S_init = cnv.cpd2tens([X, Y, Z])
+        S1_init = cnv.unfold(S_init, 1)
         rel_error = mlinalg.compute_error(T, Tsize, S1_init, [U1, U2, U3], (R1, R2, R3))
         return X, Y, Z, rel_error
 
@@ -134,14 +133,15 @@ def smart_random(S, R, R1, R2, R3):
     # Initialize auxiliary values and arrays.
     samples = 1 + int(sqrt(R1 * R2 * R3))
     best_error = inf
+    S1 = cnv.unfold(S, 1)
     Ssize = norm(S)
 
     # Start search for a good initial point.
     for sample in range(samples):
         X, Y, Z = smart_sample(S, R, R1, R2, R3)
-        S_init = empty((R1, R2, R3), dtype=float64)
-        S_init = cnv.cpd2tens(S_init, [X, Y, Z], (R1, R2, R3))
-        rel_error = norm(S - S_init) / Ssize
+        # Compute error.
+        S1_init = cnv.cpd2unfold1(S1_init, [X, Y, Z])
+        rel_error = norm(S1 - S1_init) / Ssize
         if rel_error < best_error:
             best_error = rel_error
             best_X, best_Y, best_Z = X, Y, Z

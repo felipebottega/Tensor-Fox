@@ -82,9 +82,6 @@ def als(T, X, Y, Z, R, options):
 
     # Verify if some factor should be fixed or not. This only happens in the bicpd function.
     fix_mode = -1
-    T1 = cnv.unfold(T, 1, T.shape)
-    T2 = cnv.unfold(T, 2, T.shape)
-    T3 = cnv.unfold(T, 3, T.shape)
     if type(X) == list:
         fix_mode = 0
         X_orig = copy(X[0])
@@ -116,8 +113,15 @@ def als(T, X, Y, Z, R, options):
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    T_approx = empty((m, n, p), dtype=float64)
-    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
+    best_X = copy(X)
+    best_Y = copy(Y)
+    best_Z = copy(Z)
+
+    # Compute unfoldings.
+    T1 = cnv.unfold(T, 1)
+    T2 = cnv.unfold(T, 2)
+    T3 = cnv.unfold(T, 3)
+    T1_approx = empty(T1.shape, dtype=float64)
 
     if display > 1:
         if display == 4:
@@ -155,9 +159,9 @@ def als(T, X, Y, Z, R, options):
         elif fix_mode == 2:
             Z = copy(Z_orig)
                                           
-        # Compute error. 
-        T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p)) 
-        error = norm(T - T_approx)/Tsize
+        # Compute error.
+        T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
+        error = norm(T1 - T1_approx) / Tsize
 
         # Update best solution.
         if error < best_error:

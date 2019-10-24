@@ -35,8 +35,7 @@ def multilin_mult_cpd(U, W, dims):
         W_new.append( dot(U[l], W[l]) )
         dims_out.append(W_new[l].shape[0])
     
-    S = zeros(dims_out)
-    S = cnv.cpd2tens(S, W_new, dims_out)
+    S = cnv.cpd2tens(W_new)
     return S
 
 
@@ -56,9 +55,9 @@ def multilin_mult(U, T1, dims):
         # Update the current dimension of dims_out.
         dims_out[l] = U[l].shape[0]
         S = empty(dims_out)
-        S = cnv.foldback(S, unfolding2, l+1, dims_out)
+        S = cnv.foldback(S, unfolding2, l+1)
         if l < L-1:            
-            unfolding1 = cnv.unfold(S, l+2, S.shape)
+            unfolding1 = cnv.unfold(S, l+2)
         else:
             return S
         
@@ -94,7 +93,7 @@ def multirank_approx(T, multi_rank, options):
     S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R_gen, options)
 
     # Construct the corresponding tensor T_approx.
-    S1 = cnv.unfold(S, 1, multi_rank)
+    S1 = cnv.unfold(S, 1)
     T_approx = multilin_mult(U, S1, multi_rank)
     
     return T_approx
@@ -287,12 +286,11 @@ def rank1_terms_list(factors):
 
     for r in range(R):
         vectors = []
-        T_approx = zeros(dims, dtype=float64)
         for l in range(L):
             # vectors[l] = [w_r^(1),w_r^(2),...,w_r^(L)], which represents w_r^(1) ⊗ w_r^(2) ⊗ ... ⊗ w_r^(L).
             v = factors[l][:, r]
             vectors.append(v.reshape(v.size, 1))
-        term = cnv.cpd2tens(T_approx, vectors, dims)
+        term = cnv.cpd2tens(vectors)
         rank1_terms.append(term)
 
     return rank1_terms

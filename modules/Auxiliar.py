@@ -52,7 +52,7 @@ def consistency(R, dims, options):
         msg = 'Rank must be greater than 1 for tensor with order greater than 3.'
         sys.exit(msg)
 
-    if options.method == 'ttcpd' and R > min(dims):
+    if L > 3 and R > min(dims):
         warnings.warn('\nFor tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
                       ' least one of the dimensions of the tensor.\nThe ideal would to be smaller or equal than all' 
                       ' dimensions.\nIn the case this condition is not met the computations can be slower and the'
@@ -163,7 +163,7 @@ def unsort_dims(X, Y, Z, ordering):
         return Z, Y, X
 
 
-def output_info(T_orig, Tsize, T_approx, 
+def output_info(T1, Tsize, T1_approx, 
                 step_sizes_main, step_sizes_refine, 
                 errors_main, errors_refine, 
                 improv_main, improv_refine, 
@@ -180,7 +180,7 @@ def output_info(T_orig, Tsize, T_approx,
     else:
         num_steps = size(step_sizes_main)
 
-    rel_error = norm(T_orig - T_approx)/Tsize
+    rel_error = norm(T1 - T1_approx)/Tsize
 
     class output:
         def __init__(self):
@@ -449,7 +449,7 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
         if display > 0:
             print()
             print('CPD 1')
-        X, Y, Z, T_approx, output = tfx.tricpd(G[1], R, options)
+        X, Y, Z, output = tfx.tricpd(G[1], R, options)
         if output.rel_error < best_error:
             best_output = output
             best_error = output.rel_error
@@ -481,7 +481,7 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], R, [fixed_X, 0], options)
+                    X, Y, Z, output = tfx.bicpd(G[l], R, [fixed_X, 0], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
@@ -509,7 +509,7 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
                     if display > 0:
                         print()
                         print('CPD', l)
-                    X, Y, Z, T_approx, output = tfx.bicpd(G[l], R, [fixed_Z, 2], options)
+                    X, Y, Z, output = tfx.bicpd(G[l], R, [fixed_Z, 2], options)
                     if output.rel_error < best_error:
                         best_output = output
                         best_error = output.rel_error
@@ -557,7 +557,6 @@ def gen_rand_tensor(dims, R):
         M = randn(dims[l], R)
         orig_factors.append(M)
 
-    T = zeros(dims)
-    T = tfx.cnv.cpd2tens(T, orig_factors, dims) 
+    T = tfx.cnv.cpd2tens(orig_factors) 
 
     return T, orig_factors

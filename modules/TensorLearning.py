@@ -731,8 +731,7 @@ def simplify_model(W, r, options=False):
         for l in range(L):
             factors.append(W[k, l, :, :])
         # Convert factor matrices to coordinates format.
-        Tk = 0 * Tk
-        Tk = tfx.cnv.cpd2tens(Tk, factors, dims)
+        Tk = tfx.cnv.cpd2tens(factors)
         # Compute rank-r approximation for Tk.
         factors, T_approx, output = tfx.cpd(Tk, r, options)
         errors.append(output.rel_error)
@@ -896,7 +895,7 @@ def mlsvd_train(T, r, options=False):
         F, U2 = 0, 0
     else:
         success = True
-        S1 = tfx.cnv.unfold(S, 1, S.shape)
+        S1 = tfx.cnv.unfold(S, 1)
         F = tfx.mlinalg.multilin_mult([np.identity(R1), np.identity(R2), U3], S1, S.shape)
         print('Shape of MLSVD:', F.shape)
         if options.display == 3:

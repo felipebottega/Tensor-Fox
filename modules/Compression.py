@@ -7,7 +7,7 @@ MLSVD and truncating it.
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, prod, float64, copy, dot, diag
+from numpy import identity, ones, empty, array, prod, float64, copy
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
@@ -67,75 +67,73 @@ def mlsvd(T, Tsize, R, options):
 
     # tol_mlsvd = -1 means no truncation and no compression, in other words, the original tensor.
     if tol_mlsvd == -1:
+        T1 = cnv.unfold(T, 1)
         U = [ identity(dims[l]) for l in range(L) ]
-        UT = U
         sigmas = [ ones(dims[l]) for l in range(L) ]
         if display > 2 or display < -1:
-            return T, U, UT, sigmas, 0.0
+            return T, U, T1, sigmas, 0.0
         else:
-            return T, U, UT, sigmas
+            return T, U, T1, sigmas
 
     # Compute MLSVD base on sequentially truncated method.
     sigmas = []
     U = []
-    UT = []
     S_dims = copy(dims)
     S = copy(T)
     for l in range(L):
-        Sl = cnv.unfold(S, l+1, S_dims)
+        Sl = cnv.unfold(S, l+1)
+        if l == 0:
+            T1 = copy(Sl)
         low_rank = min(R, dims[l])
-        Ul, sigma_l, Vlt = rand_svd(Sl, low_rank, n_oversamples=5, n_iter=2, power_iteration_normalizer='none')
+        Ul, sigma_l, Vlt = rand_svd(Sl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
         # Truncate more based on energy.
         Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
         sigmas.append(sigma_l)
         U.append(Ul)
-        UT.append(Ul.T)
         # Compute l-th unfolding of S truncated at the l-th mode.
-        Sl = dot(diag(sigma_l), Vlt)   
+        Sl = (Vlt.T * sigma_l).T  
         S_dims[l] = dim
         S = empty(S_dims, float64)
-        S = cnv.foldback(S, Sl, l+1, S_dims)
+        S = cnv.foldback(S, Sl, l+1)
 
     # tol_mlsvd = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
     if tol_mlsvd == 0:
-        T1 = cnv.unfold(T, 1, dims)
+        UT = [U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(UT, T1, dims)
         new_dims = [min(R, dims[l]) for l in range(L)]
         if display > 2 or display < -1:
-            S1 = cnv.unfold(S, 1, new_dims)
+            S1 = cnv.unfold(S, 1)
             best_error = mlinalg.compute_error(T, Tsize, S1, U, new_dims)
-            return S, U, UT, sigmas, best_error
+            return S, U, T1, sigmas, best_error
         else:
-            return S, U, UT, sigmas
+            return S, U, T1, sigmas
 
     # TRUNCATE SVD'S OF UNFOLDINGS
 
     # Specific truncation is given by the user.
     if type(trunc_dims) == list:
         best_U = []
-        best_UT = []
         for l in range(L):
             if trunc_dims[l] > U[l].shape[1]:
                 print(trunc_dims[l], U[l].shape)
                 sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
             best_U.append( U[l][:, :trunc_dims[l]] )
-            best_UT.append( UT[l][:trunc_dims[l], :] )
-        T1 = cnv.unfold(T, 1, dims)
+        best_UT = [U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(best_UT, T1, dims)
         if display > 2 or display < -1:
-            S1 = cnv.unfold(S, 1, trunc_dims)
+            S1 = cnv.unfold(S, 1)
             best_error = mlinalg.compute_error(T, Tsize, S1, best_U, trunc_dims)
-            return S, best_U, best_UT, sigmas, best_error
+            return S, best_U, T1, sigmas, best_error
         else:
-            return S, best_U, best_UT, sigmas
+            return S, best_U, T1, sigmas
 
     # Compute error of compressed tensor.
     if display > 2 or display < -1:
-        S1 = cnv.unfold(S, 1, S.shape)
+        S1 = cnv.unfold(S, 1)
         best_error = mlinalg.compute_error(T, Tsize, S1, U, S.shape)
-        return S, U, UT, sigmas, best_error
+        return S, U, T1, sigmas, best_error
 
-    return S, U, UT, sigmas
+    return S, U, T1, sigmas
 
 
 def clean_compression(U, sigma, Vt, tol_mlsvd, L):
@@ -201,17 +199,15 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
     U = []
-    UT = []
     T1 = empty((dims[0], prod(dims) // dims[0]), dtype=float64)
     for l in range(L):
-        Tl = cnv.unfold(T, l + 1, dims)
+        Tl = cnv.unfold(T, l+1)
         if l == 0:
             T1 = copy(Tl)
         low_rank = min(dims[l], max_trunc_dims[l])
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=n_iter, power_iteration_normalizer=power_iteration_normalizer)
         sigmas.append(sigma_l)
         U.append(Ul)
-        UT.append(Ul.T)
 
     # Save errors in a list.
     trunc_error = []
@@ -221,16 +217,15 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
         # S, U and UT truncated.
         current_dims = trunc
         current_U = []
-        current_UT = []
         current_sigmas = []
         for l in range(L):
             current_U.append(U[l][:, :current_dims[l]])
-            current_UT.append(UT[l][:current_dims[l], :])
             current_sigmas.append(sigmas[l][:current_dims[l]])
+        current_UT = [current_U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(current_UT, T1, dims)
 
         # Error of truncation.
-        S1 = cnv.unfold(S, 1, current_dims)
+        S1 = cnv.unfold(S, 1)
         current_error = mlinalg.compute_error(T, Tsize, S1, current_U, current_dims)
         trunc_error.append(current_error)
 

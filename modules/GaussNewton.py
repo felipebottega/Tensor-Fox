@@ -7,7 +7,7 @@ method.
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity, nan
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity, nan, add, subtract
 from numpy.linalg import norm
 from numpy.random import randint
 from scipy.linalg import solve
@@ -128,8 +128,6 @@ def dGN(T, X, Y, Z, R, init_error, options):
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    T_approx = empty((m, n, p), dtype=float64)
-    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
     best_X = copy(X)
     best_Y = copy(Y)
     best_Z = copy(Z)
@@ -138,9 +136,10 @@ def dGN(T, X, Y, Z, R, init_error, options):
     data = prepare_data(m, n, p, R)
 
     # Compute unfoldings.
-    T1 = cnv.unfold(T, 1, (m, n, p))
-    T2 = cnv.unfold(T, 2, (m, n, p))
-    T3 = cnv.unfold(T, 3, (m, n, p))
+    T1 = cnv.unfold(T, 1)
+    T2 = cnv.unfold(T, 2)
+    T3 = cnv.unfold(T, 3)
+    T1_approx = empty(T1.shape, dtype=float64)
 
     if display > 1:
         if display == 4:
@@ -173,7 +172,7 @@ def dGN(T, X, Y, Z, R, init_error, options):
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         # A = Dres(x) and b = -res(x).
         inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
-        T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z,
+        T1_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z,
                                                                                X_orig, Y_orig, Z_orig, data, x, y,
                                                                                inner_parameters, it)
 
@@ -254,7 +253,7 @@ def dGN(T, X, Y, Z, R, init_error, options):
     return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it):
+def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -273,10 +272,10 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
         y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'direct': 
-        y, grad, itn, residualnorm = direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
+        y, grad, itn, residualnorm = direct_solve(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
     elif inner_method == 'gd':
-        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
+        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
     elif inner_method == 'als':
         X, Y, Z = als.als_iteration(T1, T2, T3, X, Y, Z, fix_mode)
@@ -290,7 +289,7 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
     x = x + y
 
     # Compute new factors X, Y, Z.
-    X, Y, Z = cnv.x2cpd(x, X, Y, Z, m, n, p, R)
+    X, Y, Z = cnv.x2cpd(x, X, Y, Z)
     X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
     if fix_mode == 0:
         X = copy(X_orig)
@@ -300,33 +299,33 @@ def compute_step(T, Tsize, T1, T2, T3, T_approx, X, Y, Z, X_orig, Y_orig, Z_orig
         Z = copy(Z_orig)
 
     # Compute error.
-    T_approx = cnv.cpd2tens(T_approx, [X, Y, Z], (m, n, p))
-    error = norm(T - T_approx) / Tsize
+    T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
+    error = norm(T1 - T1_approx) / Tsize
 
     if inner_method == 'als':
-        return T_approx, X, Y, Z, x, y, [nan], '-', Tsize*error, error
+        return T1_approx, X, Y, Z, x, y, [nan], '-', Tsize*error, error
     
-    return T_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
+    return T1_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
 
 
-def direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
+def direct_solve(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
     # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, \
-        Gr_XY, Gr_XZ, Gr_YZ, \
-        V_Xt, V_Yt, V_Zt, \
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
-        X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
-        Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
-        B_X_v, B_Y_v, B_Z_v, \
-        B_XY_v, B_XZ_v, B_YZ_v, \
-        B_XYt_v, B_XZt_v, B_YZt_v, \
-        X_norms, Y_norms, Z_norms, \
-        gamma_X, gamma_Y, gamma_Z, Gamma, \
-        M, L, residual_cg, P, Q, z, \
-        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
+    Gr_X, Gr_Y, Gr_Z,\
+        Gr_XY, Gr_XZ, Gr_YZ,\
+        V_Xt, V_Yt, V_Zt,\
+        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
+        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
+        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
+        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
+        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
+        BX1, BY1, BZ1,\
+        BX2, BY2, BZ2,\
+        BXv, BYv, BZv,\
+        BX_plus, BY_plus, BZ_plus, Bv,\
+        X_norms, Y_norms, Z_norms,\
+        gamma_X, gamma_Y, gamma_Z, Gamma,\
+        M, L, residual_cg, P, Q, z,\
+        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
 
     damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
 
@@ -336,7 +335,7 @@ def direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig
     Jf = jacobian(X, Y, Z, m, n, p, R) 
     H = hessian(Jf)
     L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
-    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, Gr_YZ, gX, AY, BY, CY, DY, Gr_XZ, gY, AZ, BZ, CZ, DZ, Gr_XY, gZ, g)
     
     # Add regularization.
     for i in range(R*(m+n+p)):
@@ -347,35 +346,35 @@ def direct_solve(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig
     try:
         y = solve(H, grad, sym_pos=True, check_finite=False)
     except np.linalg.LinAlgError:
-        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
+        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
 
     residualnorm = norm(dot(H, y) - grad)
 
     return y, grad, '-', residualnorm
 
 
-def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
+def gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
     # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, \
-        Gr_XY, Gr_XZ, Gr_YZ, \
-        V_Xt, V_Yt, V_Zt, \
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
-        X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
-        Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
-        B_X_v, B_Y_v, B_Z_v, \
-        B_XY_v, B_XZ_v, B_YZ_v, \
-        B_XYt_v, B_XZt_v, B_YZt_v, \
-        X_norms, Y_norms, Z_norms, \
-        gamma_X, gamma_Y, gamma_Z, Gamma, \
-        M, L, residual_cg, P, Q, z, \
-        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
+    Gr_X, Gr_Y, Gr_Z,\
+        Gr_XY, Gr_XZ, Gr_YZ,\
+        V_Xt, V_Yt, V_Zt,\
+        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
+        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
+        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
+        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
+        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
+        BX1, BY1, BZ1,\
+        BX2, BY2, BZ2,\
+        BXv, BYv, BZv,\
+        BX_plus, BY_plus, BZ_plus, Bv,\
+        X_norms, Y_norms, Z_norms,\
+        gamma_X, gamma_Y, gamma_Z, Gamma,\
+        M, L, residual_cg, P, Q, z,\
+        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
 
     damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
 
-    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, Gr_YZ, gX, AY, BY, CY, DY, Gr_XZ, gY, AZ, BZ, CZ, DZ, Gr_XY, gZ, g)
 
     # Test some values of alpha and keep the best.
     best_error = inf
@@ -388,7 +387,7 @@ def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_
         temp_x = x - alpha*grad
 
         # Compute new factors X, Y, Z.
-        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, X, Y, Z, m, n, p, R)
+        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, X, Y, Z)
         X, Y, Z = cnv.transform(temp_X, temp_Y, temp_Z, low, upp, factor, symm, factors_norm)
         if fix_mode == 0:
             temp_X = copy(X_orig)
@@ -398,8 +397,8 @@ def gradient_descent(T, Tsize, T_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_
             temp_Z = copy(Z_orig)
 
         # Compute error.
-        T_approx = cnv.cpd2tens(T_approx, [temp_X, temp_Y, temp_Z], (m, n, p))
-        error = norm(T - T_approx) / Tsize
+        T1_approx = cnv.cpd2unfold1(T1_approx, [temp_X, temp_Y, temp_Z])
+        error = norm(T1 - T1_approx) / Tsize
         
         # Update best results.
         if error < best_error:
@@ -419,22 +418,22 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     maxiter = min(maxiter, R * (m + n + p))
 
     # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z, \
-        Gr_XY, Gr_XZ, Gr_YZ, \
-        V_Xt, V_Yt, V_Zt, \
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z, \
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z, \
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, \
-        X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z, \
-        Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y, \
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt, \
-        B_X_v, B_Y_v, B_Z_v, \
-        B_XY_v, B_XZ_v, B_YZ_v, \
-        B_XYt_v, B_XZt_v, B_YZt_v, \
-        X_norms, Y_norms, Z_norms, \
-        gamma_X, gamma_Y, gamma_Z, Gamma, \
-        M, L, residual_cg, P, Q, z, \
-        NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ = data
+    Gr_X, Gr_Y, Gr_Z,\
+        Gr_XY, Gr_XZ, Gr_YZ,\
+        V_Xt, V_Yt, V_Zt,\
+        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
+        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
+        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
+        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
+        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
+        BX1, BY1, BZ1,\
+        BX2, BY2, BZ2,\
+        BXv, BYv, BZv,\
+        BX_plus, BY_plus, BZ_plus, Bv,\
+        X_norms, Y_norms, Z_norms,\
+        gamma_X, gamma_Y, gamma_Z, Gamma,\
+        M, L, residual_cg, P, Q, z,\
+        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
 
     # Compute the values of all arrays.
     Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
@@ -449,10 +448,10 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     y *= 0
 
     # CG iterations.
-    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ)
+    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
     residual_cg = M * grad
     P = residual_cg
-    residualnorm = norm(residual_cg)**2
+    residualnorm = dot(residual_cg.T, residual_cg)
     if residualnorm == 0.0:
         residualnorm = 1e-6
     
@@ -466,12 +465,12 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
                    V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
                    Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
                    Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-                   X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z,
-                   Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y,
                    Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-                   B_X_v, B_Y_v, B_Z_v,
-                   B_XY_v, B_XZ_v, B_YZ_v,
-                   B_XYt_v, B_XZt_v, B_YZt_v,
+                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
+                   BX1, BY1, BZ1,
+                   BX2, BY2, BZ2,
+                   BXv, BYv, BZv,
+                   BX_plus, BY_plus, BZ_plus, Bv,
                    Q, m, n, p, R) + damp * L * Q
         z = M * z
         denominator = dot(P.T, z)
@@ -480,7 +479,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
         alpha = residualnorm / denominator
         y += alpha * P
         residual_cg -= alpha * z
-        residualnorm_new = norm(residual_cg)**2
+        residualnorm_new = dot(residual_cg.T, residual_cg)
         beta = residualnorm_new / residualnorm
         residualnorm = residualnorm_new
         P = residual_cg + beta * P
@@ -492,7 +491,7 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     return M * y, grad, itn + 1, residualnorm
 
 
-def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ):
+def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g):
     """
     This function computes the gradient of the error function at (X, Y, Z).
     """
@@ -503,35 +502,28 @@ def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY
 
     # X part.
     NX = mlinalg.khatri_rao(Z, Y, NX)
-    dot(Y.T, Y, out=AX)
-    dot(Z.T, Z, out=BX)
-    HX = mlinalg.hadamard(AX, BX, HX)
-    dot(X, HX, out=CX)
+    dot(X, Gr_YZ, out=CX)
     dot(T1, NX, out=DX)
-    gX = CX - DX
+    subtract(CX, DX, gX)
     ggX = gX.T.reshape(m*R,)
 
     # Y part.
     NY = mlinalg.khatri_rao(Z, X, NY)
-    dot(X.T, X, out=AY)
-    dot(Z.T, Z, out=BY)
-    HY = mlinalg.hadamard(AY, BY, HY)
-    dot(Y, HY, out=CY)
+    dot(Y, Gr_XZ, out=CY)
     dot(T2, NY, out=DY)
-    gY = CY - DY
+    subtract(CY, DY, gY)
     ggY = gY.T.reshape(n*R,)
 
     # Z part.
     NZ = mlinalg.khatri_rao(Y, X, NZ)
-    dot(X.T, X, out=AZ)
-    dot(Y.T, Y, out=BZ)
-    HZ = mlinalg.hadamard(AZ, BZ, HZ)
-    dot(Z, HZ, out=CZ)
+    dot(Z, Gr_XY, out=CZ)
     dot(T3, NZ, out=DZ)
-    gZ = CZ - DZ
+    subtract(CZ, DZ, gZ)
     ggZ = gZ.T.reshape(p*R,)
 
-    return concatenate((ggX, ggY, ggZ))
+    concatenate((ggX, ggY, ggZ), out=g)
+
+    return g
 
 
 def prepare_data(m, n, p, R):
@@ -562,28 +554,29 @@ def prepare_data(m, n, p, R):
     Gr_Z_V_Xt_dot_X = empty((R, R), dtype=float64)
     Gr_Y_V_Xt_dot_X = empty((R, R), dtype=float64)
     Gr_X_V_Yt_dot_Y = empty((R, R), dtype=float64)
-    X_dot_Gr_Z_V_Yt_dot_Y = empty((m, R), dtype=float64)
-    X_dot_Gr_Y_V_Zt_dot_Z = empty((m, R), dtype=float64)
-    Y_dot_Gr_X_V_Zt_dot_Z = empty((n, R), dtype=float64)
-    Y_dot_Gr_Z_V_Xt_dot_X = empty((n, R), dtype=float64)
-    Z_dot_Gr_Y_V_Xt_dot_X = empty((p, R), dtype=float64)
-    Z_dot_Gr_X_V_Yt_dot_Y = empty((p, R), dtype=float64)
+    GZY_plus_GYZ = empty((R, R), dtype=float64)
+    GXZ_plus_GZX = empty((R, R), dtype=float64)
+    GYX_plus_GXY = empty((R, R), dtype=float64)
 
+    # Final blocks
+    BX1 = empty((R, m), dtype=float64)
+    BY1 = empty((R, n), dtype=float64)
+    BZ1 = empty((R, p), dtype=float64)
+    BX2 = empty((m, R), dtype=float64)
+    BY2 = empty((n, R), dtype=float64)
+    BZ2 = empty((p, R), dtype=float64)
+    BX_plus = empty((m, R), dtype=float64)
+    BY_plus = empty((n, R), dtype=float64)
+    BZ_plus = empty((p, R), dtype=float64)
+    BXv = empty(m * R, dtype=float64)
+    BYv = empty(n * R, dtype=float64)
+    BZv = empty(p * R, dtype=float64)
+    Bv = empty(R*(m+n+p), dtype=float64)
+    
     # Matrices for the diagonal block
     Gr_YZ_V_Xt = empty((R, m), dtype=float64)
     Gr_XZ_V_Yt = empty((R, n), dtype=float64)
     Gr_XY_V_Zt = empty((R, p), dtype=float64)
-
-    # Final blocks
-    B_X_v = empty(m * R, dtype=float64)
-    B_Y_v = empty(n * R, dtype=float64)
-    B_Z_v = empty(p * R, dtype=float64)
-    B_XY_v = empty(m * R, dtype=float64)
-    B_XZ_v = empty(m * R, dtype=float64)
-    B_YZ_v = empty(n * R, dtype=float64)
-    B_XYt_v = empty(n * R, dtype=float64)
-    B_XZt_v = empty(p * R, dtype=float64)
-    B_YZt_v = empty(p * R, dtype=float64)
 
     # Matrices to use when constructing the Tikhonov matrix for regularization.
     X_norms = empty(R, dtype=float64)
@@ -606,21 +599,16 @@ def prepare_data(m, n, p, R):
     NX = empty((n*p, R), dtype=float64)
     NY = empty((m*p, R), dtype=float64)
     NZ = empty((m*n, R), dtype=float64)
-    AX = empty((R, R), dtype=float64)
-    BX = empty((R, R), dtype=float64)
     CX = empty((m, R), dtype=float64)
     DX = empty((m, R), dtype=float64)
-    HX = empty((R, R), dtype=float64)
-    AY = empty((R, R), dtype=float64)
-    BY = empty((R, R), dtype=float64)
+    gX = empty((m, R), dtype=float64)
     CY = empty((n, R), dtype=float64)
     DY = empty((n, R), dtype=float64)
-    HY = empty((R, R), dtype=float64)
-    AZ = empty((R, R), dtype=float64)
-    BZ = empty((R, R), dtype=float64)
+    gY = empty((n, R), dtype=float64)
     CZ = empty((p, R), dtype=float64)
     DZ = empty((p, R), dtype=float64)
-    HZ = empty((R, R), dtype=float64)
+    gZ = empty((p, R), dtype=float64)
+    g = empty(R*(m+n+p), dtype=float64)
 
     data = [Gr_X, Gr_Y, Gr_Z,
             Gr_XY, Gr_XZ, Gr_YZ,
@@ -628,16 +616,16 @@ def prepare_data(m, n, p, R):
             V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
             Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
             Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-            X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z,
-            Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y,
             Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-            B_X_v, B_Y_v, B_Z_v,
-            B_XY_v, B_XZ_v, B_YZ_v,
-            B_XYt_v, B_XZt_v, B_YZt_v,
+            GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
+            BX1, BY1, BZ1,
+            BX2, BY2, BZ2,
+            BXv, BYv, BZv,
+            BX_plus, BY_plus, BZ_plus, Bv,
             X_norms, Y_norms, Z_norms,
             gamma_X, gamma_Y, gamma_Z, Gamma,
             M, L, residual_cg, P, Q, z,
-            NX, NY, NZ, AX, BX, CX, DX, HX, AY, BY, CY, DY, HY, AZ, BZ, CZ, DZ, HZ]
+            NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g]
 
     return data
 
@@ -662,7 +650,6 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     return damp
 
 
-@njit(nogil=True)
 def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     """ 
     Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
@@ -678,7 +665,6 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
 
-@njit(nogil=True)
 def matvec(X, Y, Z,
            Gr_X, Gr_Y, Gr_Z,
            Gr_XY, Gr_XZ, Gr_YZ,
@@ -686,12 +672,12 @@ def matvec(X, Y, Z,
            V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
            Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
            Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-           X_dot_Gr_Z_V_Yt_dot_Y, X_dot_Gr_Y_V_Zt_dot_Z, Y_dot_Gr_X_V_Zt_dot_Z,
-           Y_dot_Gr_Z_V_Xt_dot_X, Z_dot_Gr_Y_V_Xt_dot_X, Z_dot_Gr_X_V_Yt_dot_Y,
            Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-           B_X_v, B_Y_v, B_Z_v,
-           B_XY_v, B_XZ_v, B_YZ_v,
-           B_XYt_v, B_XZt_v, B_YZt_v,
+           GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
+           BX1, BY1, BZ1,
+           BX2, BY2, BZ2,
+           BXv, BYv, BZv,
+           BX_plus, BY_plus, BZ_plus, Bv,
            v, m, n, p, R):
     """
     Makes the matrix-vector computation (Df^T * Df)*v.
@@ -715,32 +701,32 @@ def matvec(X, Y, Z,
     Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X)
     Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X)
     Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y)
+    
+    # Add intermediate blocks
+    add(Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, out=GZY_plus_GYZ)
+    add(Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, out=GXZ_plus_GZX)
+    add(Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, out=GYX_plus_GXY)
 
-    # Compute the final products
-    dot(X, Gr_Z_V_Yt_dot_Y, out=X_dot_Gr_Z_V_Yt_dot_Y)
-    dot(X, Gr_Y_V_Zt_dot_Z, out=X_dot_Gr_Y_V_Zt_dot_Z)
-    dot(Y, Gr_X_V_Zt_dot_Z, out=Y_dot_Gr_X_V_Zt_dot_Z)
-    dot(Y, Gr_Z_V_Xt_dot_X, out=Y_dot_Gr_Z_V_Xt_dot_X)
-    dot(Z, Gr_Y_V_Xt_dot_X, out=Z_dot_Gr_Y_V_Xt_dot_X)
-    dot(Z, Gr_X_V_Yt_dot_Y, out=Z_dot_Gr_X_V_Yt_dot_Y)
-
+    # Compute final products
+    dot(X, GZY_plus_GYZ, out=BX2)
+    dot(Y, GXZ_plus_GZX, out=BY2)
+    dot(Z, GYX_plus_GXY, out=BZ2)
+    
     # Diagonal block matrices
-    dot(Gr_YZ, V_Xt, out=Gr_YZ_V_Xt)
-    dot(Gr_XZ, V_Yt, out=Gr_XZ_V_Yt)
-    dot(Gr_XY, V_Zt, out=Gr_XY_V_Zt)
+    dot(Gr_YZ, V_Xt, out=BX1)
+    dot(Gr_XZ, V_Yt, out=BY1)
+    dot(Gr_XY, V_Zt, out=BZ1)
 
     # Vectorize the matrices to have the final vectors
-    B_X_v = cnv.vect(Gr_YZ_V_Xt, B_X_v, m, R)
-    B_Y_v = cnv.vect(Gr_XZ_V_Yt, B_Y_v, n, R)
-    B_Z_v = cnv.vect(Gr_XY_V_Zt, B_Z_v, p, R)
-    B_XY_v = cnv.vec(X_dot_Gr_Z_V_Yt_dot_Y, B_XY_v, m, R)
-    B_XZ_v = cnv.vec(X_dot_Gr_Y_V_Zt_dot_Z, B_XZ_v, m, R)
-    B_YZ_v = cnv.vec(Y_dot_Gr_X_V_Zt_dot_Z, B_YZ_v, n, R)
-    B_XYt_v = cnv.vec(Y_dot_Gr_Z_V_Xt_dot_X, B_XYt_v, n, R)
-    B_XZt_v = cnv.vec(Z_dot_Gr_Y_V_Xt_dot_X, B_XZt_v, p, R)
-    B_YZt_v = cnv.vec(Z_dot_Gr_X_V_Yt_dot_Y, B_YZt_v, p, R)
+    add(BX1.T, BX2, out=BX_plus)
+    add(BY1.T, BY2, out=BY_plus)
+    add(BZ1.T, BZ2, out=BZ_plus)
+    BXv = cnv.vec(BX_plus, BXv, m, R)
+    BYv = cnv.vec(BY_plus, BYv, n, R)
+    BZv = cnv.vec(BZ_plus, BZv, p, R)
+    concatenate((BXv, BYv, BZv), out=Bv)
 
-    return concatenate((B_X_v + B_XY_v + B_XZ_v, B_XYt_v + B_Y_v + B_YZ_v, B_XZt_v + B_YZt_v + B_Z_v))
+    return Bv
 
 
 @njit(nogil=True)

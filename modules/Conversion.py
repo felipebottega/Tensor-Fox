@@ -15,8 +15,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-@njit(nogil=True)
-def x2cpd(x, X, Y, Z, m, n, p, R):
+def x2cpd(x, X, Y, Z):
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD. Then this function return
     the following arrays:
@@ -41,6 +40,9 @@ def x2cpd(x, X, Y, Z, m, n, p, R):
     Z: float 2-D ndarray of shape (p, R)
     """ 
 
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    R = X.shape[1]
+
     s = 0
     for r in range(R):
         X[:, r] = x[s:s+m]
@@ -54,19 +56,18 @@ def x2cpd(x, X, Y, Z, m, n, p, R):
         Z[:, r] = x[s:s+p]
         s = s+p
             
-    X, Y, Z = equalize((X, Y, Z), R)
+    X, Y, Z = equalize([X, Y, Z], R)
           
     return X, Y, Z
 
 
-def cpd2tens(T_approx, factors, dims):
+def cpd2tens(factors):
     """
     Converts the factor matrices to tensor in coordinate format using a Khatri-Rao product formula.
 
     Inputs
     ------
     factors: list of L floats 2-D ndarray of shape (dims[i], R) each
-    dims: tuple of L ints
 
     Outputs
     ------
@@ -74,7 +75,9 @@ def cpd2tens(T_approx, factors, dims):
         Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
     """
 
-    L = len(dims)
+    L = len(factors)
+    dims = [factors[l].shape[0] for l in range(L)]
+    T_approx = empty(dims)
     M = factors[1]
    
     for l in range(2, L):
@@ -82,27 +85,58 @@ def cpd2tens(T_approx, factors, dims):
         M = mlinalg.khatri_rao(factors[l], M, N)
 
     T1_approx = dot(factors[0], M.T)
-    T_approx = foldback(T_approx, T1_approx, 1, tuple(dims))
+    T_approx = foldback(T_approx, T1_approx, 1)
+
     return T_approx
 
 
-def unfold(T, mode, dims):
+def cpd2unfold1(T1_approx, factors):
+    """
+    Converts the factor matrices to tensor in coordinate format using a Khatri-Rao product formula.
+
+    Inputs
+    ------
+    factors: list of L floats 2-D ndarray of shape (dims[i], R) each
+
+    Outputs
+    ------
+    T_approx: float L-D ndarray
+        Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
+    """
+
+    L = len(factors)
+    dims = [factors[l].shape[0] for l in range(L)]
+    M = factors[1]
+   
+    for l in range(2, L):
+        N = empty((M.shape[0]*factors[l].shape[0], M.shape[1]))
+        M = mlinalg.khatri_rao(factors[l], M, N)
+
+    T1_approx = dot(factors[0], M.T)
+
+    return T1_approx
+
+
+def unfold(T, mode):
     """
     Computes any unfolding of a tensor up to order L = 12. 
     """
  
+    dims = T.shape
     L = len(dims)
     Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
+
     return Tl
 
 
-def foldback(T, Tl, mode, dims):
+def foldback(T, Tl, mode):
     """
     Computes the tensor with dimension dims given an unfolding with its mode. 
     """
  
+    dims = T.shape
     L = len(dims)
     func_name = "foldback" + str(mode) + "_order" + str(L)
     T = getattr(crt, func_name)(T, Tl, tuple(dims))
@@ -160,7 +194,6 @@ def denormalize(Lambda, X, Y, Z):
     return X_new, Y_new, Z_new
 
 
-@njit(nogil=True)
 def equalize(factors, R):
     """ 
     Let W[0], ..., W[L-1] = factors. After a Gauss-Newton iteration we have an approximated CPD with factors 
