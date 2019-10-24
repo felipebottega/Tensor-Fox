@@ -365,7 +365,7 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     orig_rank1 = rank1_terms_list(orig_factors)
     approx_rank1 = rank1_terms_list(approx_factors)
 
-    best_forward_error, s = search_forward_error(orig_rank1, approx_rank1, R, best_error, trials)
+    best_forward_error, s = search_forward_error(tuple(orig_rank1), tuple(approx_rank1), R, best_error, trials)
 
     # Rearrange approx_factors with the best permutation found.
     new_factors = [approx_factors[l][:, s] for l in range(L)]
