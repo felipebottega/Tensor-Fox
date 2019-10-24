@@ -140,6 +140,7 @@ def smart_random(S, R, R1, R2, R3):
     for sample in range(samples):
         X, Y, Z = smart_sample(S, R, R1, R2, R3)
         # Compute error.
+        S1_init = empty(S1.shape)
         S1_init = cnv.cpd2unfold1(S1_init, [X, Y, Z])
         rel_error = norm(S1 - S1_init) / Ssize
         if rel_error < best_error:

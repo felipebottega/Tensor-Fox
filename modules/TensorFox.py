@@ -423,10 +423,6 @@ def tricpd(T, R, options):
     X = dot(U1, X)
     Y = dot(U2, Y)
     Z = dot(U3, Z)
-
-    # Compute error.
-    T1_approx = empty(T1.shape)
-    T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
     
     # REFINEMENT STAGE
 
@@ -439,6 +435,8 @@ def tricpd(T, R, options):
             print('Computing refinement of solution') 
      
         if display > 2:
+            T1_approx = empty(T1.shape)
+            T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
             init_error = norm(T1 - T1_approx)/Tsize
             print('    Initial guess relative error = {:5e}'.format(init_error))
 
@@ -461,6 +459,10 @@ def tricpd(T, R, options):
         stop_refine = 7
     
     # FINAL WORKS
+
+    # Compute error.
+    T1_approx = empty(T1.shape)
+    T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
 
     # Go back to the original dimension ordering.
     X, Y, Z = aux.unsort_dims(X, Y, Z, ordering)

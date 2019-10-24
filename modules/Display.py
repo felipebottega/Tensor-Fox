@@ -294,13 +294,15 @@ def test_tensors(tensors_list, options_list, trials, display):
         options = options_list[i]
             
         start = time.time()
+
         for t in range(trials):
             if len(element) == 4:
-                factors, T_approx, output = tfx.cpd(T, R, options)
-                errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+                factors, output = tfx.cpd(T, R, options) 
             else:
-                factors, T_approx, output = tfx.cpd(T_noise, R, options)
-                errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+                factors, output = tfx.cpd(T_noise, R, options)
+            T_approx = tfx.cnv.cpd2tens(factors)
+            errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+
         end = time.time()
         timings[i] = (end - start)/trials
     

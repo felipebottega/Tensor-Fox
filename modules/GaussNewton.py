@@ -335,7 +335,7 @@ def direct_solve(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_ori
     Jf = jacobian(X, Y, Z, m, n, p, R) 
     H = hessian(Jf)
     L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
-    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, Gr_YZ, gX, AY, BY, CY, DY, Gr_XZ, gY, AZ, BZ, CZ, DZ, Gr_XY, gZ, g)
+    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
     
     # Add regularization.
     for i in range(R*(m+n+p)):
@@ -374,7 +374,7 @@ def gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z
 
     damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
 
-    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, AX, BX, CX, DX, Gr_YZ, gX, AY, BY, CY, DY, Gr_XZ, gY, AZ, BZ, CZ, DZ, Gr_XY, gZ, g)
+    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
 
     # Test some values of alpha and keep the best.
     best_error = inf

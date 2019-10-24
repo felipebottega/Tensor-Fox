@@ -118,8 +118,9 @@ def mlsvd(T, Tsize, R, options):
                 print(trunc_dims[l], U[l].shape)
                 sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
             best_U.append( U[l][:, :trunc_dims[l]] )
-        best_UT = [U[l].T for l in range(L)]
+        best_UT = [best_U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(best_UT, T1, dims)
+        
         if display > 2 or display < -1:
             S1 = cnv.unfold(S, 1)
             best_error = mlinalg.compute_error(T, Tsize, S1, best_U, trunc_dims)
