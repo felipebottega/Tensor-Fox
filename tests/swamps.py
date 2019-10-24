@@ -32,7 +32,7 @@ def create(m, n, p, r, c, var):
         Y[:, l] = Q_Y[:, 1] + c*Q_Y[:, l]
         Z[:, l] = Q_Z[:, 2] + c*Q_Z[:, l]
     
-    T = tfx.cnv.cpd2tens(T, (X, Y, Z), (m, n, p))        
+    T = tfx.cnv.cpd2tens([X, Y, Z])        
     T_noise = T + var*np.random.randn(m, n, p)
 
     return T, T_noise
