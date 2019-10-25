@@ -10,6 +10,17 @@ from numba import njit, prange
 
 
 @njit(nogil=True, parallel=True)
+def fastnorm(A, B):
+    m, n = A.shape
+    s = 0.0    
+    for i in prange(m):
+        for j in range(n):
+            s += (A[i,j] - B[i,j])**2            
+    s = np.sqrt(s)
+    return s
+
+
+@njit(nogil=True, parallel=True)
 def unfold1_order3(T, Tl, dims):
     I0, I1, I2 = dims
     for i2 in prange(I2):

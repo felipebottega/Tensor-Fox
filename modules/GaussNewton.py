@@ -18,6 +18,7 @@ from numba import njit
 # Tensor Fox modules
 import Alternating_Least_Squares as als
 import Conversion as cnv
+import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
@@ -300,7 +301,7 @@ def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_ori
 
     # Compute error.
     T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
-    error = norm(T1 - T1_approx) / Tsize
+    error = crt.fastnorm(T1, T1_approx) / Tsize
 
     if inner_method == 'als':
         return T1_approx, X, Y, Z, x, y, [nan], '-', Tsize*error, error
@@ -398,7 +399,7 @@ def gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z
 
         # Compute error.
         T1_approx = cnv.cpd2unfold1(T1_approx, [temp_X, temp_Y, temp_Z])
-        error = norm(T1 - T1_approx) / Tsize
+        error = crt.fastnorm(T1, T1_approx) / Tsize
         
         # Update best results.
         if error < best_error:

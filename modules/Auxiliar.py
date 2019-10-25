@@ -180,7 +180,7 @@ def output_info(T1, Tsize, T1_approx,
     else:
         num_steps = size(step_sizes_main)
 
-    rel_error = norm(T1 - T1_approx)/Tsize
+    rel_error = crt.fastnorm(T1, T1_approx)/Tsize
 
     class output:
         def __init__(self):

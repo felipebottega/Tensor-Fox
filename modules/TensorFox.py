@@ -219,7 +219,7 @@ def cpd(T, R, options=False):
         num_steps += output.num_steps
     T1_approx = empty(T1.shape)
     T1_approx = cnv.cpd2unfold1(T1_approx, factors)
-    rel_error = norm(T1 - T1_approx)/Tsize
+    rel_error = crt.fastnorm(T1, T1_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
     
     if options.display != 0:
@@ -437,7 +437,7 @@ def tricpd(T, R, options):
         if display > 2:
             T1_approx = empty(T1.shape)
             T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
-            init_error = norm(T1 - T1_approx)/Tsize
+            init_error = crt.fastnorm(T1, T1_approx)/Tsize
             print('    Initial guess relative error = {:5e}'.format(init_error))
 
         if display > 0:
