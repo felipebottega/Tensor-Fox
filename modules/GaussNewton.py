@@ -454,10 +454,46 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
     residualnorm = dot(residual_cg.T, residual_cg)
     if residualnorm == 0.0:
         residualnorm = 1e-6
-    
+
+    y, itn, residualnorm = cg_iterations(X, Y, Z,
+                   Gr_X, Gr_Y, Gr_Z,
+                   Gr_XY, Gr_XZ, Gr_YZ,
+                   V_Xt, V_Yt, V_Zt,
+                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
+                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
+                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
+                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
+                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
+                   BX1, BY1, BZ1,
+                   BX2, BY2, BZ2,
+                   BXv, BYv, BZv,
+                   BX_plus, BY_plus, BZ_plus, Bv,
+                   M, P, L, damp, z, residual_cg, residualnorm, y, tol, maxiter, m, n, p, R)
+
+    return M * y, grad, itn + 1, residualnorm
+
+
+@njit(nogil=True)
+def cg_iterations(X, Y, Z,
+                   Gr_X, Gr_Y, Gr_Z,
+                   Gr_XY, Gr_XZ, Gr_YZ,
+                   V_Xt, V_Yt, V_Zt,
+                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
+                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
+                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
+                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
+                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
+                   BX1, BY1, BZ1,
+                   BX2, BY2, BZ2,
+                   BXv, BYv, BZv,
+                   BX_plus, BY_plus, BZ_plus, Bv,
+                   M, P, L, damp, z, residual_cg, residualnorm, y, tol, maxiter, m, n, p, R):
+    """
+    Conjugate gradient iterations.
+    """
+
     for itn in range(maxiter):
-        Q = M * P
-        
+        Q = M * P        
         z = matvec(X, Y, Z,
                    Gr_X, Gr_Y, Gr_Z,
                    Gr_XY, Gr_XZ, Gr_YZ,
@@ -488,9 +524,10 @@ def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
         if residualnorm < tol:
             break
 
-    return M * y, grad, itn + 1, residualnorm
+    return y, itn, residualnorm
 
 
+@njit(nogil=True)
 def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g):
     """
     This function computes the gradient of the error function at (X, Y, Z).
@@ -504,24 +541,27 @@ def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_Y
     NX = mlinalg.khatri_rao(Z, Y, NX)
     dot(X, Gr_YZ, out=CX)
     dot(T1, NX, out=DX)
-    subtract(CX, DX, gX)
-    ggX = gX.T.reshape(m*R,)
+    gX = CX - DX
+    # ravel is equivalent to reshape(m*R,).
+    ggX = gX.T.ravel()
 
     # Y part.
     NY = mlinalg.khatri_rao(Z, X, NY)
     dot(Y, Gr_XZ, out=CY)
     dot(T2, NY, out=DY)
-    subtract(CY, DY, gY)
-    ggY = gY.T.reshape(n*R,)
+    gY = CY - DY
+    # ravel is equivalent to reshape(n*R,).
+    ggY = gY.T.ravel()
 
     # Z part.
     NZ = mlinalg.khatri_rao(Y, X, NZ)
     dot(Z, Gr_XY, out=CZ)
     dot(T3, NZ, out=DZ)
-    subtract(CZ, DZ, gZ)
-    ggZ = gZ.T.reshape(p*R,)
+    gZ = CZ - DZ
+    # ravel is equivalent to reshape(p*R,).
+    ggZ = gZ.T.ravel()
 
-    concatenate((ggX, ggY, ggZ), out=g)
+    g = concatenate((ggX, ggY, ggZ))
 
     return g
 
@@ -650,6 +690,7 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     return damp
 
 
+@njit(nogil=True)
 def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     """ 
     Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
@@ -665,6 +706,7 @@ def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
     return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
 
 
+@njit(nogil=True)
 def matvec(X, Y, Z,
            Gr_X, Gr_Y, Gr_Z,
            Gr_XY, Gr_XZ, Gr_YZ,
@@ -703,9 +745,9 @@ def matvec(X, Y, Z,
     Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y)
     
     # Add intermediate blocks
-    add(Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, out=GZY_plus_GYZ)
-    add(Gr_X_V_Zt_dot_Z, Gr_Z_V_Xt_dot_X, out=GXZ_plus_GZX)
-    add(Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y, out=GYX_plus_GXY)
+    GZY_plus_GYZ = Gr_Z_V_Yt_dot_Y + Gr_Y_V_Zt_dot_Z
+    GXZ_plus_GZX = Gr_X_V_Zt_dot_Z + Gr_Z_V_Xt_dot_X
+    GYX_plus_GXY = Gr_Y_V_Xt_dot_X + Gr_X_V_Yt_dot_Y
 
     # Compute final products
     dot(X, GZY_plus_GYZ, out=BX2)
@@ -718,13 +760,13 @@ def matvec(X, Y, Z,
     dot(Gr_XY, V_Zt, out=BZ1)
 
     # Vectorize the matrices to have the final vectors
-    add(BX1.T, BX2, out=BX_plus)
-    add(BY1.T, BY2, out=BY_plus)
-    add(BZ1.T, BZ2, out=BZ_plus)
+    BX_plus = BX1.T + BX2
+    BY_plus = BY1.T + BY2
+    BZ_plus = BZ1.T + BZ2
     BXv = cnv.vec(BX_plus, BXv, m, R)
     BYv = cnv.vec(BY_plus, BYv, n, R)
     BZv = cnv.vec(BZ_plus, BZv, p, R)
-    concatenate((BXv, BYv, BZv), out=Bv)
+    Bv = concatenate((BXv, BYv, BZv))
 
     return Bv
 
