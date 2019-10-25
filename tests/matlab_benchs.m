@@ -117,12 +117,13 @@ function [best_error, best_time] = tensorlab_benchs(T, R, tfx_error, trials, alg
     for i=1:trials
         tic;
         W = cpd(T, R, options);
+        time = toc;
         T_approx = cpdgen(W);
         rel_error = frob(T - T_approx)/frob(T);
 
         if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
             best_error = rel_error;
-            best_time = toc;
+            best_time = time;
         end
     end
 end
