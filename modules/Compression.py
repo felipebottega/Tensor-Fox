@@ -46,6 +46,15 @@ def mlsvd(T, Tsize, R, options):
         Transposes of each array in U.
     sigmas: list of float 1-D ndarrays
         List with truncated arrays of the original sigmas.
+
+    References
+    ==========
+
+    - L. De Lathauwer, B. De Moor, and J. Vandewalle, A Multilinear Singular Value Decomposition, SIAM J. Matrix Anal.
+    Appl., 21 (2000), pp. 1253-1278.
+
+    - N. Vannieuwenhoven, R. Vandebril, and K. Meerbergen, A new truncation strategy for the higher-order singular value
+    decomposition, SIAM J. Sci. Comput. 34 (2012), no. 2, A1027-A1052.
     """
 
     # INITIALIZE RELEVANT VARIABLES.    

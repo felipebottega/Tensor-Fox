@@ -74,6 +74,12 @@ def dGN(T, X, Y, Z, R, init_error, options):
         6: dGN diverged.
         7: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when
         the program can't give a stopping condition in the refinement stage).
+
+    References
+    ==========
+
+     - K. Madsen, H. B. Nielsen, and O. Tingleff, Methods for Non-Linear Least Squares Problems, 2nd edition,
+     Informatics and Mathematical Modelling, Technical University of Denmark, 2004.
     """
 
     # INITIALIZE RELEVANT VARIABLES 

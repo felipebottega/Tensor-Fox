@@ -2,6 +2,17 @@
  Multilinear Algebra Module
  ==========================
  All relevant functions of the classical multilinear algebra are described and implemented in this module.
+
+ References
+ ==========
+
+ - C. J. Hillar, and L.-H. Lim. Most tensor problems are NP-hard, Journal of the ACM, 60(6):45:1-45:39, November 2013.
+ ISSN 0004-5411. doi: 10.1145/2512329.
+
+ - P. Breiding and N. Vannieuwenhoven, A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
+ Problem, SIAM J. Optim., 28(3), 2435-2465.
+
+ - P. Breiding and N. Vannieuwenhoven, The Condition Number of Join Decompositions, arXiv:1611.08117v3 (2018).
 """
 
 # Python modules
@@ -165,12 +176,6 @@ def cond(factors):
     """
     Computes the geometric condition number of 'factors', where factors is a list with the factor matrices of some CPD.
     Warning: this function requires a lot of memory.
-
-    References
-    ----------
-    P. Breiding and N. Vannieuwenhoven, "A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
-    Problem", SIAM J. Optim., 28(3), 2435-2465.
-    P. Breiding and N. Vannieuwenhoven, "The Condition Number of Join Decompositions", arXiv:1611.08117v3 (2018).
     """
 
     def trd_jacobian(A):
