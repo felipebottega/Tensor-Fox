@@ -25,7 +25,7 @@ function test_alg(alg, trials)
         end
 
         % Start benchmarks.
-        values = 200:100:300;
+        values = [[5,10], [50:50:1000]];
         for maxiter=values  
             msg = "Testing " + x + " for " + alg + " with maxiter = " + num2str(maxiter) + "\n";
             fprintf(msg);
@@ -56,6 +56,8 @@ function [best_error, best_time] = tensorlab_noise_benchs(T, T_noise, R, tfx_err
     options.Display = false;
     options.Initialization = @cpd_rnd; 
     options.AlgorithmOptions.Maxiter = maxiter;
+    options.TolFun = 0;
+    options.TolX = 0;
 
     if alg=="nls"
         options.Algorithm = @cpd_nls;
