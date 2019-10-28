@@ -38,18 +38,16 @@ def dGN(T, X, Y, Z, R, init_error, options):
     X: float 2-D ndarray of shape (m, R)
     Y: float 2-D ndarray of shape (n, R)
     Z: float 2-D ndarray of shape (p, R)
-    R: int.
+    R: int
         The desired rank of the approximating tensor.
-    maxiter: int
-        Number of maximum iterations permitted. 
-    tol: float
-        Tolerance criterion to stop the iteration process. This value is used in more than one stopping criteria.
-    symm: bool
-    display: int
-    
+    init_error: float
+        Relative error of the initial approximation.
+    options: class
+        Class with the options. See Auxiliar module documentation for more information.
+
     Outputs
     -------
-    X, Y, Z: 2-D ndarray
+    best_X, best_Y, best_Z: 2-D ndarray
         The factor matrices of the CPD of T.
     step_sizes: float 1-D ndarray 
         Distance between the computed points at each iteration.
@@ -246,7 +244,7 @@ def dGN(T, X, Y, Z, R, init_error, options):
                     stop = 4
                     break
             # Prevent blow ups.
-            if error > max(1, Tsize ** 2) / tol:
+            if error > max(1, Tsize ** 2) / (1e-16 + tol):
                 stop = 6
                 break
 
