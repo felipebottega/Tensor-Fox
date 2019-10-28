@@ -288,7 +288,7 @@ def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_ori
         y *= 0
 
     else:
-        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'direct' or 'gd'.")
+        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'direct', 'gd' or 'als'.")
 
     # Update results.
     x = x + y
