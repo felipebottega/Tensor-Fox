@@ -2,7 +2,7 @@
  Gauss-Newton Module
  ===================
  This module implement the damped Gauss-Newton algorithm, with iterations performed with aid of the conjugate gradient 
-method.
+ method.
 
  References
  ==========
@@ -526,7 +526,7 @@ def cg_iterations(X, Y, Z,
         P = residual_cg + beta * P
         
         # Stopping criteria.
-        if residualnorm < tol:
+        if residualnorm <= tol:
             break
 
     return y, itn, residualnorm

@@ -2,7 +2,7 @@
  Compression Module
  ==================
  This module is responsible for all routines related to the compression of tensors, which amounts to computing its
-MLSVD and truncating it.
+ MLSVD and truncating it.
 
  References
  ==========
@@ -12,6 +12,8 @@ MLSVD and truncating it.
 
  - N. Vannieuwenhoven, R. Vandebril, and K. Meerbergen, A new truncation strategy for the higher-order singular value
    decomposition, SIAM J. Sci. Comput. 34 (2012), no. 2, A1027-A1052.
+   
+ - https://en.wikipedia.org/wiki/Higher-order_singular_value_decomposition#Computation
 """
 
 # Python modules
@@ -67,6 +69,7 @@ def mlsvd(T, Tsize, R, options):
     options = aux.make_options(options)
     trunc_dims = options.trunc_dims
     display = options.display
+    mlsvd_method = options.mlsvd_method
     tol_mlsvd = options.tol_mlsvd
     if type(tol_mlsvd) == list:
         if L > 3:
@@ -85,25 +88,49 @@ def mlsvd(T, Tsize, R, options):
             return T, U, T1, sigmas
 
     # Compute MLSVD base on sequentially truncated method.
-    sigmas = []
-    U = []
-    S_dims = copy(dims)
-    S = copy(T)
-    for l in range(L):
-        Sl = cnv.unfold(S, l+1)
-        if l == 0:
-            T1 = copy(Sl)
-        low_rank = min(R, dims[l])
-        Ul, sigma_l, Vlt = rand_svd(Sl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
-        # Truncate more based on energy.
-        Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
-        sigmas.append(sigma_l)
-        U.append(Ul)
-        # Compute l-th unfolding of S truncated at the l-th mode.
-        Sl = (Vlt.T * sigma_l).T  
-        S_dims[l] = dim
-        S = empty(S_dims, float64)
-        S = cnv.foldback(S, Sl, l+1)
+    if mlsvd_method == 'seq':
+        sigmas = []
+        U = []
+        S_dims = copy(dims)
+        S = copy(T)
+        for l in range(L):
+            Sl = cnv.unfold(S, l+1)
+            if l == 0:
+                T1 = copy(Sl)
+            low_rank = min(R, dims[l])
+            Ul, sigma_l, Vlt = rand_svd(Sl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+            # Truncate more based on energy.
+            Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
+            sigmas.append(sigma_l)
+            U.append(Ul)
+            # Compute l-th unfolding of S truncated at the l-th mode.
+            Sl = (Vlt.T * sigma_l).T  
+            S_dims[l] = dim
+            S = empty(S_dims, float64)
+            S = cnv.foldback(S, Sl, l+1)
+        
+    # Compute MLSVD based on classic method.
+    elif mlsvd_method == 'classic':
+        sigmas = []
+        U = []
+        T1 = empty((dims[0], prod(dims) // dims[0]), dtype=float64)
+        for l in range(L):
+            Tl = cnv.unfold(T, l+1)
+            if l == 0:
+                T1 = copy(Tl)
+            low_rank = min(R, dims[l])
+            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+            # Truncate more based on energy.
+            Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
+            sigmas.append(sigma_l)
+            U.append(Ul)
+
+        # Compute (U_1^T,...,U_L^T)*T = S.
+        UT = [U[l].T for l in range(L)]
+        S = mlinalg.multilin_mult(UT, T1, dims)
+        
+    else:
+        sys.exit('Wrong MLSVD method name. Must be seq or classic.')
 
     # tol_mlsvd = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
     if tol_mlsvd == 0:

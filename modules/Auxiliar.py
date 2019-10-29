@@ -2,7 +2,7 @@
  Auxiliar Module
  ===============
  This module is composed by minor functions, designed to work on very specific tasks. Some of them may be useful for the 
-user to use directly, but most of them are  just some piece of another (and more important) function. 
+ user to use directly, but most of them are  just some piece of another (and more important) function. 
 """ 
 
 # Python modules
@@ -287,6 +287,7 @@ def make_options(options):
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
             self.trunc_dims = 0
+            self.mlsvd_method = 'seq'
             self.tol_mlsvd = 1e-16
             self.init_damp = 1
             self.refine = False
@@ -340,6 +341,8 @@ def make_options(options):
         temp_options.initialization = options.initialization
     if 'trunc_dims' in dir(options):
         temp_options.trunc_dims = options.trunc_dims
+    if 'mlsvd_method' in dir(options):
+        temp_options.mlsvd_method = options.mlsvd_method
     if 'tol_mlsvd' in dir(options):
         temp_options.tol_mlsvd = options.tol_mlsvd
     if 'init_damp' in dir(options):

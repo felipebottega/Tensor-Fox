@@ -2,7 +2,7 @@
  Aternating Least Squares Module
  ===============================
  This module implement the Aternating Least Squares algorithm for third order tensors. The idea is to use it to compute
-biCPD's for the tensor train.  
+ biCPD's for the tensor train.  
 """
 
 # Python modules
@@ -219,7 +219,7 @@ def als(T, X, Y, Z, R, options):
                     stop = 4
                     break
             # Prevent blow ups.
-            if error > max(1, Tsize ** 2) / tol:
+            if error > max(1, Tsize ** 2) / (1e-16 + tol):
                 stop = 6
                 break
     

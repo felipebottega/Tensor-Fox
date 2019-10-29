@@ -7,10 +7,10 @@
  ==========
 
  - C. J. Hillar, and L.-H. Lim. Most tensor problems are NP-hard, Journal of the ACM, 60(6):45:1-45:39, November 2013.
- ISSN 0004-5411. doi: 10.1145/2512329.
+   ISSN 0004-5411. doi: 10.1145/2512329.
 
  - P. Breiding and N. Vannieuwenhoven, A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
- Problem, SIAM J. Optim., 28(3), 2435-2465.
+   Problem, SIAM J. Optim., 28(3), 2435-2465.
 
  - P. Breiding and N. Vannieuwenhoven, The Condition Number of Join Decompositions, arXiv:1611.08117v3 (2018).
 """

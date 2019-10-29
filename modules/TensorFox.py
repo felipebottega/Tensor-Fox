@@ -2,8 +2,8 @@
  General Description
  ===================
  Tensor Fox is a vast library of routines related to tensor problems. Since most tensor problems fall in the category
-of NP-hard problems, a great effort was made to make this library as efficient as possible. Some relevant routines and 
-features of Tensor Fox are the following: 
+ of NP-hard problems, a great effort was made to make this library as efficient as possible. Some relevant routines and 
+ features of Tensor Fox are the following: 
  
  - Canonical polyadic decomposition (CPD)
  
@@ -25,12 +25,12 @@ features of Tensor Fox are the following:
  ==========
 
  - C. J. Hillar, and L.-H. Lim. Most tensor problems are NP-hard, Journal of the ACM, 60(6):45:1-45:39, November 2013.
- ISSN 0004-5411. doi: 10.1145/2512329.
+   ISSN 0004-5411. doi: 10.1145/2512329.
 
  - T. G. Kolda and B. W. Bader, Tensor Decompositions and Applications, SIAM Review, 51:3, in press (2009).
 
  - P. Comon, X. Luciani, and A. L. F. de Almeida, Tensor Decompositions, Alternating Least Squares and other Tales,
- Journal of Chemometrics, Wiley, 2009.
+   Journal of Chemometrics, Wiley, 2009.
 """
 
 # Python modules
