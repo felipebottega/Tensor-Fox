@@ -151,7 +151,7 @@ def als(T, X, Y, Z, R, options):
         x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
                                      
         # Transform factors X, Y, Z.
-        X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
+        X, Y, Z = cnv.transform([X, Y, Z], low, upp, factor, symm, factors_norm)
         if fix_mode == 0:
             X = copy(X_orig)
         elif fix_mode == 1:

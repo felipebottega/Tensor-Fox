@@ -15,7 +15,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def x2cpd(x, X, Y, Z):
+def x2cpd(x, factors):
     """
     Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD. Then this function return
     the following arrays:
@@ -40,25 +40,19 @@ def x2cpd(x, X, Y, Z):
     Z: float 2-D ndarray of shape (p, R)
     """ 
 
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-    R = X.shape[1]
+    R = factors[0].shape[1]
+    L = len(factors)
 
     s = 0
-    for r in range(R):
-        X[:, r] = x[s:s+m]
-        s = s+m
+    for l in range(L):
+        dim = factors[l].shape[0]
+        for r in range(R):
+            factors[l][:, r] = x[s: s+dim]
+            s += dim
             
-    for r in range(R):
-        Y[:, r] = x[s:s+n]
-        s = s+n
-            
-    for r in range(R):
-        Z[:, r] = x[s:s+p]
-        s = s+p
-            
-    X, Y, Z = equalize([X, Y, Z], R)
+    factors = equalize(factors, R)
           
-    return X, Y, Z
+    return factors
 
 
 def cpd2tens(factors):
@@ -169,29 +163,23 @@ def normalize(factors):
     return Lambda, factors
 
 
-def denormalize(Lambda, X, Y, Z):
+def denormalize(Lambda, factors):
     """
     By undoing the normalization of the factors this function makes it unnecessary the use of the diagonal tensor
-    Lambda. This is useful when one wants the CPD described only by the triplet (X, Y, Z).
+    Lambda. 
     """
 
     R = Lambda.size
-    X_new = zeros(X.shape)
-    Y_new = zeros(Y.shape)
-    Z_new = zeros(Z.shape)
+    L = len(factors)
+    new_factors = [zeros(factors[l].shape) for l in range(L)]
     for r in range(R):
-        if Lambda[r] >= 0:
-            a = Lambda[r]**(1/3)
-            X_new[:, r] = a*X[:, r]
-            Y_new[:, r] = a*Y[:, r]
-            Z_new[:, r] = a*Z[:, r]
-        else:
-            a = (-Lambda[r])**(1/3)
-            X_new[:, r] = -a*X[:, r]
-            Y_new[:, r] = a*Y[:, r]
-            Z_new[:, r] = a*Z[:, r]
+        a = abs(Lambda[r])**(1/L)
+        for l in range(L):
+            new_factors[l][:, r] = a * factors[l][:, r]
+        if a < 0:
+            new_factors[0][:, r] = -new_factors[l][:, r]
             
-    return X_new, Y_new, Z_new
+    return new_factors
 
 
 def equalize(factors, R):
@@ -215,64 +203,61 @@ def equalize(factors, R):
 
     for r in range(R):
         norm_r = array([norm(factors[l][:, r]) for l in range(L)])
-        if prod(norm_r) != 0.0:
-            numerator = prod(norm_r)**(1/L)
+        numerator = prod(norm_r)
+        if numerator != 0.0:
+            numerator = numerator**(1/L)
             for l in range(L):
                 factors[l][:, r] = (numerator/norm_r[l]) * factors[l][:, r]
             
     return factors
 
 
-@njit(nogil=True)
-def transform(X, Y, Z, a, b, factor, symm, factors_norm):
+def transform(factors, low, upp, factor, symm, factors_norm):
     """
-    Depending on the choice of the user, this function can project the entries of X, Y, Z in a given interval (this is 
-    very useful with we have constraints at out disposal), it can make the corresponding tensor symmetric or
-    non-negative. It is advisable to transform the tensor so that its entries have mean zero and variance 1, this way
-    choosing low=-1 and upp=1 works the best way possible. We also remark that it is always better to choose low and upp
-    such that low = -upp.
-    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the 
-    factors X, Y, Z.
-    The parameter factors_norm forces the factor matrices X, Y, Z to always have the same prescribed norm, which is the
+    Depending on the choice of the user, this function can project the entries of the factor matrices in a given 
+    interval (this is very useful with we have constraints at out disposal), it can make the corresponding tensor 
+    symmetric or non-negative. It is advisable to transform the tensor so that its entries have mean zero and 
+    variance 1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that it is always 
+    better to choose low and upp such that low = -upp.
+    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over 
+    the factor matrices.
+    The parameter factors_norm forces the factor matrices to always have the same prescribed norm, which is the
     value factors_norm.
     
     Inputs
     ------
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
-    m, n, p: int
-    r: int
+    factors: list of 2D floats
     low, upp: float
     symm: bool
     factors_norm: float
         
     Outputs
     -------
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
+    factors: list of 2D floats
     """ 
 
-    if a != 0 and b != 0:
+    L = len(factors)
+    
+    if low != 0 and upp != 0:
         eps = 0.02
-        B = log( (b-a)/eps - 1 )/( factor*(b-a)/2 - eps )
-        A = -B*(a+b)/2
-        X = a + (b-a) * 1/( 1 + exp(-A-B*X) )
-        Y = a + (b-a) * 1/( 1 + exp(-A-B*Y) )
-        Z = a + (b-a) * 1/( 1 + exp(-A-B*Z) )
+        B = log( (upp-low)/eps - 1 )/( factor*(upp-low)/2 - eps )
+        A = -B*(low+upp)/2
+        for l in range(L):
+            factors[l] = low + (upp-low) * 1/( 1 + exp(-A-B*factors[l]) )
         
     if symm:
-        X = (X+Y+Z)/3
-        Y = X
-        Z = X
+        s = factors[0]
+        for l in range(1, L):
+            s += factors[l]
+        factors[0] = s/L
+        for l in range(1, L):
+            factors[l] = factors[0]
 
     if factors_norm > 0:
-        X = factors_norm * (1/norm(X)) * X
-        Y = factors_norm * (1/norm(Y)) * Y
-        Z = factors_norm * (1/norm(Z)) * Z
+        for l in range(L):
+            factors[l] = factors_norm * (1/norm(factors[l])) * factors[l]
     
-    return X, Y, Z
+    return factors
 
 
 @njit(nogil=True, parallel=True)

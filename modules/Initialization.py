@@ -93,7 +93,7 @@ def starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options):
     X, Y, Z = cnv.equalize([X, Y, Z], R)
 
     # Apply additional transformations if requested.
-    X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, c)
+    X, Y, Z = cnv.transform([X, Y, Z], low, upp, factor, symm, c)
 
     if display > 2 or display < -1:
         # Computation of relative error associated with the starting point given.

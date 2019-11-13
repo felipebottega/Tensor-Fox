@@ -294,8 +294,8 @@ def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_ori
     x = x + y
 
     # Compute new factors X, Y, Z.
-    X, Y, Z = cnv.x2cpd(x, X, Y, Z)
-    X, Y, Z = cnv.transform(X, Y, Z, low, upp, factor, symm, factors_norm)
+    X, Y, Z = cnv.x2cpd(x, [X, Y, Z])
+    X, Y, Z = cnv.transform([X, Y, Z], low, upp, factor, symm, factors_norm)
     if fix_mode == 0:
         X = copy(X_orig)
     elif fix_mode == 1:
@@ -392,8 +392,8 @@ def gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z
         temp_x = x - alpha*grad
 
         # Compute new factors X, Y, Z.
-        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, X, Y, Z)
-        X, Y, Z = cnv.transform(temp_X, temp_Y, temp_Z, low, upp, factor, symm, factors_norm)
+        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, [X, Y, Z])
+        X, Y, Z = cnv.transform([temp_X, temp_Y, temp_Z], low, upp, factor, symm, factors_norm)
         if fix_mode == 0:
             temp_X = copy(X_orig)
         elif fix_mode == 1:
