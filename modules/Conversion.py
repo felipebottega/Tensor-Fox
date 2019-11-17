@@ -5,7 +5,7 @@
 """
 
 # Python modules
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, copy
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
@@ -17,27 +17,17 @@ import MultilinearAlgebra as mlinalg
 
 def x2cpd(x, factors):
     """
-    Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD. Then this function return
-    the following arrays:
-    X = [X_1,...,X_R],
-    Y = [Y_1,...,Y_R],
-    Z = [Z_1,...,Z_R].
-    Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal R x R x R tensor.
+    Given the point x (the flattened CPD), this function breaks it in parts to form the factors of the CPD.
     
     Inputs
     ------
-    x: float 1-D ndarray
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
-    m, n, p: int
-    R: int
+    x: float 1-D array
+    factors: list of 2-D arrays
+        Factors matrices to be updated.
         
     Outputs
     -------
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
+    factors: list of 2-D arrays
     """ 
 
     R = factors[0].shape[1]
@@ -61,11 +51,12 @@ def cpd2tens(factors):
 
     Inputs
     ------
-    factors: list of L floats 2-D ndarray of shape (dims[i], R) each
+    factors: list of 2-D arrays
+        The factor matrices.
 
     Outputs
     ------
-    T_approx: float L-D ndarray
+    T_approx: float L-D array
         Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
     """
 
@@ -86,27 +77,27 @@ def cpd2tens(factors):
 
 def cpd2unfold1(T1_approx, factors):
     """
-    Converts the factor matrices to tensor in coordinate format using a Khatri-Rao product formula.
+    Converts the factor matrices to the first unfolding of the corresponding tensor.
 
     Inputs
     ------
-    factors: list of L floats 2-D ndarray of shape (dims[i], R) each
+    factors: list of 2-D arrays
+        The factor matrices.
 
     Outputs
     ------
-    T_approx: float L-D ndarray
-        Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
+    T1_approx: float 2-D array
+        First unfolding of T_approx, where T_approx is (factors[0],...,factors[L-1])*I in coordinate format.
     """
 
     L = len(factors)
-    dims = [factors[l].shape[0] for l in range(L)]
     M = factors[1]
    
     for l in range(2, L):
         N = empty((M.shape[0]*factors[l].shape[0], M.shape[1]))
         M = mlinalg.khatri_rao(factors[l], M, N)
 
-    T1_approx = dot(factors[0], M.T)
+    dot(factors[0], M.T, out=T1_approx)
 
     return T1_approx
 
@@ -152,12 +143,10 @@ def normalize(factors):
         norms = zeros(L)
         for l in range(L):
             W = factors[l]
-            # Save norm of the l-th column of the ll factor and normalize the current factor.
             norms[l] = norm(W[:, r])
             W[:, r] = W[:, r]/norms[l]
-            # Update factors accordingly.
+            # Update factor matrix.
             factors[l] = W
-
         Lambda[r] = prod(norms)
         
     return Lambda, factors
@@ -172,13 +161,13 @@ def denormalize(Lambda, factors):
     R = Lambda.size
     L = len(factors)
     new_factors = [zeros(factors[l].shape) for l in range(L)]
+
     for r in range(R):
         a = abs(Lambda[r])**(1/L)
-        for l in range(L):
+        new_factors[0][:, r] = sign(Lambda[r]) * a * factors[0][:, r]
+        for l in range(1, L):
             new_factors[l][:, r] = a * factors[l][:, r]
-        if a < 0:
-            new_factors[0][:, r] = -new_factors[l][:, r]
-            
+
     return new_factors
 
 
@@ -201,7 +190,7 @@ def equalize(factors, R):
     
     L = len(factors)
 
-    for r in range(R):
+    for r in prange(R):
         norm_r = array([norm(factors[l][:, r]) for l in range(L)])
         numerator = prod(norm_r)
         if numerator != 0.0:
@@ -226,14 +215,14 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     
     Inputs
     ------
-    factors: list of 2D floats
+    factors: list of 2D arrays
     low, upp: float
     symm: bool
     factors_norm: float
         
     Outputs
     -------
-    factors: list of 2D floats
+    factors: list of 2D arrays
     """ 
 
     L = len(factors)

@@ -160,6 +160,7 @@ def hot_encoded_target(Y):
 
     return Y_hot_encoded
 
+
 def norm_pca(X_new, U, mu, sigma):
     """
     After normalizing and performing pca over the train dataset, we may be interested in making predictions about 
@@ -721,8 +722,6 @@ def simplify_model(W, r, options=False):
     # Initialize variables.
     m, L, n, R = W.shape
     new_W = np.zeros((m, L, n, r))
-    dims = L * (n,)
-    Tk = np.empty(dims)
     errors = []
 
     for k in range(m):
@@ -733,7 +732,7 @@ def simplify_model(W, r, options=False):
         # Convert factor matrices to coordinates format.
         Tk = tfx.cnv.cpd2tens(factors)
         # Compute rank-r approximation for Tk.
-        factors, T_approx, output = tfx.cpd(Tk, r, options)
+        factors, output = tfx.cpd(Tk, r, options)
         errors.append(output.rel_error)
         for l in range(L):
             new_W[k, l, :, :] = factors[l]
@@ -876,7 +875,7 @@ def mlsvd_train(T, r, options=False):
     num_samples, num_classes = m, p
 
     # Set options
-    options = tfx.aux.make_options(options)
+    options = tfx.aux.make_options(options, 3)
 
     Tsize = np.linalg.norm(T)
     if options.display == 3:

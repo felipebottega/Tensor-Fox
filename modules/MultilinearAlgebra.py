@@ -17,12 +17,11 @@
 
 # Python modules
 import numpy as np
-from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
 from numpy.random import permutation
 import numpy.matlib
 import scipy as scp
-from itertools import permutations
 from numba import njit, prange
 
 # Tensor Fox modules
@@ -34,7 +33,18 @@ import Conversion as cnv
 def multilin_mult_cpd(U, W, dims):
     """    
     Performs the multilinear multiplication (U[0],...,U[L-1])*(W[0], ..., W[L-1])*I = (U[0]*W[0],...,U[L-1]*W[L-1])*I, 
-    where I.shape = dims = (W[0].shape[1],...,W[L-1].shape[1]) are the size of the columns of the W's. 
+    where I.shape = dims = (W[0].shape[1],...,W[L-1].shape[1]) are the size of the columns of the W's.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    W: list of 2-D arrays
+    dims: list of ints
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the mentioned multiplication.
     """
 
     L = len(dims)
@@ -54,6 +64,19 @@ def multilin_mult(U, T1, dims):
     """    
     Performs the multilinear multiplication (U[0],...,U[L-1])*T, where dims = T.shape. We need the first unfolding T1 of 
     T to start the computations.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    T1: 2-D array
+        First unfolding of T.
+    dims: list of ints
+        Dimension of T.
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the multilinear multiplication (U[0],...,U[L-1])*T.
     """
 
     L = len(dims)
@@ -75,18 +98,18 @@ def multilin_mult(U, T1, dims):
 
 def multirank_approx(T, multi_rank, options):
     """
-    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the central tensor of
+    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the core tensor of
     the MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
     
     Inputs
     ------
-    T: L-D float ndarray
+    T: float array
     multi_rank: list of int
         The desired low multilinear rank.
         
     Outputs
     -------
-    T_approx: L-D float ndarray
+    T_approx: float array
         The approximating tensor with multilinear rank = multi_rank.
     """
     
@@ -97,7 +120,7 @@ def multirank_approx(T, multi_rank, options):
     Tsize = norm(T)
     
     # Compute truncated MLSVD of T.
-    options = aux.complete_options(options)
+    options = aux.make_options(options, L)
     options.display = 0
     options.trunc_dims = multi_rank
     R_gen = int(ceil( prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
@@ -243,7 +266,7 @@ def cond(factors):
 
 def khatri_rao_factors(factors):
     """
-    Computes the Khatri-Rao products between  the factor matrices.
+    Computes the Khatri-Rao products W^(1) ⊙ W^(2) ⊙ ... ⊙ W^(L) between the factor matrices.
     """
 
     L = len(factors)
@@ -286,7 +309,6 @@ def rank1_terms_list(factors):
 
     R = factors[0].shape[1]
     L = len(factors)
-    dims = [factors[l].shape[0] for l in range(L)]
     rank1_terms = []
 
     for r in range(R):
@@ -309,15 +331,15 @@ def rank1(X, Y, Z, m, n, R, k):
 
     Inputs
     ------
-    X, Y, Z: 2-D float ndarray
-        The CPD factors of some tensor.
+    X, Y, Z: 2-D float array
+        The CPD factors of some third order tensor.
     m, n, p, R: int
     k: int
         Slice we want to compute.
 
     Outputs
     -------
-    rank1_slices: 3-D float ndarray
+    rank1_slices: 3-D float array
         Each matrix rank1_slices[:, :, l] is the k-th slice associated with the l-th factor in the CPD of some tensor.
     """
 
@@ -347,9 +369,9 @@ def forward_error(orig_factors, approx_factors, trials=1000):
 
     Inputs
     ------
-    orig_factors: list of ndarrays
+    orig_factors: list of arrays
         The elements of the list are the factor matrices of the original tensor.
-    approx_factors: list of ndarrays
+    approx_factors: list of arrays
         The elements of the list are the factor matrices of the approximated tensor.
     trials: int
         Number of of trials before stopping testing permutation. Default is 1000.
@@ -380,6 +402,10 @@ def forward_error(orig_factors, approx_factors, trials=1000):
 
 @njit(nogil=True)
 def search_forward_error(orig_rank1, approx_rank1, R, best_error, trials):
+    """
+    Auxiliary function for the function forward_error.
+    """
+
     # Create list with rank 1 flattened terms of original tensor.
     orig_rank1_flat = [orig_rank1[r].ravel() for r in range(R)]
 
@@ -395,5 +421,3 @@ def search_forward_error(orig_rank1, approx_rank1, R, best_error, trials):
             best_s = s.copy()
 
     return best_error, best_s
-
-

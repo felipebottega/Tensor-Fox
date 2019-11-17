@@ -13,12 +13,10 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, identity, nan, add, subtract
+from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, linspace, nan
 from numpy.linalg import norm
 from numpy.random import randint
-from scipy.linalg import solve
 import sys
-import warnings
 from numba import njit
 
 # Tensor Fox modules
@@ -28,41 +26,37 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def dGN(T, X, Y, Z, R, init_error, options):
+def dGN(T, factors, R, init_error, options):
     """
-    This function uses the Damped Gauss-Newton method to compute an approximation of T with rank r. An initial point to 
-    start the iterations must be given. This point is described by the arrays X, Y, Z.    
-    The Damped Gauss-Newton method is a iterative method, updating a point x at each iteration. The last computed x is 
-    gives an approximate CPD in flat form, and from this we have the components to form the actual CPD. This program
-    also gives some additional information such as the size of the steps (distance between each x computed), the
-    absolute errors between the approximate and target tensor, and the path of solutions (the points x computed at each
-    iteration are saved).
+    This function uses the Damped Gauss-Newton method to compute an approximation of T with rank R. A starting point to
+    initiate the iterations must be given. This point is given by the parameter factors.
+    The Damped Gauss-Newton method is an iterative method, updating a point x at each iteration. The last computed x is
+    gives an approximate CPD in flat form, and from this we have the components to form the actual CPD.
 
     Inputs
     ------
-    T: float 3-D ndarray
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
+    T: float array
+    factors: list of 2-D arrays
+        The factor matrices used as starting point.
     R: int
         The desired rank of the approximating tensor.
     init_error: float
         Relative error of the initial approximation.
     options: class
-        Class with the options. See Auxiliar module documentation for more information.
+        Class with the options. See the Auxiliar module documentation for more information.
 
     Outputs
     -------
-    best_X, best_Y, best_Z: 2-D ndarray
-        The factor matrices of the CPD of T.
-    step_sizes: float 1-D ndarray 
+    best_factors: list of 2-D arrays
+        The factor matrices of the approximated CPD of T.
+    step_sizes: float 1-D array
         Distance between the computed points at each iteration.
-    errors: float 1-D ndarray 
+    errors: float 1-D array
         Error of the computed approximating tensor at each iteration. 
-    improv: float 1-D ndarray
+    improv: float 1-D array
         Improvement of the error at each iteration. More precisely, the difference between the relative error of the
         current iteration and the previous one.
-    gradients: float 1-D ndarray
+    gradients: float 1-D array
         Gradient of the error function at each iteration.
     stop: 0, 1, 2, 3, 4, 5 or 6
         This value indicates why the dGN function stopped. Below we summarize the cases.
@@ -93,58 +87,49 @@ def dGN(T, X, Y, Z, R, init_error, options):
     display = options.display
     low, upp, factor = options.constraints
     factors_norm = options.factors_norm
-    inner_method, cg_maxiter, cg_factor, cg_tol = [options.inner_method, options.cg_maxiter, options.cg_factor, options.cg_tol]
+    inner_method, cg_maxiter, cg_factor, cg_tol = [options.inner_method,
+                                                   options.cg_maxiter,
+                                                   options.cg_factor,
+                                                   options.cg_tol]
 
-    # Verify if some factor should be fixed or not. This only happens in the bi function.
-    X_orig = []
-    Y_orig = []
-    Z_orig = []
+    # Verify if some factor should be fixed or not. This only happens when the bicpd function was called.
+    L = len(factors)
     fix_mode = -1
-    if type(X) == list:
-        fix_mode = 0
-        X_orig = copy(X[0])
-        X = X[0]
-    elif type(Y) == list:
-        fix_mode = 1
-        Y_orig = copy(Y[0])
-        Y = Y[0]
-    elif type(Z) == list:
-        fix_mode = 2
-        Z_orig = copy(Z[0])
-        Z = Z[0]
+    orig_factors = [[] for l in range(L)]
+    for l in range(L):
+        if type(factors[l]) == list:
+            fix_mode = l
+            orig_factors[l] = factors[l][0].copy()
+            factors[l] = factors[l][0]
 
     # Set the other variables.
-    m, n, p = T.shape
+    dims = T.shape
     Tsize = norm(T)
     error = 1
     best_error = init_error
     stop = 5
     if type(init_damp) == list:
-        damp = init_damp[0] 
-    else:   
+        damp = init_damp[0]
+    else:
         damp = init_damp * mean(np.abs(T))
     const = 1 + int(maxiter / 10)
 
     # INITIALIZE RELEVANT ARRAYS
 
-    x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
-    y = zeros(R * (m + n + p), dtype=float64)
+    x = concatenate([factors[l].flatten('F') for l in range(L)])
+    y = zeros(R * sum(dims), dtype=float64)
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    best_X = copy(X)
-    best_Y = copy(Y)
-    best_Z = copy(Z)
+    best_factors = [copy(factors[l]) for l in range(L)]
 
     # Prepare data to use in each Gauss-Newton iteration.
-    data = prepare_data(m, n, p, R)
+    data = prepare_data(dims, R)
 
     # Compute unfoldings.
-    T1 = cnv.unfold(T, 1)
-    T2 = cnv.unfold(T, 2)
-    T3 = cnv.unfold(T, 3)
-    T1_approx = empty(T1.shape, dtype=float64)
+    Tl = [cnv.unfold(T, l+1) for l in range(L)]
+    T1_approx = empty(Tl[0].shape, dtype=float64)
 
     if display > 1:
         if display == 4:
@@ -175,18 +160,16 @@ def dGN(T, X, Y, Z, R, init_error, options):
 
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
-        # A = Dres(x) and b = -res(x).
-        inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
-        T1_approx, X, Y, Z, x, y, grad, itn, residualnorm, error = compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z,
-                                                                               X_orig, Y_orig, Z_orig, data, x, y,
-                                                                               inner_parameters, it)
-
+        inner_parameters = \
+            damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
+        T1_approx, factors, x, y, grad, itn, residualnorm, error = compute_step(Tsize, Tl, T1_approx, factors,
+                                                                                orig_factors, data, x, y,
+                                                                                inner_parameters, it)
         # Update best solution.
         if error < best_error:
             best_error = error
-            best_X = copy(X)
-            best_Y = copy(Y)
-            best_Z = copy(Z)
+            for l in range(L):
+                best_factors[l] = copy(factors[l])
 
         # Update damp. 
         damp = update_damp(damp, init_damp, old_error, error, residualnorm, it)
@@ -239,7 +222,7 @@ def dGN(T, X, Y, Z, R, init_error, options):
             # program to continue iterating when the error starts to oscillate.
             if it > 2*const and it % const == 0:
                 mean1 = mean(errors[it - 2*const: it - const])
-                mean2 = mean(errors[it-const: it])
+                mean2 = mean(errors[it - const: it])
                 if mean1 - mean2 <= tol_improv:
                     stop = 4
                     break
@@ -250,22 +233,21 @@ def dGN(T, X, Y, Z, R, init_error, options):
 
                 # SAVE LAST COMPUTED INFORMATION
 
-    errors = errors[0:it + 1]
-    step_sizes = step_sizes[0:it + 1]
-    improv = improv[0:it + 1]
-    gradients = gradients[0:it + 1]
+    errors = errors[0: it+1]
+    step_sizes = step_sizes[0: it+1]
+    improv = improv[0: it+1]
+    gradients = gradients[0: it+1]
 
-    return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
+    return best_factors, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters, it):
+def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it):
     """    
     This function uses the chosen inner method to compute the next step.
     """
 
     # Initialize first variables.
-    R = X.shape[1]
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    L = len(factors)
     damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
     if type(inner_method) == list:
         inner_method = inner_method[it]
@@ -274,245 +256,86 @@ def compute_step(T, Tsize, T1, T2, T3, T1_approx, X, Y, Z, X_orig, Y_orig, Z_ori
     if inner_method == 'cg' or inner_method == 'cg_static':
         if inner_method == 'cg':
             cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-        y, grad, itn, residualnorm = cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, cg_maxiter, cg_tol)
-
-    elif inner_method == 'direct': 
-        y, grad, itn, residualnorm = direct_solve(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
-
-    elif inner_method == 'gd':
-        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
+        y, grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
-        X, Y, Z = als.als_iteration(T1, T2, T3, X, Y, Z, fix_mode)
-        x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
+        factors = als.als_iteration(Tl, factors, fix_mode)
+        x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
 
     else:
-        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'direct', 'gd' or 'als'.")
+        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static' or 'als'.")
 
     # Update results.
     x = x + y
 
-    # Compute new factors X, Y, Z.
-    X, Y, Z = cnv.x2cpd(x, [X, Y, Z])
-    X, Y, Z = cnv.transform([X, Y, Z], low, upp, factor, symm, factors_norm)
-    if fix_mode == 0:
-        X = copy(X_orig)
-    elif fix_mode == 1:
-        Y = copy(Y_orig)
-    elif fix_mode == 2:
-        Z = copy(Z_orig)
+    # Compute new factors.
+    factors = cnv.x2cpd(x, factors)
+    factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+    # Some mode may be fixed when the bicpd is called.
+    if L == 3:
+        for l in range(L):
+            if fix_mode == l:
+                factors[l] = copy(orig_factors[l])
 
     # Compute error.
-    T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
-    error = crt.fastnorm(T1, T1_approx) / Tsize
+    T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+    error = crt.fastnorm(Tl[0], T1_approx) / Tsize
 
     if inner_method == 'als':
-        return T1_approx, X, Y, Z, x, y, [nan], '-', Tsize*error, error
-    
-    return T1_approx, X, Y, Z, x, y, grad, itn, residualnorm, error
+        return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
+
+    return T1_approx, factors, x, y, grad, itn, residualnorm, error
 
 
-def direct_solve(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
-    # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z,\
-        Gr_XY, Gr_XZ, Gr_YZ,\
-        V_Xt, V_Yt, V_Zt,\
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
-        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
-        BX1, BY1, BZ1,\
-        BX2, BY2, BZ2,\
-        BXv, BYv, BZv,\
-        BX_plus, BY_plus, BZ_plus, Bv,\
-        X_norms, Y_norms, Z_norms,\
-        gamma_X, gamma_Y, gamma_Z, Gamma,\
-        M, L, residual_cg, P, Q, z,\
-        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
-
-    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
-
-    # Compute the values of all arrays.
-    R = X.shape[1]
-    m, n, p = T.shape
-    Jf = jacobian(X, Y, Z, m, n, p, R) 
-    H = hessian(Jf)
-    L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R)
-    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
-    
-    # Add regularization.
-    for i in range(R*(m+n+p)):
-        H[i, i] += damp*L[i]
-
-    # Solve system.
-    warnings.filterwarnings("ignore")
-    try:
-        y = solve(H, grad, sym_pos=True, check_finite=False)
-    except np.linalg.LinAlgError:
-        y, grad, itn, residualnorm = gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters)
-
-    residualnorm = norm(dot(H, y) - grad)
-
-    return y, grad, '-', residualnorm
-
-
-def gradient_descent(T, Tsize, T1_approx, T1, T2, T3, X, Y, Z, X_orig, Y_orig, Z_orig, data, x, y, inner_parameters):
-    # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z,\
-        Gr_XY, Gr_XZ, Gr_YZ,\
-        V_Xt, V_Yt, V_Zt,\
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
-        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
-        BX1, BY1, BZ1,\
-        BX2, BY2, BZ2,\
-        BXv, BYv, BZv,\
-        BX_plus, BY_plus, BZ_plus, Bv,\
-        X_norms, Y_norms, Z_norms,\
-        gamma_X, gamma_Y, gamma_Z, Gamma,\
-        M, L, residual_cg, P, Q, z,\
-        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
-
-    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
-
-    grad = compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
-
-    # Test some values of alpha and keep the best.
-    best_error = inf
-    m, n, p = T.shape
-    R = X.shape[1]
-    alphas = 2**linspace(-32, 1, 16)
-
-    for alpha in alphas:
-        # Update x.
-        temp_x = x - alpha*grad
-
-        # Compute new factors X, Y, Z.
-        temp_X, temp_Y, temp_Z = cnv.x2cpd(temp_x, [X, Y, Z])
-        X, Y, Z = cnv.transform([temp_X, temp_Y, temp_Z], low, upp, factor, symm, factors_norm)
-        if fix_mode == 0:
-            temp_X = copy(X_orig)
-        elif fix_mode == 1:
-            temp_Y = copy(Y_orig)
-        elif fix_mode == 2:
-            temp_Z = copy(Z_orig)
-
-        # Compute error.
-        T1_approx = cnv.cpd2unfold1(T1_approx, [temp_X, temp_Y, temp_Z])
-        error = crt.fastnorm(T1, T1_approx) / Tsize
-        
-        # Update best results.
-        if error < best_error:
-            best_error = error
-            y = - alpha*grad
-
-    residualnorm = Tsize*best_error
-
-    return y, -grad, '-', residualnorm
-
-
-def cg(T1, T2, T3, X, Y, Z, data, y, m, n, p, R, damp, maxiter, tol):
+def cg(Tl, factors, data, y, damp, maxiter, tol):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
 
-    maxiter = min(maxiter, R * (m + n + p))
+    L = len(factors)
+    R = factors[0].shape[1]
+    dims = [factors[l].shape[0] for l in range(L)]
+    maxiter = min(maxiter, R * sum(dims))
 
     # Give names to the arrays.
-    Gr_X, Gr_Y, Gr_Z,\
-        Gr_XY, Gr_XZ, Gr_YZ,\
-        V_Xt, V_Yt, V_Zt,\
-        V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,\
-        Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,\
-        Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,\
-        Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,\
-        GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,\
-        BX1, BY1, BZ1,\
-        BX2, BY2, BZ2,\
-        BXv, BYv, BZv,\
-        BX_plus, BY_plus, BZ_plus, Bv,\
-        X_norms, Y_norms, Z_norms,\
-        gamma_X, gamma_Y, gamma_Z, Gamma,\
-        M, L, residual_cg, P, Q, z,\
-        NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g = data
+    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, M, residual_cg, P, Q, z, g = data
 
     # Compute the values of all arrays.
-    Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ = gramians(X, Y, Z,
-                                                     Gr_X, Gr_Y, Gr_Z,
-                                                     Gr_XY, Gr_XZ, Gr_YZ)
-    L, X_norms, Y_norms, Z_norms = regularization(X, Y, Z,
-                       X_norms, Y_norms, Z_norms,
-                       gamma_X, gamma_Y, gamma_Z, Gamma,
-                       m, n, p, R)
-    M = precond(X_norms, Y_norms, Z_norms, L, M, damp, m, n, p, R)
+    P1, P2 = gramians(factors, Gr, P1, P2)
+    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims)
+    M = precond(Gamma, gamma, M, damp, dims)
 
     y *= 0
 
     # CG iterations.
-    grad = -compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g)
+    grad = -compute_grad(Tl, factors, P1, g, dims)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = dot(residual_cg.T, residual_cg)
     if residualnorm == 0.0:
         residualnorm = 1e-6
-
-    y, itn, residualnorm = cg_iterations(X, Y, Z,
-                   Gr_X, Gr_Y, Gr_Z,
-                   Gr_XY, Gr_XZ, Gr_YZ,
-                   V_Xt, V_Yt, V_Zt,
-                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
-                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
-                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
-                   BX1, BY1, BZ1,
-                   BX2, BY2, BZ2,
-                   BXv, BYv, BZv,
-                   BX_plus, BY_plus, BZ_plus, Bv,
-                   M, P, L, damp, z, residual_cg, residualnorm, y, tol, maxiter, m, n, p, R)
-
+    y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
+                                         M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims)
     return M * y, grad, itn + 1, residualnorm
 
 
-@njit(nogil=True)
-def cg_iterations(X, Y, Z,
-                   Gr_X, Gr_Y, Gr_Z,
-                   Gr_XY, Gr_XZ, Gr_YZ,
-                   V_Xt, V_Yt, V_Zt,
-                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
-                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
-                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
-                   BX1, BY1, BZ1,
-                   BX2, BY2, BZ2,
-                   BXv, BYv, BZv,
-                   BX_plus, BY_plus, BZ_plus, Bv,
-                   M, P, L, damp, z, residual_cg, residualnorm, y, tol, maxiter, m, n, p, R):
+def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
+                  M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims):
     """
     Conjugate gradient iterations.
     """
 
+    L = len(dims)
+    R = factors[0].shape[1]
+
     for itn in range(maxiter):
-        Q = M * P        
-        z = matvec(X, Y, Z,
-                   Gr_X, Gr_Y, Gr_Z,
-                   Gr_XY, Gr_XZ, Gr_YZ,
-                   V_Xt, V_Yt, V_Zt,
-                   V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
-                   Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
-                   Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-                   Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-                   GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
-                   BX1, BY1, BZ1,
-                   BX2, BY2, BZ2,
-                   BXv, BYv, BZv,
-                   BX_plus, BY_plus, BZ_plus, Bv,
-                   Q, m, n, p, R) + damp * L * Q
+        Q = M * P
+        V = [ Q[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )].reshape(R, dims[l]) for l in range(L) ]
+        for l in range(L):
+            dot(V[l], factors[l], out=A[l])
+            dot(V[l].T, P1[l, :, :], out=B[l])
+        z = matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims) + damp * Gamma * Q
         z = M * z
         denominator = dot(P.T, z)
         if denominator == 0.0:
@@ -524,7 +347,7 @@ def cg_iterations(X, Y, Z,
         beta = residualnorm_new / residualnorm
         residualnorm = residualnorm_new
         P = residual_cg + beta * P
-        
+
         # Stopping criteria.
         if residualnorm <= tol:
             break
@@ -532,145 +355,69 @@ def cg_iterations(X, Y, Z,
     return y, itn, residualnorm
 
 
-@njit(nogil=True)
-def compute_grad(T1, T2, T3, X, Y, Z, NX, NY, NZ, Gr_X, Gr_Y, Gr_Z, CX, DX, Gr_YZ, gX, CY, DY, Gr_XZ, gY, CZ, DZ, Gr_XY, gZ, g):
+def compute_grad(Tl, factors, P1, g, dims):
     """
-    This function computes the gradient of the error function at (X, Y, Z).
+    This function computes the gradient of the error function.
     """
 
     # Initialize first variables.
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-    R = X.shape[1]
+    L = len(factors)
+    R = factors[0].shape[1]
 
-    # X part.
-    NX = mlinalg.khatri_rao(Z, Y, NX)
-    dot(X, Gr_YZ, out=CX)
-    dot(T1, NX, out=DX)
-    gX = CX - DX
-    # ravel is equivalent to reshape(m*R,).
-    ggX = gX.T.ravel()
+    # Main computations.
+    for l in range(L):
+        itr = [l for l in reversed(range(L))]
+        itr.remove(l)
+        M = factors[itr[0]]
 
-    # Y part.
-    NY = mlinalg.khatri_rao(Z, X, NY)
-    dot(Y, Gr_XZ, out=CY)
-    dot(T2, NY, out=DY)
-    gY = CY - DY
-    # ravel is equivalent to reshape(n*R,).
-    ggY = gY.T.ravel()
+        # Compute Khatri-Rao products W^(L) ⊙ ... ⊙ W^(l+1) ⊙ W^(l-1) ⊙ ... ⊙ W^(1).
+        for ll in range(L-2):
+            tmp = M
+            dim1, dim2 = tmp.shape[0], dims[itr[ll+1]]
+            M = empty((dim1*dim2, R), dtype=float64)
+            M = mlinalg.khatri_rao(tmp, factors[itr[ll+1]], M)
 
-    # Z part.
-    NZ = mlinalg.khatri_rao(Y, X, NZ)
-    dot(Z, Gr_XY, out=CZ)
-    dot(T3, NZ, out=DZ)
-    gZ = CZ - DZ
-    # ravel is equivalent to reshape(p*R,).
-    ggZ = gZ.T.ravel()
-
-    g = concatenate((ggX, ggY, ggZ))
+        N = dot(Tl[l], M)
+        gg = dot(factors[l], P1[l])
+        g[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )] = (gg - N).T.ravel()
 
     return g
 
 
-def prepare_data(m, n, p, R):
+def prepare_data(dims, R):
     """
     Initialize all necessary matrices to keep the values of several computations during the program.
     """
 
-    # Gramians
-    Gr_X = empty((R, R), dtype=float64)
-    Gr_Y = empty((R, R), dtype=float64)
-    Gr_Z = empty((R, R), dtype=float64)
-    Gr_XY = empty((R, R), dtype=float64)
-    Gr_XZ = empty((R, R), dtype=float64)
-    Gr_YZ = empty((R, R), dtype=float64)
+    L = len(dims)
 
-    # V_X^T, V_Y^T, V_Z^T
-    V_Xt = empty((R, m), dtype=float64)
-    V_Yt = empty((R, n), dtype=float64)
-    V_Zt = empty((R, p), dtype=float64)
+    # Gramians
+    Gr = empty((L, R, R), dtype=float64)
+    P1 = ones((L, R, R), dtype=float64)
+    P2 = ones((L, L, R, R), dtype=float64)
 
     # Initializations of matrices to receive the results of the computations.
-    V_Xt_dot_X = empty((R, R), dtype=float64)
-    V_Yt_dot_Y = empty((R, R), dtype=float64)
-    V_Zt_dot_Z = empty((R, R), dtype=float64)
-    Gr_Z_V_Yt_dot_Y = empty((R, R), dtype=float64)
-    Gr_Y_V_Zt_dot_Z = empty((R, R), dtype=float64)
-    Gr_X_V_Zt_dot_Z = empty((R, R), dtype=float64)
-    Gr_Z_V_Xt_dot_X = empty((R, R), dtype=float64)
-    Gr_Y_V_Xt_dot_X = empty((R, R), dtype=float64)
-    Gr_X_V_Yt_dot_Y = empty((R, R), dtype=float64)
-    GZY_plus_GYZ = empty((R, R), dtype=float64)
-    GXZ_plus_GZX = empty((R, R), dtype=float64)
-    GYX_plus_GXY = empty((R, R), dtype=float64)
-
-    # Final blocks
-    BX1 = empty((R, m), dtype=float64)
-    BY1 = empty((R, n), dtype=float64)
-    BZ1 = empty((R, p), dtype=float64)
-    BX2 = empty((m, R), dtype=float64)
-    BY2 = empty((n, R), dtype=float64)
-    BZ2 = empty((p, R), dtype=float64)
-    BX_plus = empty((m, R), dtype=float64)
-    BY_plus = empty((n, R), dtype=float64)
-    BZ_plus = empty((p, R), dtype=float64)
-    BXv = empty(m * R, dtype=float64)
-    BYv = empty(n * R, dtype=float64)
-    BZv = empty(p * R, dtype=float64)
-    Bv = empty(R*(m+n+p), dtype=float64)
-    
-    # Matrices for the diagonal block
-    Gr_YZ_V_Xt = empty((R, m), dtype=float64)
-    Gr_XZ_V_Yt = empty((R, n), dtype=float64)
-    Gr_XY_V_Zt = empty((R, p), dtype=float64)
+    A = [empty((R, R)) for l in range(L)]
+    B = [empty((dims[l], R)) for l in range(L)]
+    P_VT_W = empty((R, R), dtype=float64)
+    tmp = zeros((R, R), dtype=float64)
+    result = [empty((dims[l], R), dtype=float64) for l in range(L)]
 
     # Matrices to use when constructing the Tikhonov matrix for regularization.
-    X_norms = empty(R, dtype=float64)
-    Y_norms = empty(R, dtype=float64)
-    Z_norms = empty(R, dtype=float64)
-    gamma_X = empty(R, dtype=float64)
-    gamma_Y = empty(R, dtype=float64)
-    gamma_Z = empty(R, dtype=float64)
-    Gamma = empty(R * (m + n + p), dtype=float64)
+    Gamma = empty(R * sum(dims), dtype=float64)
+    gamma = empty((L, R), dtype=float64)
 
     # Arrays to be used in the Conjugated Gradient.
-    M = ones(R * (m + n + p), dtype=float64)
-    L = ones(R * (m + n + p), dtype=float64)
-    residual_cg = empty(R * (m + n + p), dtype=float64)
-    P = empty(R * (m + n + p), dtype=float64)
-    Q = empty(R * (m + n + p), dtype=float64)
-    z = empty(R * (m + n + p), dtype=float64)
+    M = ones(R * sum(dims), dtype=float64)
+    residual_cg = empty(R * sum(dims), dtype=float64)
+    P = empty(R * sum(dims), dtype=float64)
+    Q = empty(R * sum(dims), dtype=float64)
+    z = empty(R * sum(dims), dtype=float64)
 
     # Arrays to be used in the compute_grad function.
-    NX = empty((n*p, R), dtype=float64)
-    NY = empty((m*p, R), dtype=float64)
-    NZ = empty((m*n, R), dtype=float64)
-    CX = empty((m, R), dtype=float64)
-    DX = empty((m, R), dtype=float64)
-    gX = empty((m, R), dtype=float64)
-    CY = empty((n, R), dtype=float64)
-    DY = empty((n, R), dtype=float64)
-    gY = empty((n, R), dtype=float64)
-    CZ = empty((p, R), dtype=float64)
-    DZ = empty((p, R), dtype=float64)
-    gZ = empty((p, R), dtype=float64)
-    g = empty(R*(m+n+p), dtype=float64)
+    g = empty(R * sum(dims), dtype=float64)
 
-    data = [Gr_X, Gr_Y, Gr_Z,
-            Gr_XY, Gr_XZ, Gr_YZ,
-            V_Xt, V_Yt, V_Zt,
-            V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
-            Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
-            Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-            Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-            GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
-            BX1, BY1, BZ1,
-            BX2, BY2, BZ2,
-            BXv, BYv, BZv,
-            BX_plus, BY_plus, BZ_plus, Bv,
-            X_norms, Y_norms, Z_norms,
-            gamma_X, gamma_Y, gamma_Z, Gamma,
-            M, L, residual_cg, P, Q, z,
-            NX, NY, NZ, CX, DX, gX, CY, DY, gY, CZ, DZ, gZ, g]
+    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, M, residual_cg, P, Q, z, g]
 
     return data
 
@@ -681,8 +428,8 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     """
 
     if type(init_damp) == list:
-        damp = init_damp[it] 
-    else:   
+        damp = init_damp[it]
+    else:
         if old_error != residualnorm:
             gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
         else:
@@ -695,129 +442,93 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
     return damp
 
 
-@njit(nogil=True)
-def gramians(X, Y, Z, Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ):
+def gramians(factors, Gr, P1, P2):
     """ 
-    Computes all Gramians matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians. 
+    Computes all Gramian matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians.
     """
 
-    dot(X.T, X, out=Gr_X)
-    dot(Y.T, Y, out=Gr_Y)
-    dot(Z.T, Z, out=Gr_Z)
-    Gr_XY = mlinalg.hadamard(Gr_X, Gr_Y, Gr_XY)
-    Gr_XZ = mlinalg.hadamard(Gr_X, Gr_Z, Gr_XZ)
-    Gr_YZ = mlinalg.hadamard(Gr_Y, Gr_Z, Gr_YZ)
+    L = len(factors)
+    R = factors[0].shape[1]
 
-    return Gr_X, Gr_Y, Gr_Z, Gr_XY, Gr_XZ, Gr_YZ
+    for l in range(L):
+        Gr[l] = dot(factors[l].T, factors[l], out=Gr[l])
+
+    for l in range(L):
+        for ll in range(L):
+            if l != ll:
+                P2[l, ll, :, :] = ones((R, R), dtype=float64)
+                itr = [i for i in range(L)]
+                itr.remove(l)
+                itr.remove(ll)
+                for lll in itr:
+                    P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll], P2[l, ll, :, :])
+        if l < L-1:
+            P1[l, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[ll], P1[l, :, :])
+        else:
+            P1[l, :, :] = mlinalg.hadamard(P2[l, 0, :, :], Gr[0], P1[l, :, :])
+
+    return P1, P2
 
 
-@njit(nogil=True)
-def matvec(X, Y, Z,
-           Gr_X, Gr_Y, Gr_Z,
-           Gr_XY, Gr_XZ, Gr_YZ,
-           V_Xt, V_Yt, V_Zt,
-           V_Xt_dot_X, V_Yt_dot_Y, V_Zt_dot_Z,
-           Gr_Z_V_Yt_dot_Y, Gr_Y_V_Zt_dot_Z, Gr_X_V_Zt_dot_Z,
-           Gr_Z_V_Xt_dot_X, Gr_Y_V_Xt_dot_X, Gr_X_V_Yt_dot_Y,
-           Gr_YZ_V_Xt, Gr_XZ_V_Yt, Gr_XY_V_Zt,
-           GZY_plus_GYZ, GXZ_plus_GZX, GYX_plus_GXY,
-           BX1, BY1, BZ1,
-           BX2, BY2, BZ2,
-           BXv, BYv, BZv,
-           BX_plus, BY_plus, BZ_plus, Bv,
-           v, m, n, p, R):
+def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims):
     """
-    Makes the matrix-vector computation (Df^T * Df)*v.
-    """
-
-    # Split v into three blocks, convert them into matrices and transpose them. 
-    # With this we have the matrices V_X^T, V_Y^T, V_Z^T.
-    V_Xt = v[0: m * R].reshape(R, m)
-    V_Yt = v[m * R: R * (m + n)].reshape(R, n)
-    V_Zt = v[R * (m + n): R * (m + n + p)].reshape(R, p)
-
-    # Compute the products V_X^T*X, V_Y^T*Y, V_Z^T*Z
-    dot(V_Xt, X, out=V_Xt_dot_X)
-    dot(V_Yt, Y, out=V_Yt_dot_Y)
-    dot(V_Zt, Z, out=V_Zt_dot_Z)
-
-    # Compute the Hadamard products
-    Gr_Z_V_Yt_dot_Y = mlinalg.hadamard(Gr_Z, V_Yt_dot_Y, Gr_Z_V_Yt_dot_Y)
-    Gr_Y_V_Zt_dot_Z = mlinalg.hadamard(Gr_Y, V_Zt_dot_Z, Gr_Y_V_Zt_dot_Z)
-    Gr_X_V_Zt_dot_Z = mlinalg.hadamard(Gr_X, V_Zt_dot_Z, Gr_X_V_Zt_dot_Z)
-    Gr_Z_V_Xt_dot_X = mlinalg.hadamard(Gr_Z, V_Xt_dot_X, Gr_Z_V_Xt_dot_X)
-    Gr_Y_V_Xt_dot_X = mlinalg.hadamard(Gr_Y, V_Xt_dot_X, Gr_Y_V_Xt_dot_X)
-    Gr_X_V_Yt_dot_Y = mlinalg.hadamard(Gr_X, V_Yt_dot_Y, Gr_X_V_Yt_dot_Y)
-    
-    # Add intermediate blocks
-    GZY_plus_GYZ = Gr_Z_V_Yt_dot_Y + Gr_Y_V_Zt_dot_Z
-    GXZ_plus_GZX = Gr_X_V_Zt_dot_Z + Gr_Z_V_Xt_dot_X
-    GYX_plus_GXY = Gr_Y_V_Xt_dot_X + Gr_X_V_Yt_dot_Y
-
-    # Compute final products
-    dot(X, GZY_plus_GYZ, out=BX2)
-    dot(Y, GXZ_plus_GZX, out=BY2)
-    dot(Z, GYX_plus_GXY, out=BZ2)
-    
-    # Diagonal block matrices
-    dot(Gr_YZ, V_Xt, out=BX1)
-    dot(Gr_XZ, V_Yt, out=BY1)
-    dot(Gr_XY, V_Zt, out=BZ1)
-
-    # Vectorize the matrices to have the final vectors
-    BX_plus = BX1.T + BX2
-    BY_plus = BY1.T + BY2
-    BZ_plus = BZ1.T + BZ2
-    BXv = cnv.vec(BX_plus, BXv, m, R)
-    BYv = cnv.vec(BY_plus, BYv, n, R)
-    BZv = cnv.vec(BZ_plus, BZv, p, R)
-    Bv = concatenate((BXv, BYv, BZv))
-
-    return Bv
-
-
-@njit(nogil=True)
-def regularization(X, Y, Z, X_norms, Y_norms, Z_norms, gamma_X, gamma_Y, gamma_Z, Gamma, m, n, p, R):
-    """
-    Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make 
-    Jf^T * Jf + Gamma diagonally dominant.
+    Makes the matrix-vector computation (Jf^T * Jf)*v.
     """
 
-    for r in range(R):
-        X_norms[r] = norm(X[:, r])
-        Y_norms[r] = norm(Y[:, r])
-        Z_norms[r] = norm(Z[:, r])
+    L = len(factors)
+    R = factors[0].shape[1]
 
-    max_XY = np.max(X_norms * Y_norms)
-    max_XZ = np.max(X_norms * Z_norms)
-    max_YZ = np.max(Y_norms * Z_norms)
-    max_all = max(max_XY, max_XZ, max_YZ)
+    for l in range(L):
+        tmp = 0*tmp
+        for ll in range(L):
+            if ll != l:
+                P_VT_W = mlinalg.hadamard(P2[l, ll, :, :], A[ll], P_VT_W)
+                tmp += P_VT_W
+        dot(factors[l], tmp, out=result[l])
+        result[l] += B[l]
+        z[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )] = \
+            cnv.vec(result[l], z[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )], dims[l], R)
 
-    for r in range(R):
-        gamma_X[r] = Y_norms[r] * Z_norms[r] * max_all
-        gamma_Y[r] = X_norms[r] * Z_norms[r] * max_all
-        gamma_Z[r] = X_norms[r] * Y_norms[r] * max_all
-
-    for r in range(R):
-        Gamma[r * m:(r + 1) * m] = gamma_X[r]
-        Gamma[m * R + r * n:m * R + (r + 1) * n] = gamma_Y[r]
-        Gamma[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = gamma_Z[r]
-
-    return Gamma, X_norms, Y_norms, Z_norms
+    return z
 
 
-@njit(nogil=True)
-def precond(X_norms, Y_norms, Z_norms, L, M, damp, m, n, p, R):
+def regularization(factors, Gamma, gamma, P1, dims):
+    """
+    Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make Jf^T * Jf + Gamma
+    diagonally dominant.
+    """
+
+    L = len(factors)
+    R = factors[0].shape[1]
+    m = 0
+
+    for l in range(L):
+        for r in range(R):
+            gamma[l, r] = abs(P1[l, r, r])
+            if gamma[l, r] > m:
+                m = gamma[l, r]
+    gamma = np.sqrt(m * gamma)
+
+    for l in range(L):
+        for r in range(R):
+            Gamma[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]] = gamma[l, r]
+
+    return Gamma, gamma
+
+
+def precond(Gamma, gamma, M, damp, dims):
     """
     This function constructs a preconditioner in order to accelerate the Conjugate Gradient function. It is a diagonal
-    preconditioner designed to make Dres.transpose*Dres + Gamma a unit diagonal matrix. Since the matrix is diagonally 
-    dominant, the result will be close to the identity matrix. Therefore, it will have its eigenvalues clustered
-    together.
+    preconditioner designed to make Jf^T * J + Gamma a unit diagonal matrix. Since the matrix is diagonally dominant,
+    the result will be close to the identity matrix. Therefore, it will have its eigenvalues clustered together.
     """
-    for r in range(R):
-        M[r * m:(r + 1) * m] = Y_norms[r]**2 * Z_norms[r]**2 + damp * L[r * m: (r + 1) * m]
-        M[m * R + r * n:m * R + (r + 1) * n] = X_norms[r]**2 * Z_norms[r]**2 + damp * L[m * R + r * n: m * R + (r + 1) * n]
-        M[R * (m + n) + r * p:R * (m + n) + (r + 1) * p] = X_norms[r]**2 * Y_norms[r]**2 + damp * L[R * (m + n) + r * p: R * (m + n) + (r + 1) * p]
+
+    L, R = gamma.shape
+
+    for l in range(L):
+        for r in range(R):
+            M[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]] = \
+                gamma[l, r]**2 + damp * Gamma[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]]
 
     M = 1 / sqrt(M)
     return M
@@ -827,11 +538,12 @@ def precond(X_norms, Y_norms, Z_norms, L, M, damp, m, n, p, R):
 def jacobian(X, Y, Z, m, n, p, r):
     """
     This function computes the Jacobian matrix Jf of the residual function. This is a dense mnp x r(m+n+p) matrix.
+    It is only implemented for third order tensors.
     """
 
     Jf = zeros((m*n*p, r*(m+n+p)))
     s = 0
-    
+
     for i in range(m):
         for j in range(n):
             for k in range(p):
@@ -840,7 +552,7 @@ def jacobian(X, Y, Z, m, n, p, r):
                     Jf[s, r*m + l*n + j] = -X[i, l]*Z[k, l]
                     Jf[s, r*(m+n) + l*p + k] = -X[i, l]*Y[j, l]
                 s += 1
-                        
+
     return Jf
 
 

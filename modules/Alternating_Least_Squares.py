@@ -1,74 +1,53 @@
 """
- Aternating Least Squares Module
+ Alternating Least Squares Module
  ===============================
- This module implement the Aternating Least Squares algorithm for third order tensors. The idea is to use it to compute
- biCPD's for the tensor train.  
+ This module implement the Alternating Least Squares algorithm.
 """
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, float64, sqrt, dot
+from numpy import inf, mean, copy, concatenate, empty, float64, dot
 from numpy.linalg import norm, pinv
-from numba import njit
 
 # Tensor Fox modules
 import Conversion as cnv
+import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def als(T, X, Y, Z, R, options):
+def als(T, factors, R, options):
     """
-    This function uses the ALS method to compute an approximation of T with rank r. An initial point to 
-    start the iterations must be given. This point is described by the arrays X, Y, Z. This program also 
-    gives some additional information such as the size of the steps (distance between each x computed), the absolute 
-    errors between the approximate and target tensor, and the path of solutions (the points x computed at each iteration 
-    are saved). 
+    This function uses the ALS method to compute an approximation of T with rank R. 
 
     Inputs
     ------
-    T: float 3-D ndarray
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
-    r: int. 
+    T: float array
+    factors: list of float 2-D array
+        The factor matrices to be used as starting point.
+    R: int. 
         The desired rank of the approximating tensor.
-    maxiter: int
-        Number of maximum iterations permitted. 
-    tol: float
-        Tolerance criterion to stop the iteration process. This value is used in more than one stopping criteria.
-    symm: bool
-    display: int
+    options: class
+        See the function cpd for more information about the options available.
     
     Outputs
     -------
-    X, Y, Z: 2-D ndarray
+    factors: list of float 2-D array
         The factor matrices of the CPD of T.
-    step_sizes: float 1-D ndarray 
+    step_sizes: float 1-D array
         Distance between the computed points at each iteration.
-    errors: float 1-D ndarray 
+    errors: float 1-D array
         Error of the computed approximating tensor at each iteration. 
-    improv: float 1-D ndarray
-        Improvement of the error at each iteration. More precisely, the difference between the relative error of the current 
-        iteration and the previous one.
-    gradients: float 1-D ndarray
+    improv: float 1-D array
+        Improvement of the error at each iteration. More precisely, the difference between the relative error of the
+        current iteration and the previous one.
+    gradients: float 1-D array
         Gradient of the error function at each iteration.
-    stop: 0, 1, 2, 3 or 4
-        This value indicates why the dGN function stopped. Below we summarize the cases.
-        0: step_sizes[it] < tol. This means the steps are too small.
-        1: improv < tol. This means the improvement in the error is too small.
-        2: gradients[it] < tol. This means the gradient is close enough to 0.
-        3: mean(abs(errors[it-k : it] - errors[it-k-1 : it-1]))/Tsize < 10*tol. This means the average of the last k 
-           relative errors is too small. Keeping track of the averages is useful when the errors improvements are just a 
-           little above the threshold for a long time. We want them above the threshold indeed, but not too close for a 
-           long time. 
-        4: limit of iterations reached.
-        5: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when the
-        program can't give a stopping condition in the refinement stage).
-        6: dGN diverged. 
+    stop: 0, 1, 2, 3, 4, 5 or 6
+        This value indicates why the function stopped. See the function dGN for more details.
     """  
 
     # INITIALIZE RELEVANT VARIABLES 
-
+    
     # Extract all variable from the class of options.
     maxiter = options.maxiter
     tol = options.tol
@@ -80,26 +59,17 @@ def als(T, X, Y, Z, R, options):
     low, upp, factor = options.constraints
     factors_norm = options.factors_norm
 
-    # Verify if some factor should be fixed or not. This only happens in the bicpd function.
+    # Verify if some factor should be fixed or not. This only happens when the bicpd function was called.
+    L = len(factors)
     fix_mode = -1
-    if type(X) == list:
-        fix_mode = 0
-        X_orig = copy(X[0])
-        X = X[0]
-        method_info = options.bi_method_parameters
-    elif type(Y) == list:
-        fix_mode = 1
-        Y_orig = copy(Y[0])
-        Y = Y[0]
-        method_info = options.bi_method_parameters
-    elif type(Z) == list:
-        fix_mode = 2
-        Z_orig = copy(Z[0])
-        Z = Z[0]
-        method_info = options.bi_method_parameters
+    orig_factors = [[] for l in range(L)]
+    for l in range(L):            
+        if type(factors[l]) == list:
+            fix_mode = l
+            orig_factors[l] = factors[l][0].copy()
+            factors[l] = factors[l][0]
                 
     # Set the other variables.
-    m, n, p = T.shape
     Tsize = norm(T)
     error = 1
     best_error = inf
@@ -108,20 +78,16 @@ def als(T, X, Y, Z, R, options):
                                
     # INITIALIZE RELEVANT ARRAYS
     
-    x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
+    x = concatenate([factors[l].flatten('F') for l in range(L)])
     step_sizes = empty(maxiter)
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    best_X = copy(X)
-    best_Y = copy(Y)
-    best_Z = copy(Z)
+    best_factors = [copy(factors[l]) for l in range(L)]
 
     # Compute unfoldings.
-    T1 = cnv.unfold(T, 1)
-    T2 = cnv.unfold(T, 2)
-    T3 = cnv.unfold(T, 3)
-    T1_approx = empty(T1.shape, dtype=float64)
+    Tl = [cnv.unfold(T, l+1) for l in range(L)]
+    T1_approx = empty(Tl[0].shape, dtype=float64)
 
     if display > 1:
         if display == 4:
@@ -147,28 +113,26 @@ def als(T, X, Y, Z, R, options):
         old_error = error
                        
         # ALS iteration call.
-        X, Y, Z = als_iteration(T1, T2, T3, X, Y, Z, fix_mode)
-        x = concatenate((X.flatten('F'), Y.flatten('F'), Z.flatten('F')))
+        factors = als_iteration(Tl, factors, fix_mode)
+        x = concatenate([factors[l].flatten('F') for l in range(L)])
                                      
         # Transform factors X, Y, Z.
-        X, Y, Z = cnv.transform([X, Y, Z], low, upp, factor, symm, factors_norm)
-        if fix_mode == 0:
-            X = copy(X_orig)
-        elif fix_mode == 1:
-            Y = copy(Y_orig)
-        elif fix_mode == 2:
-            Z = copy(Z_orig)
+        factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+        # Some mode may be fixed when the bicpd is called.
+        if L == 3:
+            for l in range(L):
+                if fix_mode == l:
+                    factors[l] = copy(orig_factors[l])
                                           
         # Compute error.
-        T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
-        error = norm(T1 - T1_approx) / Tsize
+        T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+        error = crt.fastnorm(Tl[0], T1_approx) / Tsize
 
         # Update best solution.
         if error < best_error:
             best_error = error
-            best_X = copy(X)
-            best_Y = copy(Y)
-            best_Z = copy(Z)
+            for l in range(L):
+                best_factors[l] = copy(factors[l])
                            
         # Save relevant information about the current iteration.
         step_sizes[it] = norm(x - old_x)
@@ -212,8 +176,8 @@ def als(T, X, Y, Z, R, options):
                 break
             # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
             # program to continue iterating when the error starts to oscillate.
-            if it > 2 * const and it % const == 0:
-                mean1 = mean(errors[it - 2 * const: it - const])
+            if it > 2*const and it % const == 0:
+                mean1 = mean(errors[it - 2*const: it - const])
                 mean2 = mean(errors[it - const: it])
                 if mean1 - mean2 <= tol_improv:
                     stop = 4
@@ -225,60 +189,72 @@ def als(T, X, Y, Z, R, options):
     
     # SAVE LAST COMPUTED INFORMATION
     
-    step_sizes = step_sizes[0: it+1]
     errors = errors[0: it+1]
+    step_sizes = step_sizes[0: it+1]
     improv = improv[0: it+1]
     gradients = gradients[0: it+1]
     
-    return best_X, best_Y, best_Z, step_sizes, errors, improv, gradients, stop
+    return factors, step_sizes, errors, improv, gradients, stop
 
 
-@njit(nogil=True)
-def als_iteration(T1, T2, T3, X, Y, Z, fix_mode):
+def als_iteration(Tl, factors, fix_mode):
     """
-    This function makes two or three ALS iterations, that is, it computes the pseudoinverse with respect to 
-    two or three modes depending if one of the modes is fixed. The implementation is simple and not intended 
-    to be optimal. 
+    This function the ALS iterations, that is, it computes the pseudoinverse with respect to the modes. This 
+    implementation is simple and not intended to be optimal. 
     """
     
+    # Initialize first variables.
+    L = len(factors)
+    R = factors[0].shape[1]
+    dims = [factors[l].shape[0] for l in range(L)]
+    
+    # Main computations for the general case.
     if fix_mode == -1:
-        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
-        M = mlinalg.khatri_rao(Z, Y, M)
-        X = dot( T1, pinv(M.T) )
+        for l in range(L):
+            itr = [l for l in reversed(range(L))]
+            itr.remove(l)
+            M = factors[itr[0]]
 
-        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
-        M = mlinalg.khatri_rao(Z, X, M)
-        Y = dot( T2, pinv(M.T))
+            # Compute Khatri-Rao products W^(L) ⊙ ... ⊙ W^(l+1) ⊙ W^(l-1) ⊙ ... ⊙ W^(1)..
+            for ll in range(L-2):
+                tmp = M
+                dim1, dim2 = tmp.shape[0], dims[itr[ll+1]]
+                M = empty((dim1*dim2, R), dtype=float64)
+                M = mlinalg.khatri_rao(tmp, factors[itr[ll+1]], M)
 
-        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
-        M = mlinalg.khatri_rao(Y, X, M)
-        Z = dot( T3, pinv(M.T) )
+            factors[l] = dot(Tl[l], pinv(M.T))
+
+        return factors
+    
+    # If fix_mode != -1, it is assumed that the program is using the bicpd function.
+    # This part is only used for third order tensors.
+    X, Y, Z = factors
+    T1, T2, T3 = Tl
         
-    elif fix_mode == 0:
-        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
+    if fix_mode == 0:
+        M = empty((Z.shape[0] * X.shape[0], R))
         M = mlinalg.khatri_rao(Z, X, M)
         Y = dot( T2, pinv(M.T) )
-
-        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
+        M = empty((Y.shape[0] * X.shape[0], R))
         M = mlinalg.khatri_rao(Y, X, M)
         Z = dot( T3, pinv(M.T) )
-        
+                
     elif fix_mode == 1:
-        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
+        X, Y, Z = factors
+        M = empty((Z.shape[0] * Y.shape[0], R))
         M = mlinalg.khatri_rao(Z, Y, M)
         X = dot( T1, pinv(M.T) )
-
-        M = empty((Y.shape[0] * X.shape[0], Y.shape[1]))
+        M = empty((Y.shape[0] * X.shape[0], R))
         M = mlinalg.khatri_rao(Y, X, M)
         Z = dot( T3, pinv(M.T) )
-        
+                
     elif fix_mode == 2:
-        M = empty((Z.shape[0] * Y.shape[0], Z.shape[1]))
+        X, Y, Z = factors
+        M = empty((Z.shape[0] * Y.shape[0], R))
         M = mlinalg.khatri_rao(Z, Y, M)
         X = dot( T1, pinv(M.T) )
-
-        M = empty((Z.shape[0] * X.shape[0], Z.shape[1]))
+        M = empty((Z.shape[0] * X.shape[0], R))
         M = mlinalg.khatri_rao(Z, X, M)
         Y = dot( T2, pinv(M.T) )
         
-    return X, Y, Z
+    return [X, Y, Z]       

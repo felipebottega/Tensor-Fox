@@ -35,7 +35,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, zeros, empty, array, nanargmin, log10, arange, prod
+from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod
 from numpy.linalg import norm
 import sys
 import time
@@ -63,7 +63,7 @@ def cpd(T, R, options=False):
 
     Inputs
     ------
-    T: float L-D ndarray
+    T: float array
         Objective tensor in coordinates.
     R: int
         The desired rank of the approximating tensor.
@@ -85,7 +85,7 @@ def cpd(T, R, options=False):
                 tensor of the MLSVD.
                 2) tol_mlsvd = -1: use the original tensor, so the computation of the MLSVD is not performed.
         trunc_dims: int or list of ints
-            Consider a three order tensor T. If trunc_dims is not 0, then it should be a list with three integers
+            Consider a third order tensor T. If trunc_dims is not 0, then it should be a list with three integers
             [R1,R2,R3] such that 1 <= R1 <= m, 1 <= R2 <= n, 1 <= R3 <= p. The compressed tensor will have dimensions
             (R1,R2,R3). Default is 0, which means 'automatic' truncation.
         initialization: string or list
@@ -104,7 +104,7 @@ def cpd(T, R, options=False):
         trials: int
             This parameter is only used for tensor with order higher than 3. The computation of the tensor train CPD 
             requires the computation of several CPD of third order tensors. If only one of these CPD's is of low 
-            quality (divergence or local minima) then all effort is in vain. One work around is to compute several 
+            quality (divergence or local minimum) then all effort is in vain. One work around is to compute several
             CPD'd and keep the best, for third order tensor. The parameter trials defines the maximum number of
             times we repeat the computation of each third order CPD. These trials stops when the relative error is
             less than 1e-4 or when the maximum number of trials is reached. Default is trials=1.
@@ -132,8 +132,8 @@ def cpd(T, R, options=False):
     
     Outputs
     -------
-    factors: list of float 2-D ndarrays with shape (dims[i], R) each
-        The approximating tensor in coordinates.
+    factors: list of float 2-D arrays with shape (dims[i], R) each
+        The factors matrices which corresponds to an approximate CPD for T.
     final_outputs: list of classes
         Each tricpd and bicpd call gives a output class with all sort of information about the computations. The list 
         'final_outputs' contains all these classes.
@@ -142,14 +142,12 @@ def cpd(T, R, options=False):
     # INITIAL PREPARATIONS
 
     # Compute dimensions of T.
-    dims = T.shape
-    L = len(dims)
+    dims_orig = T.shape
+    L = len(dims_orig)
     
     # Set options.
-    options = aux.make_options(options)
+    options = aux.make_options(options, L)
     method = options.method
-    if L > 3:
-        options.method = 'ttcpd'
     display = options.display
     tol_mlsvd = options.tol_mlsvd
     if type(tol_mlsvd) == list:
@@ -159,69 +157,72 @@ def cpd(T, R, options=False):
             tol_mlsvd = tol_mlsvd[1]
                    
     # Test consistency of dimensions and rank.
-    aux.consistency(R, dims, options)
+    aux.consistency(R, dims_orig, options)
         
-    # Verify if T is a third order tensor and the method is dGN or ALS.
-    L = len(dims)
-    if (L == 3 and method == 'dGN') or (L == 3 and method == 'als'):
-        X, Y, Z, output = tricpd(T, R, options)
-        return [X, Y, Z], output  
+    # Verify method.
+    if method == 'dGN' or method == 'als':
+        factors, output = tricpd(T, R, options)
+        return factors, output 
+    
+    # Change ordering of indexes to improve performance if possible.
+    T_orig = copy(T)
+    T, ordering = aux.sort_dims(T)
+    dims = T.shape   
     
     # START COMPUTATIONS
     
-    else:
-        # Compute norm of T.    
-        Tsize = norm(T) 
+    # Compute norm of T.    
+    Tsize = norm(T) 
 
-        # COMPRESSION STAGE
+    # COMPRESSION STAGE
 
-        if display != 0:
-            print('-----------------------------------------------------------------------------------------------')
-            print('Computing MLSVD')
+    if display != 0:
+        print('-----------------------------------------------------------------------------------------------')
+        print('Computing MLSVD')
 
-        # Compute compressed version of T with the MLSVD. We have that T = (U_1,...,U_L)*S.
-        if display > 2 or display < -1:
-            S, U, T1, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
-        else: 
-            S, U, T1, sigmas = cmpr.mlsvd(T, Tsize, R, options)
-        
-        if display != 0:
-            if tol_mlsvd == 0:
-                print('    Compression without truncation requested by user')
-                print('    Compressing from', T.shape, 'to', S.shape)
-            elif prod(array(S.shape) == array(dims)):
-                if tol_mlsvd == -1:
-                    print('    No compression and no truncation requested by user')
-                    print('    Working with dimensions', T.shape) 
-                else:
-                    print('    No compression detected')
-                    print('    Working with dimensions', T.shape)                         
+    # Compute compressed version of T with the MLSVD. We have that T = (U_1,...,U_L)*S.
+    if display > 2 or display < -1:
+        S, U, T1, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
+    else: 
+        S, U, T1, sigmas = cmpr.mlsvd(T, Tsize, R, options)
+
+    if display != 0:
+        if tol_mlsvd == 0:
+            print('    Compression without truncation requested by user')
+            print('    Compressing from', T.shape, 'to', S.shape)
+        elif prod(array(S.shape) == array(dims)):
+            if tol_mlsvd == -1:
+                print('    No compression and no truncation requested by user')
+                print('    Working with dimensions', T.shape) 
             else:
-                print('    Compression detected')
-                print('    Compressing from', T.shape, 'to', S.shape)
-            if display > 2 or display < -1:
-                print('    Compression relative error = {:7e}'.format(best_error))
-            print()
-
-        # Increase dimensions if r > min(S.shape).
-        S_orig_dims = S.shape
-        if R > min(S_orig_dims):
-            inflate_status = True
-            S = cnv.inflate(S, R, S_orig_dims)
+                print('    No compression detected')
+                print('    Working with dimensions', T.shape)                         
         else:
-            inflate_status = False
+            print('    Compression detected')
+            print('    Compressing from', T.shape, 'to', S.shape)
+        if display > 2 or display < -1:
+            print('    Compression relative error = {:7e}'.format(best_error))
+        print()
 
-        # For higher order tensors the trunc_dims options is only valid for the original tensor and its MLSVD.
-        options.trunc_dims = 0
+    # Increase dimensions if r > min(S.shape).
+    S_orig_dims = S.shape
+    if R > min(S_orig_dims):
+        inflate_status = True
+        S = cnv.inflate(S, R, S_orig_dims)
+    else:
+        inflate_status = False
 
-        # TENSOR TRAIN AND DAMPED GAUSS-NEWTON STAGE
+    # For higher order tensors the trunc_dims options is only valid for the original tensor and its MLSVD.
+    options.trunc_dims = 0
 
-        factors, outputs = highcpd(S, R, options)
-        factors = cnv.deflate(factors, S_orig_dims, inflate_status)
+    # TENSOR TRAIN AND DAMPED GAUSS-NEWTON STAGE
 
-        # Use the orthogonal transformations to work in the original space.
-        for l in range(L):
-            factors[l] = dot(U[l], factors[l])
+    factors, outputs = highcpd(S, R, options)
+    factors = cnv.deflate(factors, S_orig_dims, inflate_status)
+
+    # Use the orthogonal transformations to work in the original space.
+    for l in range(L):
+        factors[l] = dot(U[l], factors[l])
     
     # FINAL WORKS
 
@@ -232,6 +233,9 @@ def cpd(T, R, options=False):
     T1_approx = cnv.cpd2unfold1(T1_approx, factors)
     rel_error = crt.fastnorm(T1, T1_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
+    
+    # Go back to the original dimension ordering.
+    factors = aux.unsort_dims(factors, ordering)
     
     if options.display != 0:
         print()
@@ -306,25 +310,20 @@ def highcpd(T, R, options):
 
 def tricpd(T, R, options):
     """
-    Given a tensor T and a rank R, this function computes an approximated CPD of T with rank R. The result is given in
-    the form [X, Y, Z]. These matrices are such that sum_(r=1)^R X(r) ⊗ Y(r) ⊗ Z(r) is an approximation for T.
-    X(r) denotes the l-th column of X. The same goes for Y(r) and Z(r).
+    Given a tensor T and a rank R, this function computes an approximated CPD of T with rank R. This function is called
+    when the user sets method = 'dGN'.
 
     Inputs
     ------
-    T: float 3-D ndarray
+    T: float array
     R: int
     options: class
     
     Outputs
     -------
-    X: float 2-D ndarray with shape (m, R)
-    Y: float 2-D ndarray with shape (n, R)
-    Z: float 2-D ndarray with shape (p, R)
-        X, Y, Z are such that (X,Y,Z)*I ~ T.
-        The approximating tensor in coordinates.
+    factors: list of float 2-D arrays
     output: class
-        This class contains all information needed about the computations made. We summarize these informations below.
+        This class contains all information needed about the computations made. We summarize these information below.
             num_steps: the total number of steps (iterations) the dGN function used at the two runs.
             accuracy: the accuracy of the solution, which is defined by the formula 100*(1 - rel_error). 0 means 0% of 
                       accuracy (worst case) and 100 means 100% of accuracy (best case).
@@ -333,7 +332,7 @@ def tricpd(T, R, options):
             errors: array with the absolute errors of the approximating tensor at each iteration.
             improv: array with the differences between consecutive absolute errors.
             gradients: array with the gradient of the error function at each iteration. We expect that these gradients 
-                       converges to zero as we keep iterating since the objetive point is a local minimum.
+                       converges to zero as we keep iterating since the objective point is a local minimum.
             stop: it is a list of two integers. The first integer indicates why the dGN stopped at the first run, and
                   the second integer indicates why the dGN stopped at the second run (refinement stage). Check the 
                   functions mlsvd and dGN for more information. 
@@ -352,15 +351,15 @@ def tricpd(T, R, options):
         tol_mlsvd = tol_mlsvd[1]
 
     # Set the other variables.
-    m_orig, n_orig, p_orig = T.shape
-    m, n, p = m_orig, n_orig, p_orig
+    dims_orig = T.shape
+    L = len(dims_orig)
     T_orig = copy(T)
     Tsize = norm(T)
     init_error = inf
 
     # Change ordering of indexes to improve performance if possible.
-    T, ordering = aux.sort_dims(T, m, n, p)
-    m, n, p = T.shape    
+    T, ordering = aux.sort_dims(T)
+    dims = T.shape    
     
     # COMPRESSION STAGE
     
@@ -368,26 +367,26 @@ def tricpd(T, R, options):
         print('-----------------------------------------------------------------------------------------------')
         print('Computing MLSVD')
     
-    # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
+    # Compute compressed version of T with the MLSVD. We have that T = (U_1, ..., U_L)*S.
     if display > 2 or display < -1:
         S, U, T1, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
     else:
         S, U, T1, sigmas = cmpr.mlsvd(T, Tsize, R, options)
-    R1, R2, R3 = S.shape
-    U1, U2, U3 = U
+    dims_cmpr = S.shape
 
     # When the tensor is symmetric we want S to have equal dimensions. 
     if symm:
-        R_min = min(R1, R2, R3)
-        R1, R2, R3 = R_min, R_min, R_min
-        S = S[:R_min, :R_min, :R_min]
-        U1, U2, U3 = U1[:, :R_min], U2[:, :R_min], U3[:, :R_min]
+        R_min = min(dims_cmpr)
+        dims_cmpr = [R_min for l in range(L)]
+        dims_cmpr_slices = tuple(slice(R_min) for l in range(L))
+        S = S[dims_cmpr_slices]
+        U = [U[l][:, :R_min] for l in range(L)]
           
     if display > 0:
         if tol_mlsvd == 0:
             print('    Compression without truncation requested by user')
             print('    Compressing from', T.shape, 'to', S.shape)
-        elif (R1, R2, R3) == (m, n, p):
+        elif dims_cmpr == dims:
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
@@ -404,9 +403,9 @@ def tricpd(T, R, options):
         
     # Generate initial to start dGN.
     if display > 2 or display < -1:
-        X, Y, Z, init_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        init_factors, init_error = init.starting_point(T, Tsize, S, U, R, ordering, options)
     else:  
-        X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        init_factors = init.starting_point(T, Tsize, S, U, R, ordering, options)
     
     if display > 0:
         print('-----------------------------------------------------------------------------------------------')        
@@ -425,15 +424,15 @@ def tricpd(T, R, options):
     
     # Compute the approximated tensor in coordinates with dGN or ALS.
     if method == 'als':
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, R, options)
+        factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            als.als(S, init_factors, R, options)
     else:
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
-            gn.dGN(S, X, Y, Z, R, init_error, options)
+        factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            gn.dGN(S, init_factors, R, init_error, options)
 
     # Use the orthogonal transformations to work in the original space.
-    X = dot(U1, X)
-    Y = dot(U2, Y)
-    Z = dot(U3, Z)
+    for l in range(L):
+        factors[l] = dot(U[l], factors[l])
     
     # REFINEMENT STAGE
 
@@ -447,7 +446,7 @@ def tricpd(T, R, options):
      
         if display > 2:
             T1_approx = empty(T1.shape)
-            T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
+            T1_approx = cnv.cpd2unfold1(T1_approx, factors)
             init_error = crt.fastnorm(T1, T1_approx)/Tsize
             print('    Initial guess relative error = {:5e}'.format(init_error))
 
@@ -456,11 +455,11 @@ def tricpd(T, R, options):
             print('Computing CPD')
 
         if method == 'als':
-            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
-                als.als(T, X, Y, Z, R, options)
+            factors, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
+                als.als(T, factors, R, options)
         else:
-            X, Y, Z, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
-                gn.dGN(T, X, Y, Z, R, init_error, options)
+            factors, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
+                gn.dGN(T, factors, R, init_error, options)
 
     else:
         step_sizes_refine = array([0])
@@ -473,10 +472,10 @@ def tricpd(T, R, options):
 
     # Compute error.
     T1_approx = empty(T1.shape)
-    T1_approx = cnv.cpd2unfold1(T1_approx, [X, Y, Z])
+    T1_approx = cnv.cpd2unfold1(T1_approx, factors)
 
     # Go back to the original dimension ordering.
-    X, Y, Z = aux.unsort_dims(X, Y, Z, ordering)
+    factors = aux.unsort_dims(factors, ordering)
         
     # Save and display final informations.
     output = aux.output_info(T1, Tsize, T1_approx,
@@ -498,12 +497,13 @@ def tricpd(T, R, options):
         acc = float( '%.6e' % Decimal(output.accuracy) )
         print('    Accuracy = ', acc, '%')
     
-    return X, Y, Z, output
+    return factors, output
 
 
 def bicpd(T, R, fixed_factor, options):
     """
-    Practically the same as tricpd, but this function keeps the first factor fixed during all the computations. 
+    Practically the same as tricpd, but this function keeps the some factor fixed during all the computations. This
+    function is to be used as part of the tensor train cpd.
     """
 
     # INITIALIZE RELEVANT VARIABLES 
@@ -533,7 +533,7 @@ def bicpd(T, R, fixed_factor, options):
         print('-----------------------------------------------------------------------------------------------') 
         print('Computing MLSVD of T')
 
-    # Compute compressed version of T with the MLSVD. We have that T = (U1,U2,U3)*S.
+    # Compute compressed version of T with the MLSVD. We have that T = (U1, U2, U3)*S.
     if display > 2 or display < -1:
         S, U, T1, sigmas, best_error = cmpr.mlsvd(T, Tsize, R, options)
     else:
@@ -569,9 +569,9 @@ def bicpd(T, R, fixed_factor, options):
         
     # Generate initial to start dGN.
     if display > 2 or display < -1:
-        X, Y, Z, init_error = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        [X, Y, Z], init_error = init.starting_point(T, Tsize, S, U, R, ordering, options)
     else:  
-        X, Y, Z = init.starting_point(T, Tsize, S, U1, U2, U3, R, R1, R2, R3, ordering, options)
+        [X, Y, Z] = init.starting_point(T, Tsize, S, U, R, ordering, options)
 
     # Discard the factor computed in start_point and use the previous one. Then project it on the compressed space.
     if fixed_factor[1] == 0:
@@ -609,10 +609,12 @@ def bicpd(T, R, fixed_factor, options):
     
     # Compute the approximated tensor in coordinates with dGN or ALS. 
     if bi_method == 'als':
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = als.als(S, X, Y, Z, R, options)
+        factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            als.als(S, [X, Y, Z], R, options)
     else:
-        X, Y, Z, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
-            gn.dGN(S, X, Y, Z, R, init_error, options)
+        factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
+            gn.dGN(S, [X, Y, Z], R, init_error, options)
+    X, Y, Z = factors
  
     # FINAL WORKS
     
@@ -675,25 +677,26 @@ def rank(T, options=False, plot=True):
     
     Inputs
     ------
-    T: float L-D ndarray
-    display: int
+    T: float array
+    options: class or bool
+        The user can give the options to the cpd function if necessary.
+    plot: bool
+        If True (default), the program creates a plot with the relation between the error and rank.
             
     Outputs
     -------
     final_rank: int
         The computed rank of T.
-    errors_per_rank: float 1-D ndarray
+    errors_per_rank: float 1-D array
         The error |T - T_approx| computed for each rank.    
     """
     
     # Set options
-    options = aux.make_options(options)
+    dims = array(T.shape)
+    L = len(dims)
+    options = aux.make_options(options, L)
 
     # START THE PROCESS OF FINDING THE RANK
-
-    # Decide bounds for rank.
-    dims = array(T.shape)
-    L = dims.size
     
     if L > 3:
         Rmin, Rmax = 2, np.min(dims)
@@ -766,11 +769,11 @@ def stats(T, R, options=False, num_samples=100):
 
     Inputs
     ------
-    T: float L-D ndarray
+    T: float array
     R: int
         The desired rank of the approximating tensor.
-    maxiter: int
-    tol: float
+    options: class or bool
+        The user can give the options to the cpd function if necessary.
     num_samples: int
         Total of CPD's we want to compute to make statistics. Default is 100.
     """
@@ -780,7 +783,7 @@ def stats(T, R, options=False, num_samples=100):
     L = len(dims)
 
     # Set options
-    options = aux.make_options(options)
+    options = aux.make_options(options, L)
 
     # INITIALIZE RELEVANT ARRAYS
     
@@ -838,7 +841,7 @@ def cpdtt(T, R):
 
     # Compute dimensions and norm of T.
     dims = array(T.shape)
-    L = dims.size
+    L = len(dims)
     
     # List of cores.
     G = []
@@ -865,12 +868,14 @@ def foxit(T, R, options=False, bestof=1):
         3) prints the parameters used
         4) plots the evolution of the step sizes, errors, improvements and gradients
 
-    Additionally, the extra option 'bestof' tells the program to compute a certain number of CPD's and keep
-    only the best one.    
+    Additionally, the extra option 'bestof' tells the program to compute a certain number of CPD's and retain only the
+    best one.
     """
 
     best_error = inf
-    options = aux.make_options(options)
+    dims = array(T.shape)
+    L = len(dims)
+    options = aux.make_options(options, L)
 
     for i in range(bestof):
         factors, outputs = cpd(T, R, options)

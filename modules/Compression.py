@@ -38,7 +38,7 @@ def mlsvd(T, Tsize, R, options):
 
     Inputs
     ------
-    T: float L-D ndarray
+    T: float array
         Objective tensor in coordinates.
     Tsize: float
         Frobenius norm of T.
@@ -48,14 +48,13 @@ def mlsvd(T, Tsize, R, options):
 
     Outputs
     -------
-    S: float L-D ndarray
-        Central tensor of the MLSVD.
-    U: list of float 2-D ndarrays
+    S: float array
+        Core tensor of the MLSVD.
+    U: list of float 2-D arrays
         List with truncated matrices of the original U.
-    UT: list of float 2-D ndarrays
-        List with truncated matrices of the original UT.
-        Transposes of each array in U.
-    sigmas: list of float 1-D ndarrays
+    T1: float 2-D arrays
+        First unfolding of T.
+    sigmas: list of float 1-D arrays
         List with truncated arrays of the original sigmas.
     """
 
@@ -66,7 +65,7 @@ def mlsvd(T, Tsize, R, options):
     L = len(dims)
 
     # Set options.
-    options = aux.make_options(options)
+    options = aux.make_options(options, L)
     trunc_dims = options.trunc_dims
     display = options.display
     mlsvd_method = options.mlsvd_method
@@ -132,7 +131,7 @@ def mlsvd(T, Tsize, R, options):
     else:
         sys.exit('Wrong MLSVD method name. Must be seq or classic.')
 
-    # tol_mlsvd = 0 means to not truncate the compression, we use the central tensor if the MLSVD without truncating it.
+    # tol_mlsvd = 0 means to not truncate the compression, we use the core tensor if the MLSVD without truncating it.
     if tol_mlsvd == 0:
         UT = [U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(UT, T1, dims)
@@ -151,7 +150,7 @@ def mlsvd(T, Tsize, R, options):
         best_U = []
         for l in range(L):
             if trunc_dims[l] > U[l].shape[1]:
-                print(trunc_dims[l], U[l].shape)
+                print('trunc_dims[', l, '] =', trunc_dims[l], 'and U[', l, '].shape =', U[l].shape)
                 sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
             best_U.append( U[l][:, :trunc_dims[l]] )
         best_UT = [best_U[l].T for l in range(L)]
@@ -181,8 +180,8 @@ def clean_compression(U, sigma, Vt, tol_mlsvd, L):
 
     Inputs
     ------
-    U, sigma, Vt: float ndarrays
-        Arrays of some SVD. 
+    U, sigma, Vt: float arrays
+        Arrays of some SVD of the form M = U * diag(sigma) * V^T.
     tol_mlsvd: float
         Tolerance criterion for the truncation. The idea is to obtain a truncation (U_1,...,U_L)*S such that
         |T - (U_1,...,U_L)*S| / |T| < tol_mlsvd.

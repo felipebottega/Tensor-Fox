@@ -6,14 +6,13 @@
 """ 
 
 # Python modules
-from numpy import prod, diag, dot, empty, zeros, float64, argsort, array, size, inf
+from numpy import prod, diag, dot, argsort, array, size, inf, moveaxis, arange
 from numpy.linalg import norm, pinv
 from numpy.random import randn
 import sys
 import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
-from numba import njit
 
 # Tensor Fox modules
 import Critical as crt
@@ -52,7 +51,7 @@ def consistency(R, dims, options):
         msg = 'Rank must be greater than 1 for tensor with order greater than 3.'
         sys.exit(msg)
 
-    if L > 3 and R > min(dims):
+    if L > 3 and R > min(dims) and options.method == 'ttcpd':
         warnings.warn('\nFor tensors of order higher than 3 it is advisable that the rank is smaller or equal than at' 
                       ' least one of the dimensions of the tensor.\nThe ideal would to be smaller or equal than all' 
                       ' dimensions.\nIn the case this condition is not met the computations can be slower and the'
@@ -83,84 +82,29 @@ def tens2matlab(T, filename):
     return
 
 
-def sort_dims(T, m, n, p):
+def sort_dims(T):
     """
-    Consider the following identifications.
-        "m = 0", "n = 1", "p = 2"
-    We will use them to reorder the dimensions of the tensor, in such a way that we have m_new >= n_new >= p_new.
+    Change the axis of T in decreasing order. This can speed up the mlsvd function.
     """
 
-    if m >= n >= p:
-        ordering = [0, 1, 2]
-        return T, ordering
-  
-    elif p >= n >= m:
-        ordering = [2, 1, 0]
-       
-    elif n >= p >= m:
-        ordering = [1, 2, 0]
-
-    elif m >= p >= n:
-        ordering = [0, 2, 1]
-
-    elif n >= m >= p:
-        ordering = [1, 0, 2]
-
-    elif p >= m >= n:
-        ordering = [2, 0, 1]
- 
-    # Define m_s, n_s, p_s such that T_sorted.shape == m_s, n_s, p_s.
-    m_s, n_s, p_s = T.shape[ordering[0]], T.shape[ordering[1]], T.shape[ordering[2]]
-    T_sorted = empty((m_s, n_s, p_s), dtype=float64)
-
-    # In the function sort_T, inv_sort is such that T_sorted[inv_sort[i,j,k]] == T[i,j,k].
-    inv_sort = argsort(ordering)
-    T_sorted = sort_T(T, T_sorted, inv_sort, m_s, n_s, p_s)
+    L = len(T.shape)
+    ordering = argsort(-array(T.shape))
+    T_sorted = moveaxis(T, ordering, arange(-L, 0))
 
     return T_sorted, ordering
-   
-
-@njit(nogil=True)
-def sort_T(T, T_sorted, inv_sort, m, n, p):
-    """
-    Subroutine of the function sort_dims. Here the program deals with the computationally costly part, which is the 
-    assignment of values to the new tensor.
-    """
-
-    # id receives the current triple (i,j,k) at each iteration.
-    idx = array([0, 0, 0])
-    
-    for i in range(0, m):
-        for j in range(0, n):
-            for k in range(0, p):
-                idx[0], idx[1], idx[2] = i, j, k
-                T_sorted[i, j, k] = T[idx[inv_sort[0]], idx[inv_sort[1]], idx[inv_sort[2]]]
-                              
-    return T_sorted
         
 
-def unsort_dims(X, Y, Z, ordering):
+def unsort_dims(factors, ordering):
     """
-    Put the CPD factors and orthogonal transformations to the original ordering of dimensions.
+    Put the CPD factors to their original dimension ordering.
     """
+    
+    L = len(factors)
+    new_factors = [[] for l in range(L)]
+    for l in range(L):
+        new_factors[ordering[l]] = factors[l]
 
-    if ordering == [0, 1, 2]:
-        return X, Y, Z
-
-    elif ordering == [0, 2, 1]:
-        return X, Z, Y
-
-    elif ordering == [1, 0, 2]:
-        return Y, X, Z
-
-    elif ordering == [1, 2, 0]:
-        return Z, X, Y
-
-    elif ordering == [2, 0, 1]:
-        return Y, Z, X
-
-    elif ordering == [2, 1, 0]:
-        return Z, Y, X
+    return new_factors
 
 
 def output_info(T1, Tsize, T1_approx, 
@@ -171,8 +115,8 @@ def output_info(T1, Tsize, T1_approx,
                 stop_main, stop_refine,
                 options):
     """
-    Constructs the class containing the information of all relevant outputs relative to the computation of a 
-    third order CPD.
+    Constructs the class containing the information of all relevant outputs relative to the computation of a third order
+    CPD.
     """
 
     if options.refine:
@@ -242,8 +186,8 @@ def output_info(T1, Tsize, T1_approx,
 
 def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     """
-    Constructs the class containing the information of all relevant outputs relative to the computation of a 
-    high order CPD.
+    Constructs the class containing the information of all relevant outputs relative to the computation of a high order
+    CPD.
     """
 
     class temp_outputs:
@@ -259,7 +203,7 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     return final_outputs
 
 
-def make_options(options):
+def make_options(options, L):
     """
     This function constructs the whole class of options based on the options the user requested. 
     This is the format read by the program.
@@ -313,6 +257,8 @@ def make_options(options):
         temp_options.tol_grad = options.tol_grad
     if 'method' in dir(options):
         temp_options.method = options.method
+    elif L > 3:
+        temp_options.method = 'ttcpd'
         
     if 'inner_method' in dir(options):
         temp_options.inner_method = options.inner_method
@@ -430,6 +376,9 @@ def tt_error(T, G, dims, L):
 
 
 def cpd_cores(G, max_trials, epochs, R, display, options):
+    """
+    Routines to compute the cores of the CPD tensor train.
+    """
     
     L = len(G)
     
@@ -452,7 +401,8 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
         if display > 0:
             print()
             print('CPD 1')
-        X, Y, Z, output = tfx.tricpd(G[1], R, options)
+        factors, output = tfx.tricpd(G[1], R, options)
+        X, Y, Z = factors
         if output.rel_error < best_error:
             best_output = output
             best_error = output.rel_error
@@ -532,11 +482,11 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
 
 def gen_rand_tensor(dims, R):
     """
-    This function generates a random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where
-    L is the order of T. Each factor matrix of T is a matrix of shape (dims[l], R) with its entries drawn
-    from the standard Gaussian distribution (mean zero and variance one).
-    Let W[l] be the l-th factor matrix of T, then T = (W[0], W[1], ..., W[L-1])*I, where I is a diagonal 
-    tensor of shape R x R x... x R (L times). 
+    This function generates a random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where L is the order
+    of T. Each factor matrix of T is a matrix of shape (dims[l], R) with its entries drawn from the standard Gaussian
+    distribution (mean zero and variance one).
+    Let W[l] be the l-th factor matrix of T, then T = (W[0], W[1], ..., W[L-1])*I, where I is a diagonal tensor of shape
+    R x R x... x R (L times).
 
     Input
     -----
@@ -547,7 +497,7 @@ def gen_rand_tensor(dims, R):
 
     Output
     ------
-    T: float ndarray with L dimensions
+    T: float array with L dimensions
         The tensor in coordinate format
     orig_factors: list
         List of the factor matrices of T. We have that orig_factors[l] = W[l], as described above.
