@@ -378,6 +378,6 @@ def clean_mode_l(factor, dim, R):
     for i in range(dim):
         for r in range(R):
             if factor[i, r] == 0.0:
-                factor[i, r] = 1e-16 * randn()
+                factor[i, r] = 1e-4 * randn() * norm(factor)
                 
     return factor
