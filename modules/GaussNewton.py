@@ -176,7 +176,7 @@ def dGN(T, factors, R, init_error, options):
 
         # Save relevant information about the current iteration.
         errors[it] = error
-        step_sizes[it] = norm(x - old_x)
+        step_sizes[it] = norm(x - old_x) / norm(old_x)
         gradients[it] = norm(grad, inf)
         if it == 0:
             improv[it] = errors[it]
