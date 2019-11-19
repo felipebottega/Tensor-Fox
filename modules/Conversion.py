@@ -5,7 +5,7 @@
 """
 
 # Python modules
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
@@ -15,7 +15,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def x2cpd(x, factors):
+def x2cpd(x, Gr, factors):
     """
     Given the point x (the flattened CPD), this function breaks it in parts to form the factors of the CPD.
     
@@ -40,7 +40,7 @@ def x2cpd(x, factors):
             factors[l][:, r] = x[s: s+dim]
             s += dim
             
-    factors = equalize(factors, R)
+    factors = equalize(factors, Gr, R)
           
     return factors
 
@@ -171,7 +171,7 @@ def denormalize(Lambda, factors):
     return new_factors
 
 
-def equalize(factors, R):
+def equalize(factors, Gr, R):
     """ 
     Let W[0], ..., W[L-1] = factors. After a Gauss-Newton iteration we have an approximated CPD with factors 
     W[0]_r ⊗ ... ⊗ W[L-1]_r. They may have very different magnitudes and this can have effect on the convergence 
@@ -190,13 +190,13 @@ def equalize(factors, R):
     
     L = len(factors)
 
-    for r in prange(R):
-        norm_r = array([norm(factors[l][:, r]) for l in range(L)])
-        numerator = prod(norm_r)
+    for r in range(R):
+        # We have that Gr[l, r, r] = norm(factors[l][:, r])**2.
+        numerator = prod(sqrt(Gr[:, r, r]))
         if numerator != 0.0:
             numerator = numerator**(1/L)
             for l in range(L):
-                factors[l][:, r] = (numerator/norm_r[l]) * factors[l][:, r]
+                factors[l][:, r] = (numerator/sqrt(Gr[l, r, r])) * factors[l][:, r]
             
     return factors
 

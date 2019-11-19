@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, empty, zeros, ones, int64, arange, sqrt, inf, argmax, array, prod, unravel_index
+from numpy import dot, empty, zeros, ones, int64, float64, arange, sqrt, inf, argmax, array, prod, unravel_index
 from numpy.linalg import norm
 from numpy.random import randn, randint
 import sys
@@ -14,6 +14,7 @@ from numba import njit
 
 # Tensor Fox modules
 import Conversion as cnv
+import GaussNewton as gn
 import MultilinearAlgebra as mlinalg
 
 
@@ -76,7 +77,11 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
     init_factors = clean_zeros(init_factors, dims, R)    
         
     # Make all factors balanced.
-    init_factors = cnv.equalize(init_factors, R)
+    Gr = empty((L, R, R), dtype=float64)
+    P1 = ones((L, R, R), dtype=float64)
+    P2 = ones((L, L, R, R), dtype=float64)
+    Gr, P1, P2 = gn.gramians(init_factors, Gr, P1, P2)
+    init_factors = cnv.equalize(init_factors, Gr, R)
 
     # Apply additional transformations if requested.
     init_factors = cnv.transform(init_factors, low, upp, factor, symm, c)

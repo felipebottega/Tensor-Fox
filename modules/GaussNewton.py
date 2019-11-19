@@ -13,7 +13,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, zeros, ones, float64, sqrt, dot, linspace, nan
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, nan
 from numpy.linalg import norm
 from numpy.random import randint
 import sys
@@ -256,7 +256,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     if inner_method == 'cg' or inner_method == 'cg_static':
         if inner_method == 'cg':
             cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-        y, grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        y, grad, Gr, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
         factors = als.als_iteration(Tl, factors, fix_mode)
@@ -269,8 +269,8 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     # Update results.
     x = x + y
 
-    # Compute new factors.
-    factors = cnv.x2cpd(x, factors)
+    # Balance and transform factors.
+    factors = cnv.x2cpd(x, Gr, factors)
     factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
     # Some mode may be fixed when the bicpd is called.
     if L == 3:
@@ -299,29 +299,29 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     maxiter = min(maxiter, R * sum(dims))
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, M, residual_cg, P, Q, z, g = data
+    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g = data
 
     # Compute the values of all arrays.
-    P1, P2 = gramians(factors, Gr, P1, P2)
-    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims)
-    M = precond(Gamma, gamma, M, damp, dims)
-
+    Gr, P1, P2 = gramians(factors, Gr, P1, P2)
+    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims, sum_dims)
+    M = precond(Gamma, gamma, M, damp, dims, sum_dims)
+    
     y *= 0
 
     # CG iterations.
-    grad = -compute_grad(Tl, factors, P1, g, dims)
+    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
     residual_cg = M * grad
     P = residual_cg
     residualnorm = dot(residual_cg.T, residual_cg)
     if residualnorm == 0.0:
         residualnorm = 1e-6
     y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
-                                         M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims)
-    return M * y, grad, itn + 1, residualnorm
+                                         M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
+    return M * y, grad, Gr, itn + 1, residualnorm
 
 
 def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
-                  M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims):
+                  M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims):
     """
     Conjugate gradient iterations.
     """
@@ -331,15 +331,19 @@ def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
 
     for itn in range(maxiter):
         Q = M * P
-        V = [ Q[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )].reshape(R, dims[l]) for l in range(L) ]
+        V = [ Q[sum_dims[l]: sum_dims[l+1]].reshape(R, dims[l]) for l in range(L) ]
+        
         for l in range(L):
             dot(V[l], factors[l], out=A[l])
             dot(V[l].T, P1[l, :, :], out=B[l])
-        z = matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims) + damp * Gamma * Q
+            
+        z = matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims, sum_dims) + damp * Gamma * Q
         z = M * z
         denominator = dot(P.T, z)
         if denominator == 0.0:
             denominator = 1e-6
+            
+        # Updates.    
         alpha = residualnorm / denominator
         y += alpha * P
         residual_cg -= alpha * z
@@ -348,14 +352,14 @@ def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
         residualnorm = residualnorm_new
         P = residual_cg + beta * P
 
-        # Stopping criteria.
+        # Stopping condition.
         if residualnorm <= tol:
             break
 
     return y, itn, residualnorm
 
 
-def compute_grad(Tl, factors, P1, g, dims):
+def compute_grad(Tl, factors, P1, g, dims, sum_dims):
     """
     This function computes the gradient of the error function.
     """
@@ -374,12 +378,12 @@ def compute_grad(Tl, factors, P1, g, dims):
         for ll in range(L-2):
             tmp = M
             dim1, dim2 = tmp.shape[0], dims[itr[ll+1]]
-            M = empty((dim1*dim2, R), dtype=float64)
+            M = empty((dim1 * dim2, R), dtype=float64)
             M = mlinalg.khatri_rao(tmp, factors[itr[ll+1]], M)
 
         N = dot(Tl[l], M)
         gg = dot(factors[l], P1[l])
-        g[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )] = (gg - N).T.ravel()
+        g[sum_dims[l]: sum_dims[l+1]] = (gg - N).T.ravel()
 
     return g
 
@@ -408,6 +412,7 @@ def prepare_data(dims, R):
     gamma = empty((L, R), dtype=float64)
 
     # Arrays to be used in the Conjugated Gradient.
+    sum_dims = array([R * sum(dims[0:l]) for l in range(L+1)])
     M = ones(R * sum(dims), dtype=float64)
     residual_cg = empty(R * sum(dims), dtype=float64)
     P = empty(R * sum(dims), dtype=float64)
@@ -417,7 +422,7 @@ def prepare_data(dims, R):
     # Arrays to be used in the compute_grad function.
     g = empty(R * sum(dims), dtype=float64)
 
-    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, M, residual_cg, P, Q, z, g]
+    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g]
 
     return data
 
@@ -444,14 +449,15 @@ def update_damp(damp, init_damp, old_error, error, residualnorm, it):
 
 def gramians(factors, Gr, P1, P2):
     """ 
-    Computes all Gramian matrices of X, Y, Z. Also it computes all Hadamard products between the different Gramians.
+    Computes all Gramian matrices of the factor matrices. Also it computes all Hadamard products between the 
+    different Gramians.
     """
 
     L = len(factors)
     R = factors[0].shape[1]
 
     for l in range(L):
-        Gr[l] = dot(factors[l].T, factors[l], out=Gr[l])
+        Gr[l, :, :] = dot(factors[l].T, factors[l], out=Gr[l])
 
     for l in range(L):
         for ll in range(L):
@@ -461,16 +467,16 @@ def gramians(factors, Gr, P1, P2):
                 itr.remove(l)
                 itr.remove(ll)
                 for lll in itr:
-                    P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll], P2[l, ll, :, :])
+                    P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll, :, :], P2[l, ll, :, :])
         if l < L-1:
-            P1[l, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[ll], P1[l, :, :])
+            P1[l, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[ll, :, :], P1[l, :, :])
         else:
-            P1[l, :, :] = mlinalg.hadamard(P2[l, 0, :, :], Gr[0], P1[l, :, :])
+            P1[l, :, :] = mlinalg.hadamard(P2[l, 0, :, :], Gr[0, :, :], P1[l, :, :])
 
-    return P1, P2
+    return Gr, P1, P2
 
 
-def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims):
+def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims, sum_dims):
     """
     Makes the matrix-vector computation (Jf^T * Jf)*v.
     """
@@ -486,13 +492,12 @@ def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims):
                 tmp += P_VT_W
         dot(factors[l], tmp, out=result[l])
         result[l] += B[l]
-        z[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )] = \
-            cnv.vec(result[l], z[R*sum( dims[0:l] ): R*sum( dims[0:l+1] )], dims[l], R)
+        z[sum_dims[l]: sum_dims[l+1]] = cnv.vec(result[l], z[sum_dims[l]: sum_dims[l+1]], dims[l], R)
 
     return z
 
 
-def regularization(factors, Gamma, gamma, P1, dims):
+def regularization(factors, Gamma, gamma, P1, dims, sum_dims):
     """
     Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make Jf^T * Jf + Gamma
     diagonally dominant.
@@ -500,47 +505,46 @@ def regularization(factors, Gamma, gamma, P1, dims):
 
     L = len(factors)
     R = factors[0].shape[1]
-    m = 0
+    for r in range(R):
+        gamma[:, r] = abs(P1[:, r, r])
+    gamma = np.max(np.abs(P1)) * np.sqrt(gamma)
 
     for l in range(L):
         for r in range(R):
-            gamma[l, r] = abs(P1[l, r, r])
-            if gamma[l, r] > m:
-                m = gamma[l, r]
-    gamma = np.sqrt(m * gamma)
-
-    for l in range(L):
-        for r in range(R):
-            Gamma[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]] = gamma[l, r]
+            Gamma[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]] = gamma[l, r]
 
     return Gamma, gamma
 
 
-def precond(Gamma, gamma, M, damp, dims):
+def precond(Gamma, gamma, M, damp, dims, sum_dims):
     """
     This function constructs a preconditioner in order to accelerate the Conjugate Gradient function. It is a diagonal
-    preconditioner designed to make Jf^T * J + Gamma a unit diagonal matrix. Since the matrix is diagonally dominant,
-    the result will be close to the identity matrix. Therefore, it will have its eigenvalues clustered together.
+    preconditioner designed to make Jf^T*J + damp*I a unit diagonal matrix. Since the matrix is diagonally dominant,
+    the result will be close to the identity matrix (the equalize function does that). Therefore, it will have its 
+    eigenvalues clustered together.
     """
 
     L, R = gamma.shape
-
+	
     for l in range(L):
         for r in range(R):
-            M[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]] = \
-                gamma[l, r]**2 + damp * Gamma[R*sum(dims[0:l]) + r*dims[l]: R*sum(dims[0:l]) + (r+1)*dims[l]]
+            M[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]] = \
+                gamma[l, r]**2 + damp**2 * Gamma[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]]**2
 
     M = 1 / sqrt(M)
+
     return M
 
 
 @njit(nogil=True)
-def jacobian(X, Y, Z, m, n, p, r):
+def jacobian(X, Y, Z):
     """
     This function computes the Jacobian matrix Jf of the residual function. This is a dense mnp x r(m+n+p) matrix.
     It is only implemented for third order tensors.
     """
 
+    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
+    r = X.shape[1]
     Jf = zeros((m*n*p, r*(m+n+p)))
     s = 0
 
