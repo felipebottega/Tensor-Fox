@@ -35,7 +35,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod
+from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod, float64
 from numpy.linalg import norm
 import sys
 import time
@@ -261,14 +261,15 @@ def highcpd(T, R, options):
 
     # Create relevant values.
     dims = T.shape
+    L = len(dims)
     display = options.display
     max_trials = options.trials
     options.refine = False
     epochs = options.epochs
+    Gr = empty((L, R, R), dtype=float64)
 
     # Compute cores of the tensor train of T.
     G = cpdtt(T, R)
-    L = len(G)   
     if display > 2 or display < -1:
         print('===============================================================================================')
         print('SVD Tensor train error = ', aux.tt_error(T, G, dims, L))
@@ -290,7 +291,9 @@ def highcpd(T, R, options):
         factors.append(cpd_list[l][1])
     B = dot(G[-1].T, best_Z)
     factors.append( B )
-    factors = cnv.equalize(factors, R)
+    for l in range(L):
+        Gr[l, :, :] = dot(factors[l].T, factors[l], out=Gr[l, :, :])
+    factors = cnv.equalize(factors, Gr, R)
 
     if display > 2 or display < -1:
         G_approx = [G[0]]

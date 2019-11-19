@@ -84,6 +84,7 @@ def als(T, factors, R, options):
     improv = empty(maxiter)
     gradients = empty(maxiter)
     best_factors = [copy(factors[l]) for l in range(L)]
+    Gr = empty((L, R, R), dtype=float64)
 
     # Compute unfoldings.
     Tl = [cnv.unfold(T, l+1) for l in range(L)]
@@ -116,7 +117,7 @@ def als(T, factors, R, options):
         factors = als_iteration(Tl, factors, fix_mode)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
                                      
-        # Transform factors X, Y, Z.
+        # Transform factors.
         factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
         # Some mode may be fixed when the bicpd is called.
         if L == 3:
