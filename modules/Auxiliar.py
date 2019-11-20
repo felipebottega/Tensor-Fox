@@ -209,7 +209,8 @@ def make_options(options, L):
     This is the format read by the program.
 
     Some observations about the CG parameters:
-        - inner_method is the name of the method used to compute each iteration, the choices are 'cg' or 'cg_static'.
+        - inner_method is the name of the method used to compute each iteration, the choices are 'cg', 'cg_static',
+          'als' and 'direct'.
         - cg_maxiter is the maximum number of iterations for 'cg_static'.
         - cg_factor is the multiplying factor cg_factor for 'cg'. 
         - cg_tol is the tolerance error to stop the iterations of the inner method.

@@ -6,15 +6,14 @@
 
  References
  ==========
-
  - K. Madsen, H. B. Nielsen, and O. Tingleff, Methods for Non-Linear Least Squares Problems, 2nd edition,
    Informatics and Mathematical Modelling, Technical University of Denmark, 2004.
 """
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, float64, sqrt, dot, linspace, nan
-from numpy.linalg import norm
+from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, linspace, nan, prod, diag
+from numpy.linalg import norm, lstsq, LinAlgError
 from numpy.random import randint
 import sys
 from numba import njit
@@ -262,9 +261,11 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
         factors = als.als_iteration(Tl, factors, fix_mode)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
+    elif inner_method == 'direct':
+        y, grad, Gr, itn, residualnorm = direct(Tl, factors, data, y, damp)
 
     else:
-        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static' or 'als'.")
+        sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'als' or 'direct'.")
 
     # Update results.
     x = x + y
@@ -525,7 +526,7 @@ def precond(Gamma, gamma, M, damp, dims, sum_dims):
     """
 
     L, R = gamma.shape
-	
+
     for l in range(L):
         for r in range(R):
             M[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]] = \
@@ -536,34 +537,81 @@ def precond(Gamma, gamma, M, damp, dims, sum_dims):
     return M
 
 
-@njit(nogil=True)
-def jacobian(X, Y, Z):
+def direct(Tl, factors, data, y, damp):
     """
-    This function computes the Jacobian matrix Jf of the residual function. This is a dense mnp x r(m+n+p) matrix.
-    It is only implemented for third order tensors.
+    This function computes the next dGN step using a direct method. It is very heavy computationally since it
+    constructs the full Hessian matrix. Do not use this function for large problems.
     """
 
-    m, n, p = X.shape[0], Y.shape[0], Z.shape[0]
-    r = X.shape[1]
-    Jf = zeros((m*n*p, r*(m+n+p)))
-    s = 0
+    L = len(factors)
+    R = factors[0].shape[1]
+    dims = [factors[l].shape[0] for l in range(L)]
 
-    for i in range(m):
-        for j in range(n):
-            for k in range(p):
-                for l in range(r):
-                    Jf[s, l*m + i] = -Y[j, l]*Z[k, l]
-                    Jf[s, r*m + l*n + j] = -X[i, l]*Z[k, l]
-                    Jf[s, r*(m+n) + l*p + k] = -X[i, l]*Y[j, l]
-                s += 1
+    # Give names to the arrays.
+    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g = data
 
-    return Jf
+    # Compute the values of all arrays.
+    Gr, P1, P2 = gramians(factors, Gr, P1, P2)
+    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims, sum_dims)
+    M = precond(Gamma, gamma, M, damp, dims, sum_dims)
+    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
+    H = hessian(factors, P1, P2, sum_dims)
+    Hd = H + damp * diag(Gamma)
+    MH = ((Hd.T) * (M**2)).T
+    Mgrad = (M**2) * grad            
+    
+    # Solve least squares problem.
+    try:
+        y, residuals, rank, s = lstsq(MH, Mgrad, rcond=None)
+    except LinAlgError:
+        y *= 0
+        
+    residualnorm = norm(dot(H, y) - grad)
+    
+    return y, grad, Gr, 1, residualnorm 
 
 
-def hessian(Jf):
+def hessian(factors, P1, P2, sum_dims):
     """
     Approximate Hessian matrix of the error function.
     """
 
-    H = dot(Jf.T, Jf)
+    L = len(factors)
+    R = factors[0].shape[1]
+    dims = [factors[l].shape[0] for l in range(L)]
+    H = empty((R * sum(dims), R * sum(dims)))
+    vec_factors = [empty(R*dims[l]) for l in range(L)]
+    fortran_factors = [np.array(factors[l], order='F') for l in range(L)]
+    for l in range(L):
+        vec_factors[l] = cnv.vec(factors[l], vec_factors[l], dims[l], R) 
+        vec_factors[l] = vec_factors[l].reshape(R*dims[l], 1).T
+                
+    for l in range(L):
+        for ll in range(L):            
+            if l != ll:
+                I = ones((dims[l], dims[ll]))
+                tmp1 = mlinalg.kronecker(P2[l, ll, :, :], I)
+                tmp2 = empty((R*dims[l], R*dims[ll]))
+                tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)               
+                H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
+                    mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])                
+            else:
+                I = identity(dims[l])
+                H[sum_dims[l]:sum_dims[l+1], sum_dims[l]:sum_dims[l+1]] = mlinalg.kronecker(P1[l, :, :], I)
+              
     return H
+
+
+@njit(nogil=True)
+def compute_blocks(tmp2, factor, vec, dims, R, l, ll):
+    """
+    Auxiliary function for the hessian function. The computation of the rank one matrices between the factor
+    matrices (factors[l][:, r] * factors[ll][:, rr].T) are done here.
+    """
+    
+    for r in range(R):
+        tmp = dot(factor[:, r].reshape(dims[l], 1), vec)
+        for rr in range(R):
+            tmp2[dims[l]*rr:dims[l]*(rr+1), dims[ll]*r:dims[ll]*(r+1)] = tmp[:, dims[ll]*rr:dims[ll]*(rr+1)]
+            
+    return tmp2

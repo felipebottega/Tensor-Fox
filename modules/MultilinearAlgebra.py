@@ -144,8 +144,8 @@ def kronecker(A, B):
     b1, b2 = B.shape
     M = empty((a1*b1, a2*b2), dtype=float64)
     
-    for i in range(0, a1):
-        for j in range(0, a2):
+    for i in range(a1):
+        for j in range(a2):
             M[i*b1:(i+1)*b1, j*b2:(j+1)*b2] = A[i, j]*B
 
     return M 
@@ -161,7 +161,7 @@ def khatri_rao(A, B, M):
     a1, a2 = A.shape
     b1, b2 = B.shape
     
-    for i in prange(0, a1):
+    for i in prange(a1):
         M[i*b1:(i+1)*b1, :] = khatri_rao_inner_computations(A, B, M, i, b1, b2)
 
     return M 
