@@ -1,13 +1,13 @@
 function matlab_benchs(trials)
     warning off;
-    for alg=["nls", "nlsr", "als", "alsr", "minf", "minfr"]
+    for alg=["nls", "nlsr", "als", "alsr", "minf", "minfr", "fLMa", "opt"]
         test_alg(alg, trials);
     end
 end
 
 
 function test_alg(alg, trials)
-    for x=["swimmer", "hw", "border_rank", "mn", "swamp", "bottleneck"]
+    for x=["swimmer", "border_rank", "mn", "swamp", "bottleneck"]
         % Load tensor and rank.
         test = x + ".mat";
         struct = load(test);
@@ -25,14 +25,26 @@ function test_alg(alg, trials)
         end
 
         % Start benchmarks.
-        values = [[5,10], [50:50:1000]];
+        values = [[5,10], 50:50:50];
         for maxiter=values  
             msg = "Testing " + x + " for " + alg + " with maxiter = " + num2str(maxiter) + "\n";
             fprintf(msg);
             if x=="swamp" || x=="bottleneck"
-                [best_error, best_time] = tensorlab_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter);
+                if alg=="opt"
+                    [best_error, best_time] = tensortoolbox_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter);
+                elseif alg=="fLMa"
+                    [best_error, best_time] = tensorbox_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter);
+                else  
+                    [best_error, best_time] = tensorlab_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter);
+                end
             else 
-                [best_error, best_time] = tensorlab_benchs(T, R, tfx_error, trials, alg, maxiter);
+                if alg=="opt"
+                    [best_error, best_time] = tensortoolbox_benchs(T, R, tfx_error, trials, alg, maxiter);
+                elseif alg=="fLMa"
+                    [best_error, best_time] = tensorbox_benchs(T, R, tfx_error, trials, alg, maxiter);
+                else                
+                    [best_error, best_time] = tensorlab_benchs(T, R, tfx_error, trials, alg, maxiter);
+                end
             end
 
             % When best_error < inf, the program achieved an acceptable solution.
@@ -48,6 +60,8 @@ function test_alg(alg, trials)
     end
 end
 
+
+%TENSORLAB
 
 function [best_error, best_time] = tensorlab_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter)
     best_error = inf;
@@ -121,6 +135,116 @@ function [best_error, best_time] = tensorlab_benchs(T, R, tfx_error, trials, alg
         W = cpd(T, R, options);
         time = toc;
         T_approx = cpdgen(W);
+        rel_error = frob(T - T_approx)/frob(T);
+
+        if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
+            best_error = rel_error;
+            best_time = time;
+        end
+    end
+end
+
+
+%TENSOR TOOLBOX
+
+function [best_error, best_time] = tensortoolbox_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter)
+    best_error = inf;
+    best_time = inf;
+
+    options.init = 'randn';
+    options.opt = 'lbfgsb';
+    options.opt_options.factr = 0;
+    options.opt_options.maxIts = maxiter;
+    options.opt_options.printEvery = 0;
+
+    T_tensor = tensor(T);
+    T_noise_tensor = tensor(T_noise);
+
+    for i=1:trials
+        tic;
+        W = cp_opt(T_noise_tensor, R, options);
+        time = toc;
+        T_approx = double(W);
+        rel_error = frob(T - T_approx)/frob(T);
+
+        if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
+            best_error = rel_error;
+            best_time = time;
+        end
+    end
+end
+
+function [best_error, best_time] = tensortoolbox_benchs(T, R, tfx_error, trials, alg, maxiter)
+    best_error = inf;
+    best_time = inf;
+
+    options.init = 'randn';
+    options.opt = 'lbfgsb';
+    options.opt_options.factr = 0;
+    options.opt_options.maxIts = maxiter;
+    options.opt_options.printEvery = 0;
+
+    T_tensor = tensor(T);
+
+    for i=1:trials
+        tic;
+        W = cp_opt(T_tensor, R, options);
+        time = toc;
+        T_approx = double(W);
+        rel_error = frob(T - T_approx)/frob(T);
+
+        if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
+            best_error = rel_error;
+            best_time = time;
+        end
+    end
+end
+
+
+%TENSOR BOX
+
+function [best_error, best_time] = tensorbox_benchs(T, R, tfx_error, trials, alg, maxiter)
+    best_error = inf;
+    best_time = inf;
+
+    opts.init = 'random';
+    opts.tol = 0;
+    opts.maxiters = maxiter;
+    opts.printitn = 0;
+
+    T_tensor = tensor(T);
+
+    for i=1:trials
+        tic;
+        W = cpx_fLMa(T_tensor, R, opts);
+        time = toc;
+        T_approx = double(W);
+        rel_error = frob(T - T_approx)/frob(T);
+
+        if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
+            best_error = rel_error;
+            best_time = time;
+        end
+    end
+end
+
+function [best_error, best_time] = tensorbox_noise_benchs(T, T_noise, R, tfx_error, trials, alg, maxiter)
+    best_error = inf;
+    best_time = inf;
+
+    opts.init = 'random';
+    opts.tol = 0;
+    opts.maxiters = maxiter;
+    opts.printitn = 0;
+
+    T_tensor = tensor(T);
+    T_noise_tensor = tensor(T_noise);
+
+    for i=1:trials
+        tic;
+        W = cp_opt(T_noise, R, options);
+        time = toc;
+        T_approx = full(W);
         rel_error = frob(T - T_approx)/frob(T);
 
         if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
