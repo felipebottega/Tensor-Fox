@@ -216,7 +216,7 @@ function [best_error, best_time] = tensorbox_benchs(T, R, tfx_error, trials, alg
 
     for i=1:trials
         tic;
-        W = cpx_fLMa(T_tensor, R, opts);
+        W = cp_fLMa(T_tensor, R, opts);
         time = toc;
         T_approx = double(W);
         rel_error = frob(T - T_approx)/frob(T);
@@ -242,9 +242,9 @@ function [best_error, best_time] = tensorbox_noise_benchs(T, T_noise, R, tfx_err
 
     for i=1:trials
         tic;
-        W = cp_opt(T_noise, R, options);
+        W = cp_fLMa(T_noise_tensor, R, opts);
         time = toc;
-        T_approx = full(W);
+        T_approx = double(W);
         rel_error = frob(T - T_approx)/frob(T);
 
         if (rel_error < tfx_error + tfx_error/100) && (rel_error < best_error)
