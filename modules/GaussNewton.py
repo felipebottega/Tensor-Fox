@@ -601,19 +601,18 @@ def hessian(factors, P1, P2, sum_dims):
         vec_factors[l] = vec_factors[l].reshape(R*dims[l], 1).T
                 
     for l in range(L):
-        for ll in range(L):            
-            if l != ll:
-                I = ones((dims[l], dims[ll]))
-                tmp1 = mlinalg.kronecker(P2[l, ll, :, :], I)
-                tmp2 = empty((R*dims[l], R*dims[ll]))
-                tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)  
-                # Block H_{l, ll}.
-                H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
-                    mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])                
-            else:
-                I = identity(dims[l])
-                # Block H_{ll}.
-                H[sum_dims[l]:sum_dims[l+1], sum_dims[l]:sum_dims[l+1]] = mlinalg.kronecker(P1[l, :, :], I)
+        I = identity(dims[l])
+        # Block H_{ll}.
+        H[sum_dims[l]:sum_dims[l+1], sum_dims[l]:sum_dims[l+1]] = mlinalg.kronecker(P1[l, :, :], I)
+        for ll in range(l):              
+            I = ones((dims[l], dims[ll]))
+            tmp1 = mlinalg.kronecker(P2[l, ll, :, :], I)
+            tmp2 = empty((R*dims[l], R*dims[ll]))
+            tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)  
+            # Blocks H_{l, ll} and H_{ll, l}.
+            H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
+                mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])  
+            H[sum_dims[ll]:sum_dims[ll+1], sum_dims[l]:sum_dims[l+1]] = H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]].T               
               
     return H
 
