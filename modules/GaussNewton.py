@@ -13,7 +13,7 @@
 # Python modules
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, linspace, nan, prod, diag
-from numpy.linalg import norm, lstsq, LinAlgError
+from numpy.linalg import norm, solve, qr, LinAlgError
 from numpy.random import randint
 import sys
 from numba import njit
@@ -557,12 +557,14 @@ def direct(Tl, factors, data, y, damp):
     grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
     H = hessian(factors, P1, P2, sum_dims)
     Hd = H + damp * diag(Gamma)
-    MH = ((Hd.T) * (M**2)).T
+    MHd = ((Hd.T) * (M**2)).T
     Mgrad = (M**2) * grad            
     
-    # Solve least squares problem.
+    # Solve equation MH*y = Mgrad using QR decomposition, followed by a triangular system.
     try:
-        y, residuals, rank, s = lstsq(MH, Mgrad, rcond=None)
+        q, r = qr(MHd)
+        y = dot(q.T, Mgrad)
+        y = solve(r, y)
     except LinAlgError:
         y *= 0
         
@@ -592,11 +594,13 @@ def hessian(factors, P1, P2, sum_dims):
                 I = ones((dims[l], dims[ll]))
                 tmp1 = mlinalg.kronecker(P2[l, ll, :, :], I)
                 tmp2 = empty((R*dims[l], R*dims[ll]))
-                tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)               
+                tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)  
+                # Block H_{l, ll}.
                 H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
                     mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])                
             else:
                 I = identity(dims[l])
+                # Block H_{ll}.
                 H[sum_dims[l]:sum_dims[l+1], sum_dims[l]:sum_dims[l+1]] = mlinalg.kronecker(P1[l, :, :], I)
               
     return H
