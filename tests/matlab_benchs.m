@@ -75,9 +75,11 @@ function [best_error, best_time] = tensorlab_noise_benchs(T, T_noise, R, tfx_err
 
     if alg=="nls"
         options.Algorithm = @cpd_nls;
+        options.LargeScale = true;
         options.Refinement = false;
     elseif alg=="nlsr"
         options.Algorithm = @cpd_nls;
+        options.LargeScale = true;
     elseif alg=="als"
         options.Algorithm = @cpd_als;
         options.Refinement = false;
