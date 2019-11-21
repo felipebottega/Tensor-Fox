@@ -14,7 +14,7 @@
 import numpy as np
 from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, linspace, nan, prod, diag
 from numpy.linalg import norm, solve, qr, LinAlgError
-from numpy.random import randint
+from numpy.random import randint, randn
 import sys
 from numba import njit
 
@@ -163,7 +163,7 @@ def dGN(T, factors, R, init_error, options):
             damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
         T1_approx, factors, x, y, grad, itn, residualnorm, error = compute_step(Tsize, Tl, T1_approx, factors,
                                                                                 orig_factors, data, x, y,
-                                                                                inner_parameters, it)
+                                                                                inner_parameters, it, old_error)
         # Update best solution.
         if error < best_error:
             best_error = error
@@ -240,7 +240,7 @@ def dGN(T, factors, R, init_error, options):
     return best_factors, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it):
+def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -282,6 +282,18 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     # Compute error.
     T1_approx = cnv.cpd2unfold1(T1_approx, factors)
     error = crt.fastnorm(Tl[0], T1_approx) / Tsize
+    
+    # Sometimes the step is too bad and increase the error by a lot. In this case we discard the computed step and
+    # use a little random step instead.
+    if it > 3:
+        if error > 20 * old_error:
+            x = x - y
+            y = old_error * randn(*y.shape)
+            x = x + y
+            factors = cnv.x2cpd(x, Gr, factors)
+            factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+            T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+            error = crt.fastnorm(Tl[0], T1_approx) / Tsize
 
     if inner_method == 'als':
         return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
@@ -570,7 +582,7 @@ def direct(Tl, factors, data, y, damp):
         
     residualnorm = norm(dot(H, y) - grad)
     
-    return y, grad, Gr, 1, residualnorm 
+    return y, grad, Gr, '-', residualnorm 
 
 
 def hessian(factors, P1, P2, sum_dims):
