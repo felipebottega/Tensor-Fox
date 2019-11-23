@@ -138,6 +138,7 @@ def normalize(factors):
     R = factors[0].shape[1]
     Lambda = zeros(R)
     L = len(factors)
+    new_factors = factors.copy()
     
     for r in range(R):
         norms = zeros(L)
@@ -146,10 +147,10 @@ def normalize(factors):
             norms[l] = norm(W[:, r])
             W[:, r] = W[:, r]/norms[l]
             # Update factor matrix.
-            factors[l] = W
+            new_factors[l] = W
         Lambda[r] = prod(norms)
         
-    return Lambda, factors
+    return Lambda, new_factors
 
 
 def denormalize(Lambda, factors):
@@ -197,6 +198,28 @@ def equalize(factors, Gr, R):
             numerator = numerator**(1/L)
             for l in range(L):
                 factors[l][:, r] = (numerator/sqrt(Gr[l, r, r])) * factors[l][:, r]
+            
+    return factors
+
+
+def change_sign(factors):
+    """
+    After the CPD is computed it may be interesting that each vector of a rank one term is as positive as possible,
+    in the sense that its mean is positive. If two vectors in the same rank one term have negative mean, then we 
+    can multiply both by -1 without changing the tensor. 
+    """
+    
+    L = len(factors)
+    R = factors[0].shape[1]
+    
+    for r in range(R):
+        parity = 0
+        for l in range(L):
+            if factors[l][:, r].mean() < 0:
+                factors[l][:, r] *= -1
+                parity += 1
+        if parity%2 == 1:
+            factors[0] *= -1
             
     return factors
 
