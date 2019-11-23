@@ -714,7 +714,7 @@ def rank(T, options=False, plot=True):
     print('Stops at r =', Rmax, ' or less')
     print('-----------------------------')
 
-    for r in range(Rmin, Rmax+1):  
+    for r in range(1, Rmax+1):  
         s = "Testing r = " + str(r)
         sys.stdout.write('\r'+s)
     
@@ -722,41 +722,51 @@ def rank(T, options=False, plot=True):
     
         # Save relative error of this approximation.
         rel_error = outputs.rel_error
-        error_per_rank[r-Rmin] = rel_error   
-                
-        # Stopping conditions
+        error_per_rank[r-1] = rel_error
+        
+        # STOPPING CONDITIONS
+        
+        # Error small enough.
         if rel_error < 1e-4:
+            final_rank = r
+            final_error = error_per_rank[r-1]
             break
-        elif r > Rmin:
+        # Difference between errors small enough.
+        if r > Rmin:
             if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
+                final_rank = r-1
+                final_error = error_per_rank[r-2]
+                break
+        # Error decreased orders of magnitude abruptly.
+        if r > 2:
+            previous_diff = np.abs(error_per_rank[r-2] - error_per_rank[r-3])
+            current_diff = np.abs(error_per_rank[r-1] - error_per_rank[r-2])
+            if previous_diff / current_diff > 100:
+                final_rank = r-1
+                final_error = error_per_rank[r-2]
                 break
     
     # SAVE LAST INFORMATION
     
-    if L > 3:
-        error_per_rank = error_per_rank[0:r-1] 
-        final_rank = nanargmin(error_per_rank)+2
-    else:
-        error_per_rank = error_per_rank[0:r] 
-        final_rank = nanargmin(error_per_rank)+1
+    error_per_rank = error_per_rank[0:r]
             
     # DISPLAY AND PLOT ALL RESULTS
     
     print('\nrank(T) =', final_rank)
-    print('|T - T_approx|/|T| =', error_per_rank[final_rank - Rmin])
+    print('|T - T_approx|/|T| =', final_error)
     
     if plot:
-        plt.plot(range(Rmin, r+1), error_per_rank, color='blue')
-        plt.plot(range(Rmin, r+1), error_per_rank, 's', color='blue')
-        plt.plot(final_rank, error_per_rank[final_rank - Rmin], marker='s', color='red')
+        plt.plot(range(1, r+1), error_per_rank, color='blue')
+        plt.plot(range(1, r+1), error_per_rank, 's', color='blue')
+        plt.plot(final_rank, final_error, marker='s', color='red')
         plt.xlabel('Rank')
         plt.ylabel('Relative error')
         plt.yscale('log')
-        plt.xticks(range(Rmin, r+1))
+        plt.xticks(range(1, r+1))
         plt.grid()
         plt.show()
             
-    return int(final_rank), error_per_rank
+    return final_rank, error_per_rank
 
 
 def stats(T, R, options=False, num_samples=100):
