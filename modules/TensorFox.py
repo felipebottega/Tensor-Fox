@@ -669,7 +669,7 @@ def bicpd(T, R, fixed_factor, options):
     return X, Y, Z, output
            
 
-def rank(T, options=False, plot=True):
+def rank(T, options=False, plot=True, trials=3):
     """
     This function computes several approximations of T for r = 1...max rank. These computations will be used to
     determine the (most probable) rank of T. The function also returns an array `errors_per_rank` with the relative
@@ -685,6 +685,8 @@ def rank(T, options=False, plot=True):
         The user can give the options to the cpd function if necessary.
     plot: bool
         If True (default), the program creates a plot with the relation between the error and rank.
+    trial: int
+        Number of times the program will compute a CPD for the same rank. The idea is to retain only the best one.
             
     Outputs
     -------
@@ -718,24 +720,29 @@ def rank(T, options=False, plot=True):
         s = "Testing r = " + str(r)
         sys.stdout.write('\r'+s)
     
-        factors, outputs = cpd(T, r, options)
+        best_error = inf
+        for t in range(trials):
+            factors, outputs = cpd(T, r, options)
+            rel_error = outputs.rel_error
+            if rel_error < best_error:
+                best_error = rel_error
     
         # Save relative error of this approximation.
-        rel_error = outputs.rel_error
-        error_per_rank[r-1] = rel_error
+        error_per_rank[r-1] = best_error
         
         # STOPPING CONDITIONS
         
         # Error small enough.
-        if rel_error < 1e-4:
+        if best_error < 1e-4:
             final_rank = r
             final_error = error_per_rank[r-1]
             break
         # Difference between errors small enough.
         if r > Rmin:
             if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
-                final_rank = r-1
-                final_error = error_per_rank[r-2]
+                final_rank = min(error_per_rank)
+                final_idx = nanargmin(error_per_rank)
+                final_error = error_per_rank[final_idx]
                 break
         # Error decreased orders of magnitude abruptly.
         if r > 2:
