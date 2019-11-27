@@ -72,19 +72,21 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
     else:
         sys.exit('Error with init parameter.')
 
-    # Depending on the tensor, the factors may have null entries. We want to avoid that. The solution is to introduce
-    # a very small random noise.
-    init_factors = clean_zeros(init_factors, dims, R)    
-        
-    # Make all factors balanced.
-    Gr = empty((L, R, R), dtype=float64)
-    P1 = ones((L, R, R), dtype=float64)
-    P2 = ones((L, L, R, R), dtype=float64)
-    Gr, P1, P2 = gn.gramians(init_factors, Gr, P1, P2)
-    init_factors = cnv.equalize(init_factors, Gr, R)
+    if type(initialization) != list:
 
-    # Apply additional transformations if requested.
-    init_factors = cnv.transform(init_factors, low, upp, factor, symm, c)
+        # Depending on the tensor, the factors may have null entries. We want to avoid that. The solution is to 
+        # introduce a very small random noise.
+        init_factors = clean_zeros(init_factors, dims, R)    
+        
+        # Make all factors balanced.
+        Gr = empty((L, R, R), dtype=float64)
+        P1 = ones((L, R, R), dtype=float64)
+        P2 = ones((L, L, R, R), dtype=float64)
+        Gr, P1, P2 = gn.gramians(init_factors, Gr, P1, P2)
+        init_factors = cnv.equalize(init_factors, Gr, R)
+
+        # Apply additional transformations if requested.
+        init_factors = cnv.transform(init_factors, low, upp, factor, symm, c)
 
     if display > 2 or display < -1:
         # Computation of relative error associated with the starting point given.
