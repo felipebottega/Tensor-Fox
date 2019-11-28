@@ -566,11 +566,7 @@ def direct(Tl, factors, data, y, damp):
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)
     Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims, sum_dims)
     M = precond(Gamma, gamma, M, damp, dims, sum_dims)
-    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
-    H = hessian(factors, P1, P2, sum_dims)
-    Hd = H + damp * diag(Gamma)
-    MHd = ((Hd.T) * (M**2)).T
-    Mgrad = (M**2) * grad            
+    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)       
     
     # Solve equation MH*y = Mgrad using QR decomposition, followed by a triangular system.
     try:

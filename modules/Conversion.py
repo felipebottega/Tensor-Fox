@@ -190,14 +190,13 @@ def equalize(factors, Gr, R):
     """
     
     L = len(factors)
-
+    
     for r in range(R):
-        # We have that Gr[l, r, r] = norm(factors[l][:, r])**2.
-        numerator = prod(sqrt(Gr[:, r, r]))
-        if numerator != 0.0:
-            numerator = numerator**(1/L)
+        norm_r = array([norm(factors[l][:, r]) for l in range(L)])
+        if prod(norm_r) != 0.0:
+            numerator = prod(norm_r)**(1/L)
             for l in range(L):
-                factors[l][:, r] = (numerator/sqrt(Gr[l, r, r])) * factors[l][:, r]
+                factors[l][:, r] = (numerator/norm_r[l]) * factors[l][:, r]
             
     return factors
 
