@@ -226,9 +226,9 @@ def make_options(options, L):
             self.tol_grad = 1e-6
             self.method = 'dGN'
             self.inner_method = 'cg'
-            self.cg_maxiter = 300
+            self.cg_maxiter = 100
             self.cg_factor = 1
-            self.cg_tol = 1e-12
+            self.cg_tol = 1e-16
             self.bi_method_parameters = ['als', 500, 1e-6] 
             self.initialization = 'random'
             self.trunc_dims = 0
