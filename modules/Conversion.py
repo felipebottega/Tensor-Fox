@@ -15,7 +15,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def x2cpd(x, Gr, factors):
+def x2cpd(x, Gr, factors, eq=True):
     """
     Given the point x (the flattened CPD), this function breaks it in parts to form the factors of the CPD.
     
@@ -39,8 +39,9 @@ def x2cpd(x, Gr, factors):
         for r in range(R):
             factors[l][:, r] = x[s: s+dim]
             s += dim
-            
-    factors = equalize(factors, Gr, R)
+    
+    if eq:        
+        factors = equalize(factors, Gr, R)
           
     return factors
 
