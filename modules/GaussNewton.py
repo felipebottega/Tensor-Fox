@@ -12,11 +12,12 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, copy, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, linspace, nan, prod, diag
+from numpy import inf, mean, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, nan, prod, diag, exp, sign
 from numpy.linalg import norm, solve, qr, LinAlgError
 from numpy.random import randint, randn
 import sys
 from numba import njit
+from copy import deepcopy
 
 # Tensor Fox modules
 import Alternating_Least_Squares as als
@@ -82,14 +83,15 @@ def dGN(T, factors, R, init_error, options):
     tol_step = options.tol_step
     tol_improv = options.tol_improv
     tol_grad = options.tol_grad
+    tol_jump = options.tol_jump
     symm = options.symm
     display = options.display
     low, upp, factor = options.constraints
     factors_norm = options.factors_norm
-    inner_method, cg_maxiter, cg_factor, cg_tol = [options.inner_method,
-                                                   options.cg_maxiter,
-                                                   options.cg_factor,
-                                                   options.cg_tol]
+    inner_method = options.inner_method 
+    cg_maxiter = options.cg_maxiter 
+    cg_factor = options.cg_factor 
+    cg_tol = options.cg_tol
 
     # Verify if some factor should be fixed or not. This only happens when the bicpd function was called.
     L = len(factors)
@@ -98,7 +100,7 @@ def dGN(T, factors, R, init_error, options):
     for l in range(L):
         if type(factors[l]) == list:
             fix_mode = l
-            orig_factors[l] = factors[l][0].copy()
+            orig_factors[l] = deepcopy(factors[l][0])
             factors[l] = factors[l][0]
 
     # Set the other variables.
@@ -121,7 +123,11 @@ def dGN(T, factors, R, init_error, options):
     errors = empty(maxiter)
     improv = empty(maxiter)
     gradients = empty(maxiter)
-    best_factors = [copy(factors[l]) for l in range(L)]
+    best_factors = deepcopy(factors)
+    if inner_method == 'cg':
+        cg_iters = [1 + (L-2) * int(cg_factor * randint(1 + it**0.4, 2 + it**0.9)) for it in range(maxiter)]
+    elif inner_method == 'cg_static':
+        cg_iters = [cg_maxiter for it in range(maxiter)]
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(dims, R)
@@ -160,18 +166,18 @@ def dGN(T, factors, R, init_error, options):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         inner_parameters = \
-            damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode
-        T1_approx, factors, x, y, grad, itn, residualnorm, error = compute_step(Tsize, Tl, T1_approx, factors,
-                                                                                orig_factors, data, x, y,
-                                                                                inner_parameters, it, old_error)
+            damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode
+        T1_approx, factors, x, y, grad, itn, residualnorm, error = \
+            compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error)
+
+        # Update gain ratio and damping parameter. 
+        gain_ratio = update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad)
+        damp = update_damp(damp, init_damp, gain_ratio, it)
+
         # Update best solution.
         if error < best_error:
             best_error = error
-            for l in range(L):
-                best_factors[l] = copy(factors[l])
-
-        # Update damp. 
-        damp = update_damp(damp, init_damp, old_error, error, residualnorm, it)
+            best_factors = deepcopy(factors)
 
         # Save relevant information about the current iteration.
         errors[it] = error
@@ -180,13 +186,13 @@ def dGN(T, factors, R, init_error, options):
         if it == 0:
             improv[it] = errors[it]
         else:
-            improv[it] = np.abs(errors[it - 1] - errors[it])
+            improv[it] = np.abs(errors[it] - errors[it-1])
 
         # Show information about current iteration.
         if display > 1:
             if display == 4:
                 print('    ',
-                      '{:^8}'.format(it + 1),
+                      '{:^8}'.format(it+1),
                       '| {:^10.5e}'.format(errors[it]),
                       '| {:^10.5e}'.format(step_sizes[it]),
                       '| {:^10.5e}'.format(improv[it]),
@@ -195,7 +201,7 @@ def dGN(T, factors, R, init_error, options):
                       '| {:^16}'.format(itn))
             else:
                 print('   ',
-                      '{:^9}'.format(it + 1),
+                      '{:^9}'.format(it+1),
                       '| {:^9.2e}'.format(errors[it]),
                       '| {:^11.2e}'.format(step_sizes[it]),
                       '| {:^11.2e}'.format(improv[it]),
@@ -247,15 +253,14 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     # Initialize first variables.
     L = len(factors)
-    damp, inner_method, cg_maxiter, cg_factor, cg_tol, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+    damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
     if type(inner_method) == list:
         inner_method = inner_method[it]
 
     # Call the inner method.
     if inner_method == 'cg' or inner_method == 'cg_static':
-        if inner_method == 'cg':
-            cg_maxiter = 1 + int(cg_factor * randint(1 + it ** 0.4, 2 + it ** 0.9))
-        y, grad, Gr, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        cg_maxiter = cg_iters[it]
+        y, Gr, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
         factors = als.als_iteration(Tl, factors, fix_mode)
@@ -273,27 +278,24 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     # Balance and transform factors.
     factors = cnv.x2cpd(x, Gr, factors)
     factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+
     # Some mode may be fixed when the bicpd is called.
     if L == 3:
         for l in range(L):
             if fix_mode == l:
-                factors[l] = copy(orig_factors[l])
+                factors[l] = deepcopy(orig_factors[l])
 
     # Compute error.
     T1_approx = cnv.cpd2unfold1(T1_approx, factors)
     error = crt.fastnorm(Tl[0], T1_approx) / Tsize
     
-    # Sometimes the step is too bad and increase the error by a lot. In this case we discard the computed step and
-    # use a little random step instead.
-    if it > 3:
-        if error > 20 * old_error:
+    # Sometimes the step is too bad and increase the error by much. In this case we discard the computed step and
+    # use the DogLeg method to compute the next step.
+    if inner_method == 'cg' or inner_method == 'cg_static':
+        if error > tol_jump * old_error:
             x = x - y
-            y = old_error * randn(*y.shape)
-            x = x + y
-            factors = cnv.x2cpd(x, Gr, factors)
-            factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
-            T1_approx = cnv.cpd2unfold1(T1_approx, factors)
-            error = crt.fastnorm(Tl[0], T1_approx) / Tsize
+            # Perform Dog Leg steps.
+            factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
 
     if inner_method == 'als':
         return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
@@ -308,29 +310,40 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
 
     L = len(factors)
     R = factors[0].shape[1]
-    dims = [factors[l].shape[0] for l in range(L)]
+    dims = array([factors[l].shape[0] for l in range(L)])
     maxiter = min(maxiter, R * sum(dims))
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g = data
+    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
 
     # Compute the values of all arrays.
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)
-    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims, sum_dims)
-    M = precond(Gamma, gamma, M, damp, dims, sum_dims)
-    
+    Gamma, gamma = regularization(Gamma, gamma, P1, dims, sum_dims)
+    M = precond(Gamma, gamma, M, damp, dims, sum_dims)    
     y *= 0
 
-    # CG iterations.
-    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
+    # Compute grad.
+    grad = -compute_grad(Tl, factors, P1, g, N, gg, dims, sum_dims)
+
+    # Compute J^T*J*grad.
+    V = [ grad[sum_dims[l]: sum_dims[l+1]].reshape(R, dims[l]) for l in range(L) ]
+    for l in range(L):
+        dot(V[l], factors[l], out=A[l])
+        dot(V[l].T, P1[l, :, :], out=B[l])        
+    JT_J_grad = matvec(factors, P2, P_VT_W, tmp, result, JT_J_grad, A, B, dims, sum_dims)
+
+    # Compute initial variables for CG.        
     residual_cg = M * grad
     P = residual_cg
     residualnorm = dot(residual_cg.T, residual_cg)
     if residualnorm == 0.0:
         residualnorm = 1e-6
+
+    # CG iterations.
     y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
                                          M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
-    return M * y, grad, Gr, itn + 1, residualnorm
+
+    return M * y, Gr, grad, JT_J_grad, itn + 1, residualnorm
 
 
 def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
@@ -372,7 +385,7 @@ def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
     return y, itn, residualnorm
 
 
-def compute_grad(Tl, factors, P1, g, dims, sum_dims):
+def compute_grad(Tl, factors, P1, g, N, gg, dims, sum_dims):
     """
     This function computes the gradient of the error function.
     """
@@ -394,9 +407,9 @@ def compute_grad(Tl, factors, P1, g, dims, sum_dims):
             M = empty((dim1 * dim2, R), dtype=float64)
             M = mlinalg.khatri_rao(tmp, factors[itr[ll+1]], M)
 
-        N = dot(Tl[l], M)
-        gg = dot(factors[l], P1[l])
-        g[sum_dims[l]: sum_dims[l+1]] = (gg - N).T.ravel()
+        dot(Tl[l], M, out=N[l])
+        dot(factors[l], P1[l], out=gg[l])
+        g[sum_dims[l]: sum_dims[l+1]] = (gg[l] - N[l]).T.ravel()
 
     return g
 
@@ -431,33 +444,63 @@ def prepare_data(dims, R):
     P = empty(R * sum(dims), dtype=float64)
     Q = empty(R * sum(dims), dtype=float64)
     z = empty(R * sum(dims), dtype=float64)
+    JT_J_grad = empty(R * sum(dims), dtype=float64)
+    N = [empty((dims[l], R), dtype=float64) for l in range(L)]
+    gg = [empty((dims[l], R), dtype=float64) for l in range(L)]
 
     # Arrays to be used in the compute_grad function.
     g = empty(R * sum(dims), dtype=float64)
 
-    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g]
+    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg]
 
     return data
 
 
-def update_damp(damp, init_damp, old_error, error, residualnorm, it):
+def update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad):
     """
-    Update rule of the damping parameter for the dGN function.
+    Update gain ratio.
+    """
+    
+    numerator = (2 * Tsize**2) * (old_error**2 - error**2)
+    denominator = dot(x - old_x, grad + damp*(x - old_x))
+    if denominator != 0.0:
+        gain_ratio = (2 * Tsize**2) * (old_error**2 - error**2) / dot(x - old_x, grad + damp*(x - old_x))
+    elif numerator != 0.0 and denominator == 0.0:
+        gain_ratio = sign(numerator) * inf
+    else:
+        gain_ratio = - inf
+    
+    return gain_ratio
+
+
+def update_damp(damp, init_damp, gain_ratio, it):
+    """
+    Update damping parameter.
     """
 
     if type(init_damp) == list:
         damp = init_damp[it]
     else:
-        if old_error != residualnorm:
-            gain_ratio = 2 * (old_error - error) / (old_error - residualnorm)
-        else:
-            gain_ratio = 1.0
-        if gain_ratio < 0.75:
-            damp = damp / 2
-        elif gain_ratio > 0.9:
-            damp = 1.5 * damp
+        if gain_ratio < 0.25:
+            damp = 3*damp
+        elif gain_ratio > 0.75:
+            damp = damp/3
 
     return damp
+
+
+def update_delta(delta, gain_ratio, step_size):
+    """
+    Update trust region radius.
+    """    
+
+    if gain_ratio > 0.75:
+        delta = max(delta, 2*step_size)
+    else:
+        sigma = 0.25/(1 + exp(-14*(gain_ratio - 0.75))) + 0.75
+        delta = min(sigma*delta, delta)
+        
+    return delta
 
 
 def gramians(factors, Gr, P1, P2):
@@ -472,19 +515,21 @@ def gramians(factors, Gr, P1, P2):
     for l in range(L):
         Gr[l, :, :] = dot(factors[l].T, factors[l], out=Gr[l])
 
-    for l in range(L):
-        for ll in range(L):
-            if l != ll:
-                P2[l, ll, :, :] = ones((R, R), dtype=float64)
-                itr = [i for i in range(L)]
-                itr.remove(l)
-                itr.remove(ll)
-                for lll in itr:
-                    P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll, :, :], P2[l, ll, :, :])
+    for l in range(1, L):
+        for ll in range(l):
+            P2[l, ll, :, :] = ones((R, R), dtype=float64)
+            itr = [i for i in range(L)]
+            itr.remove(l)
+            itr.remove(ll)
+            for lll in itr:
+                P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll, :, :], P2[l, ll, :, :])
+            P2[ll, l, :, :] = P2[l, ll, :, :]
         if l < L-1:
             P1[l, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[ll, :, :], P1[l, :, :])
         else:
             P1[l, :, :] = mlinalg.hadamard(P2[l, 0, :, :], Gr[0, :, :], P1[l, :, :])
+
+    P1[0, :, :] = mlinalg.hadamard(P2[0, 1, :, :], Gr[1, :, :], P1[0, :, :])
 
     return Gr, P1, P2
 
@@ -510,16 +555,17 @@ def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims, sum_dims):
     return z
 
 
-def regularization(factors, Gamma, gamma, P1, dims, sum_dims):
+@njit(nogil=True)
+def regularization(Gamma, gamma, P1, dims, sum_dims):
     """
     Computes the Tikhonov matrix Gamma, where Gamma is a diagonal matrix designed specifically to make Jf^T * Jf + Gamma
     diagonally dominant.
     """
 
-    L = len(factors)
-    R = factors[0].shape[1]
+    L, R = gamma.shape
+
     for r in range(R):
-        gamma[:, r] = abs(P1[:, r, r])
+        gamma[:, r] = np.abs(P1[:, r, r])
     gamma = np.max(np.abs(P1)) * np.sqrt(gamma)
 
     for l in range(L):
@@ -529,6 +575,7 @@ def regularization(factors, Gamma, gamma, P1, dims, sum_dims):
     return Gamma, gamma
 
 
+@njit(nogil=True)
 def precond(Gamma, gamma, M, damp, dims, sum_dims):
     """
     This function constructs a preconditioner in order to accelerate the Conjugate Gradient function. It is a diagonal
@@ -544,7 +591,7 @@ def precond(Gamma, gamma, M, damp, dims, sum_dims):
             M[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]] = \
                 gamma[l, r]**2 + damp**2 * Gamma[sum_dims[l] + r*dims[l]: sum_dims[l] + (r+1)*dims[l]]**2
 
-    M = 1 / sqrt(M)
+    M = 1/sqrt(M)
 
     return M
 
@@ -560,7 +607,7 @@ def direct(Tl, factors, data, y, damp):
     dims = [factors[l].shape[0] for l in range(L)]
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g = data
+    Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, N, gg = data
 
     # Compute the values of all arrays.
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)
@@ -630,3 +677,88 @@ def compute_blocks(tmp2, factor, vec, dims, R, l, ll):
             tmp2[dims[l]*rr:dims[l]*(rr+1), dims[ll]*r:dims[ll]*(r+1)] = tmp[:, dims[ll]*rr:dims[ll]*(rr+1)]
             
     return tmp2
+
+
+def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters):
+    """
+    Compute Dogleg step.
+    """
+
+    count = 0
+    best_x = x.copy()
+    best_y = y.copy()
+    best_error = error
+    best_factors = deepcopy(factors)
+    gain_ratio = 1
+    delta = 1
+    
+    while gain_ratio > 0:
+        # Keep the previous value of x and error to compare with the new ones in the next iteration.
+        old_x = x
+        old_y = y
+        old_error = error
+        damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+        
+        # Apply dog leg method.
+        y = dogleg(factors, y, grad, JT_J_grad, delta)
+        
+        # Update results.
+        x = x + y
+
+        # Balance and transform factors.
+        factors = cnv.x2cpd(x, Gr, factors, eq=False)
+        factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+
+        # Compute error.
+        T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+        error = crt.fastnorm(Tl[0], T1_approx) / Tsize
+
+        # Update gain ratio.
+        gain_ratio = update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad)
+       
+        if error < old_error:
+            best_x = x.copy()
+            best_y = y.copy()
+            best_error = error
+            best_factors = deepcopy(factors)
+
+        # Update delta.
+        delta = update_delta(delta, gain_ratio, norm(x - old_x))
+                
+        count += 1
+        if count > 10:
+            break
+        
+    return best_factors, best_x, best_y, best_error
+
+
+def dogleg(factors, y, grad, JT_J_grad, delta):
+    """
+    Subroutine for function compute_dogleg_steps.
+    """
+
+    # Initialize constants.
+    alpha = norm(grad)**2 / dot(grad, JT_J_grad)
+    y_sd = alpha * grad
+    c1 = norm(y_sd)
+    c2 = dot(y - y_sd, y_sd)
+    c3 = norm(y - y_sd)**2
+    c4 = delta**2 - c1**2
+    m = c2**2 + c3 * c4
+    
+    # Decide next step.
+    if norm(y) < delta:
+        y_dl = y
+    elif c1 >= delta:
+        y_dl = (delta/c1) * y_sd
+    elif m < 0:
+        y_dl = y
+    else:   
+        c5 = sqrt(m)
+        if c2 <= 0:
+            beta = (-c2 + c5)/c3
+        else:
+            beta = c4/(c2 + c5)
+        y_dl = y_sd + beta*(y - y_sd)
+    
+    return y_dl
