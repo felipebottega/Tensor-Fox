@@ -224,6 +224,7 @@ def make_options(options, L):
             self.tol_step = 1e-6
             self.tol_improv = 1e-6
             self.tol_grad = 1e-6
+            self.tol_jump = 10
             self.method = 'dGN'
             self.inner_method = 'cg'
             self.cg_maxiter = 100
@@ -256,6 +257,8 @@ def make_options(options, L):
         temp_options.tol_improv = options.tol_improv
     if 'tol_grad' in dir(options):
         temp_options.tol_grad = options.tol_grad
+    if 'tol_jump' in dir(options):
+        temp_options.tol_jump = options.tol_jump
     if 'method' in dir(options):
         temp_options.method = options.method
     elif L > 3:
@@ -276,7 +279,7 @@ def make_options(options, L):
         if options.bi_method == 'cg':
             temp_options.bi_method_parameters[1] = 1
         elif options.bi_method == 'cg_static':
-            temp_options.bi_method_parameters[1] = 300
+            temp_options.bi_method_parameters[1] = 100
         elif options.bi_method == 'als':
             temp_options.bi_method_parameters[1] = 500
     if 'bi_method_maxiter' in dir(options):
