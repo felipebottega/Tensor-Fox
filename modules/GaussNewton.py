@@ -126,7 +126,7 @@ def dGN(T, factors, R, init_error, options):
     best_factors = deepcopy(factors)
     if inner_method == 'cg':
         cg_iters = [1 + (L-2) * int(cg_factor * randint(1 + it**0.4, 2 + it**0.9)) for it in range(maxiter)]
-    elif inner_method == 'cg_static':
+    else:
         cg_iters = [cg_maxiter for it in range(maxiter)]
 
     # Prepare data to use in each Gauss-Newton iteration.
@@ -264,6 +264,8 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     elif inner_method == 'als':
         factors = als.als_iteration(Tl, factors, fix_mode)
+        Gr, P1, P2, A, B, P_VT_W, tmp, result, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
+        Gr, P1, P2 = gramians(factors, Gr, P1, P2)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
     elif inner_method == 'direct':
@@ -294,7 +296,8 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     if inner_method == 'cg' or inner_method == 'cg_static':
         if error > tol_jump * old_error:
             x = x - y
-            # Perform Dog Leg steps.
+            factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
+        elif tol_jump == 0:
             factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
 
     if inner_method == 'als':
