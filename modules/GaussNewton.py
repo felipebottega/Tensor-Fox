@@ -293,12 +293,13 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     
     # Sometimes the step is too bad and increase the error by much. In this case we discard the computed step and
     # use the DogLeg method to compute the next step.
-    if inner_method == 'cg' or inner_method == 'cg_static':
-        if error > tol_jump * old_error:
-            x = x - y
-            factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
-        elif tol_jump == 0:
-            factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
+    if it > 3:
+        if inner_method == 'cg' or inner_method == 'cg_static':
+            if error > tol_jump * old_error:
+                x = x - y
+                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
+            elif tol_jump == 0:
+                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
 
     if inner_method == 'als':
         return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
