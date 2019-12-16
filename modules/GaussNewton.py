@@ -124,10 +124,6 @@ def dGN(T, factors, R, init_error, options):
     improv = empty(maxiter)
     gradients = empty(maxiter)
     best_factors = deepcopy(factors)
-    if inner_method == 'cg':
-        cg_iters = [1 + (L-2) * int(cg_factor * randint(1 + it**0.4, 2 + it**0.9)) for it in range(maxiter)]
-    else:
-        cg_iters = [cg_maxiter for it in range(maxiter)]
 
     # Prepare data to use in each Gauss-Newton iteration.
     data = prepare_data(dims, R)
@@ -166,7 +162,7 @@ def dGN(T, factors, R, init_error, options):
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
         inner_parameters = \
-            damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode
+            damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode
         T1_approx, factors, x, y, grad, itn, residualnorm, error = \
             compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error)
 
@@ -253,13 +249,16 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     # Initialize first variables.
     L = len(factors)
-    damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+    damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
     if type(inner_method) == list:
         inner_method = inner_method[it]
 
     # Call the inner method.
-    if inner_method == 'cg' or inner_method == 'cg_static':
-        cg_maxiter = cg_iters[it]
+    if inner_method == 'cg':
+        cg_maxiter = 1 + (L-2) * int(cg_factor * randint(1 + it**0.4, 2 + it**0.9))
+        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        
+    elif inner_method == 'cg_static':
         y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
@@ -268,6 +267,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
         Gr, P1, P2 = gramians(factors, Gr, P1, P2)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
+        
     elif inner_method == 'direct':
         y, grad, itn, residualnorm = direct(Tl, factors, data, y, damp)
 
@@ -708,7 +708,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, e
         old_x = x
         old_y = y
         old_error = error
-        damp, inner_method, cg_iters, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+        damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
         
         # Apply dog leg method.
         y = dogleg(factors, y, grad, JT_J_grad, delta)
