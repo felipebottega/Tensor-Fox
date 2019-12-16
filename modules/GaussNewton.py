@@ -260,7 +260,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     # Call the inner method.
     if inner_method == 'cg' or inner_method == 'cg_static':
         cg_maxiter = cg_iters[it]
-        y, Gr, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
         factors = als.als_iteration(Tl, factors, fix_mode)
@@ -269,7 +269,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
     elif inner_method == 'direct':
-        y, grad, Gr, itn, residualnorm = direct(Tl, factors, data, y, damp)
+        y, grad, itn, residualnorm = direct(Tl, factors, data, y, damp)
 
     else:
         sys.exit("Wrong inner method name. Must be 'cg', 'cg_static', 'als' or 'direct'.")
@@ -278,7 +278,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     x = x + y
 
     # Balance and transform factors.
-    factors = cnv.x2cpd(x, Gr, factors)
+    factors = cnv.x2cpd(x, factors)
     factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
 
     # Some mode may be fixed when the bicpd is called.
@@ -297,9 +297,9 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
         if inner_method == 'cg' or inner_method == 'cg_static':
             if error > tol_jump * old_error:
                 x = x - y
-                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
+                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, error, inner_parameters)
             elif tol_jump == 0:
-                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters)
+                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, error, inner_parameters)
 
     if inner_method == 'als':
         return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
@@ -333,7 +333,7 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     V = [ grad[sum_dims[l]: sum_dims[l+1]].reshape(R, dims[l]) for l in range(L) ]
     for l in range(L):
         dot(V[l], factors[l], out=A[l])
-        dot(V[l].T, P1[l, :, :], out=B[l])        
+        dot(V[l].T, P1[l], out=B[l])        
     JT_J_grad = matvec(factors, P2, P_VT_W, tmp, result, JT_J_grad, A, B, dims, sum_dims)
 
     # Compute initial variables for CG.        
@@ -347,7 +347,7 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
                                          M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
 
-    return M * y, Gr, grad, JT_J_grad, itn + 1, residualnorm
+    return M * y, grad, JT_J_grad, itn + 1, residualnorm
 
 
 def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
@@ -365,7 +365,7 @@ def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result,
         
         for l in range(L):
             dot(V[l], factors[l], out=A[l])
-            dot(V[l].T, P1[l, :, :], out=B[l])
+            dot(V[l].T, P1[l], out=B[l])
             
         z = matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims, sum_dims) + damp * Gamma * Q
         z = M * z
@@ -426,9 +426,11 @@ def prepare_data(dims, R):
     L = len(dims)
 
     # Gramians
-    Gr = empty((L, R, R), dtype=float64)
-    P1 = ones((L, R, R), dtype=float64)
-    P2 = ones((L, L, R, R), dtype=float64)
+    Gr = [empty((R, R), dtype=float64) for l in range(L)]
+    P1 = [ones((R, R), dtype=float64) for l in range(L)]
+    P2 = []
+    for l in range(L):
+        P2.append([ones((R, R), dtype=float64) for l in range(L)])
 
     # Initializations of matrices to receive the results of the computations.
     A = [empty((R, R)) for l in range(L)]
@@ -517,23 +519,23 @@ def gramians(factors, Gr, P1, P2):
     R = factors[0].shape[1]
 
     for l in range(L):
-        Gr[l, :, :] = dot(factors[l].T, factors[l], out=Gr[l])
+        Gr[l] = dot(factors[l].T, factors[l], out=Gr[l])
 
     for l in range(1, L):
         for ll in range(l):
-            P2[l, ll, :, :] = ones((R, R), dtype=float64)
+            P2[l][ll] = ones((R, R), dtype=float64)
             itr = [i for i in range(L)]
             itr.remove(l)
             itr.remove(ll)
             for lll in itr:
-                P2[l, ll, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[lll, :, :], P2[l, ll, :, :])
-            P2[ll, l, :, :] = P2[l, ll, :, :]
+                P2[l][ll] = mlinalg.hadamard(P2[l][ll], Gr[lll], P2[l][ll])
+            P2[ll][l] = P2[l][ll]
         if l < L-1:
-            P1[l, :, :] = mlinalg.hadamard(P2[l, ll, :, :], Gr[ll, :, :], P1[l, :, :])
+            P1[l] = mlinalg.hadamard(P2[l][ll], Gr[ll], P1[l])
         else:
-            P1[l, :, :] = mlinalg.hadamard(P2[l, 0, :, :], Gr[0, :, :], P1[l, :, :])
+            P1[l] = mlinalg.hadamard(P2[l][0], Gr[0], P1[l])
 
-    P1[0, :, :] = mlinalg.hadamard(P2[0, 1, :, :], Gr[1, :, :], P1[0, :, :])
+    P1[0] = mlinalg.hadamard(P2[0][1], Gr[1], P1[0])
 
     return Gr, P1, P2
 
@@ -550,7 +552,7 @@ def matvec(factors, P2, P_VT_W, tmp, result, z, A, B, dims, sum_dims):
         tmp = 0*tmp
         for ll in range(L):
             if ll != l:
-                P_VT_W = mlinalg.hadamard(P2[l, ll, :, :], A[ll], P_VT_W)
+                P_VT_W = mlinalg.hadamard(P2[l][ll], A[ll], P_VT_W)
                 tmp += P_VT_W
         dot(factors[l], tmp, out=result[l])
         result[l] += B[l]
@@ -568,9 +570,14 @@ def regularization(Gamma, gamma, P1, dims, sum_dims):
 
     L, R = gamma.shape
 
-    for r in range(R):
-        gamma[:, r] = np.abs(P1[:, r, r])
-    gamma = np.max(np.abs(P1)) * np.sqrt(gamma)
+    s = 0
+    for l in range(L):
+        tmp = np.max(np.abs(P1[l]))
+        if s < tmp:
+            s = tmp
+        for r in range(R):
+            gamma[l, r] = abs(P1[l][r, r])
+    gamma = tmp * np.sqrt(gamma)
 
     for l in range(L):
         for r in range(R):
@@ -633,7 +640,7 @@ def direct(Tl, factors, data, y, damp):
         
     residualnorm = norm(dot(H, y) - grad)
     
-    return y, grad, Gr, '-', residualnorm 
+    return y, grad, '-', residualnorm 
 
 
 def hessian(factors, P1, P2, sum_dims):
@@ -683,7 +690,7 @@ def compute_blocks(tmp2, factor, vec, dims, R, l, ll):
     return tmp2
 
 
-def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, y, error, inner_parameters):
+def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, error, inner_parameters):
     """
     Compute Dogleg step.
     """
@@ -710,7 +717,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, Gr, grad, JT_J_grad, x, 
         x = x + y
 
         # Balance and transform factors.
-        factors = cnv.x2cpd(x, Gr, factors, eq=False)
+        factors = cnv.x2cpd(x, factors, eq=False)
         factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
 
         # Compute error.

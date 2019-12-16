@@ -15,7 +15,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def x2cpd(x, Gr, factors, eq=True):
+def x2cpd(x, factors, eq=True):
     """
     Given the point x (the flattened CPD), this function breaks it in parts to form the factors of the CPD.
     
@@ -41,7 +41,7 @@ def x2cpd(x, Gr, factors, eq=True):
             s += dim
     
     if eq:        
-        factors = equalize(factors, Gr, R)
+        factors = equalize(factors, R)
           
     return factors
 
@@ -173,7 +173,7 @@ def denormalize(Lambda, factors):
     return new_factors
 
 
-def equalize(factors, Gr, R):
+def equalize(factors, R):
     """ 
     Let W[0], ..., W[L-1] = factors. After a Gauss-Newton iteration we have an approximated CPD with factors 
     W[0]_r ⊗ ... ⊗ W[L-1]_r. They may have very different magnitudes and this can have effect on the convergence 

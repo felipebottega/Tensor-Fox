@@ -84,7 +84,6 @@ def als(T, factors, R, options):
     improv = empty(maxiter)
     gradients = empty(maxiter)
     best_factors = [copy(factors[l]) for l in range(L)]
-    Gr = empty((L, R, R), dtype=float64)
 
     # Compute unfoldings.
     Tl = [cnv.unfold(T, l+1) for l in range(L)]
