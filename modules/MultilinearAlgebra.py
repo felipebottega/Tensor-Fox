@@ -190,7 +190,8 @@ def hadamard(A, B, M):
     R = A.shape[0]
     
     for r in prange(R):
-        M[r, :] = A[r, :]*B[r, :]
+        for rr in range(R):
+            M[r, rr] = A[r, rr]*B[r, rr]
 
     return M
 
