@@ -151,11 +151,13 @@ def output_info(T1, Tsize, T1_approx,
             if self.stop[0] == 3:
                 print('3 - Gradient is small enough.')
             if self.stop[0] == 4:
-                print('4 - Average of relative errors increased.')
+                print('4 - Average error increased.')
             if self.stop[0] == 5:
                 print('5 - Limit of iterations was reached.')
             if self.stop[0] == 6:
                 print('6 - dGN diverged.')
+            if self.stop[0] == 7:
+                print('7 - Average improvement is too small compared to the average error.')
 
             # stop_refine message
             print()
@@ -169,13 +171,15 @@ def output_info(T1, Tsize, T1_approx,
             if self.stop[1] == 3:
                 print('3 - Gradient is small enough.')
             if self.stop[1] == 4:
-                print('4 - Average of relative errors increased.')
+                print('4 - Average error increased.')
             if self.stop[1] == 5:
                 print('5 - Limit of iterations was reached.')
             if self.stop[1] == 6:
                 print('6 - dGN diverged.')
-            if self.stop[1] == 7:
-                print('7 - No refinement was performed.')
+            if self.stop[0] == 7:
+                print('7 - Average improvement is too small compared to the average error.')
+            if self.stop[1] == 8:
+                print('8 - No refinement was performed.')
            
             return ''
 

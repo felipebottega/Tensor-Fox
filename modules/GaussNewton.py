@@ -70,7 +70,8 @@ def dGN(T, factors, R, init_error, options):
             indeed, but not too close for a long time.
         5: limit of iterations reached.
         6: dGN diverged.
-        7: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when
+        7: Average improvement is too small compared to the average error.
+        8: no refinement was performed (this is not really a stopping condition, but it is necessary to indicate when
         the program can't give a stopping condition in the refinement stage).
     """
 
@@ -219,13 +220,18 @@ def dGN(T, factors, R, init_error, options):
             if gradients[it] < tol_grad:
                 stop = 3
                 break
-            # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
-            # program to continue iterating when the error starts to oscillate.
             if it > 2*const and it % const == 0:
+                # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents 
+                # the program to continue iterating when the error starts to oscillate without decreasing.
                 mean1 = mean(errors[it - 2*const: it - const])
                 mean2 = mean(errors[it - const: it])
                 if mean1 - mean2 <= tol_improv:
                     stop = 4
+                    break
+                # If the average improvements is too small compared to the average errors, the program stops. 
+                mean3 = mean(improv[it - const: it])
+                if mean3 < 1e-3 * mean2:
+                    stop = 7
                     break
             # Prevent blow ups.
             if error > max(1, Tsize ** 2) / (1e-16 + tol):
