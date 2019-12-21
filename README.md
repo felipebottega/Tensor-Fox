@@ -1,6 +1,6 @@
 # Tensor Fox
 
-Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD).
+Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD). In this package you will find a great variety of parameters for fine tuning, support to sparse tensors, routines to test models and tensor behavior, rank estimate, statistics, and many more!
 
 ## Table of Contents
 * [ :fox_face: Motivation](#motivation)
