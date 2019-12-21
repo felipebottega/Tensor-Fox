@@ -35,13 +35,20 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod, float64
+from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod, float64, ndarray
 from numpy.linalg import norm
+from scipy.sparse import coo_matrix
 import sys
 import time
 import copy as cp
 from decimal import Decimal
 import matplotlib.pyplot as plt
+from numba.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning, NumbaPerformanceWarning
+import warnings
+
+warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
+warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 # Tensor Fox modules
 import Alternating_Least_Squares as als
@@ -141,8 +148,11 @@ def cpd(T, R, options=False):
 
     # INITIAL PREPARATIONS
 
-    # Compute dimensions of T.
-    dims_orig = T.shape
+    # Verify if T is sparse, in which case it will be given as a list with the data.
+    if type(T) == list:
+        data, idxs, dims_orig = T
+    else:
+        dims_orig = T.shape
     L = len(dims_orig)
     
     # Set options.
@@ -165,14 +175,18 @@ def cpd(T, R, options=False):
         return factors, output 
     
     # Change ordering of indexes to improve performance if possible.
-    T_orig = copy(T)
     T, ordering = aux.sort_dims(T)
-    dims = T.shape   
-    
-    # START COMPUTATIONS
-    
-    # Compute norm of T.    
-    Tsize = norm(T) 
+    if type(T) == list:
+        Tsize = norm(T[0])
+        dims = T[2]
+        # If T is sparse, we must use the classic method, and tol_mlsvd is set to the default 1e-16 in the case the
+        # user requested -1 or 0.
+        if tol_mlsvd <= 0:
+            options.tol_mlsvd = 1e-16
+            tol_mlsvd = 1e-16
+    else:
+        Tsize = norm(T)
+        dims = T.shape   
 
     # COMPRESSION STAGE
 
@@ -189,17 +203,17 @@ def cpd(T, R, options=False):
     if display != 0:
         if tol_mlsvd == 0:
             print('    Compression without truncation requested by user')
-            print('    Compressing from', T.shape, 'to', S.shape)
+            print('    Compressing from', dims, 'to', S.shape)
         elif prod(array(S.shape) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', T.shape) 
+                print('    Working with dimensions', dims) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', T.shape)                         
+                print('    Working with dimensions', dims)                         
         else:
             print('    Compression detected')
-            print('    Compressing from', T.shape, 'to', S.shape)
+            print('    Compressing from', dims, 'to', S.shape)
         if display > 2 or display < -1:
             print('    Compression relative error = {:7e}'.format(best_error))
         print()
@@ -226,16 +240,25 @@ def cpd(T, R, options=False):
     
     # FINAL WORKS
 
+    # Compute error.
+    if type(T1) == ndarray:
+        T1_approx = empty(T1.shape)
+        T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+        rel_error = crt.fastnorm(T1, T1_approx)/Tsize
+
+        # Go back to the original dimension ordering.
+        factors = aux.unsort_dims(factors, ordering)
+
+    else:
+        # Go back to the original dimension ordering.
+        factors = aux.unsort_dims(factors, ordering)
+
+        rel_error = crt.sparse_fastnorm(data, idxs, dims_orig, factors)/Tsize
+
     num_steps = 0
     for output in outputs:
         num_steps += output.num_steps
-    T1_approx = empty(T1.shape)
-    T1_approx = cnv.cpd2unfold1(T1_approx, factors)
-    rel_error = crt.fastnorm(T1, T1_approx)/Tsize
     accuracy = max(0, 100*(1 - rel_error))
-    
-    # Go back to the original dimension ordering.
-    factors = aux.unsort_dims(factors, ordering)
     
     if options.display != 0:
         print()
@@ -266,7 +289,6 @@ def highcpd(T, R, options):
     max_trials = options.trials
     options.refine = False
     epochs = options.epochs
-    Gr = empty((L, R, R), dtype=float64)
 
     # Compute cores of the tensor train of T.
     G = cpdtt(T, R)
@@ -290,10 +312,8 @@ def highcpd(T, R, options):
     for l in range(0, L-2):
         factors.append(cpd_list[l][1])
     B = dot(G[-1].T, best_Z)
-    factors.append( B )
-    for l in range(L):
-        Gr[l, :, :] = dot(factors[l].T, factors[l], out=Gr[l, :, :])
-    factors = cnv.equalize(factors, Gr, R)
+    factors.append(B)
+    factors = cnv.equalize(factors, R)
 
     if display > 2 or display < -1:
         G_approx = [G[0]]
@@ -343,7 +363,16 @@ def tricpd(T, R, options):
 
     # INITIALIZE RELEVANT VARIABLES 
 
-    # Extract all variable from the class of options.
+    # Verify if T is sparse, in which case it will be given as a list with the data.
+    if type(T) == list:
+        dims_orig = T[2]
+    else:
+        dims_orig = T.shape
+    L = len(dims_orig)    
+    init_error = inf
+    T_orig = T.copy()
+    
+    # Set options.
     initialization = options.initialization
     refine = options.refine
     symm = options.symm
@@ -352,17 +381,20 @@ def tricpd(T, R, options):
     method = options.method
     if type(tol_mlsvd) == list:
         tol_mlsvd = tol_mlsvd[1]
-
-    # Set the other variables.
-    dims_orig = T.shape
-    L = len(dims_orig)
-    T_orig = copy(T)
-    Tsize = norm(T)
-    init_error = inf
-
+        
     # Change ordering of indexes to improve performance if possible.
     T, ordering = aux.sort_dims(T)
-    dims = T.shape    
+    if type(T) == list:
+        Tsize = norm(T[0])
+        dims = T[2]
+        # If T is sparse, we must use the classic method, and tol_mlsvd is set to the default 1e-16 in the case the
+        # user requested -1 or 0.
+        if tol_mlsvd <= 0:
+            options.tol_mlsvd = 1e-16
+            tol_mlsvd = 1e-16
+    else:
+        Tsize = norm(T)
+        dims = T.shape  
     
     # COMPRESSION STAGE
     
@@ -388,17 +420,17 @@ def tricpd(T, R, options):
     if display > 0:
         if tol_mlsvd == 0:
             print('    Compression without truncation requested by user')
-            print('    Compressing from', T.shape, 'to', S.shape)
+            print('    Compressing from', dims, 'to', S.shape)
         elif dims_cmpr == dims:
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', T.shape) 
+                print('    Working with dimensions', dims) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', T.shape)                         
+                print('    Working with dimensions', dims)                         
         else:
             print('    Compression detected')
-            print('    Compressing from', T.shape, 'to', S.shape)
+            print('    Compressing from', dims, 'to', S.shape)
         if display > 2:
             print('    Compression relative error = {:7e}'.format(best_error))
             
@@ -440,6 +472,10 @@ def tricpd(T, R, options):
     # REFINEMENT STAGE
 
     init_error = errors_main[-1]
+
+    # If T is sparse, no refinement is made.
+    if type(T) == list:
+        refine = False
     
     if refine:   
         if display > 0:
@@ -474,20 +510,33 @@ def tricpd(T, R, options):
     # FINAL WORKS
 
     # Compute error.
-    T1_approx = empty(T1.shape)
-    T1_approx = cnv.cpd2unfold1(T1_approx, factors)
+    if type(T1) == ndarray:
+        T1_approx = empty(T1.shape)
+        T1_approx = cnv.cpd2unfold1(T1_approx, factors)
 
-    # Go back to the original dimension ordering.
-    factors = aux.unsort_dims(factors, ordering)
-        
-    # Save and display final informations.
-    output = aux.output_info(T1, Tsize, T1_approx,
-                             step_sizes_main, step_sizes_refine,
-                             errors_main, errors_refine,
-                             improv_main, improv_refine,
-                             gradients_main, gradients_refine,
-                             stop_main, stop_refine,
-                             options)
+        # Go back to the original dimension ordering.
+        factors = aux.unsort_dims(factors, ordering)
+
+        # Save and display final informations.
+        output = aux.output_info(T1, Tsize, T1_approx,
+                                 step_sizes_main, step_sizes_refine,
+                                 errors_main, errors_refine,
+                                 improv_main, improv_refine,
+                                 gradients_main, gradients_refine,
+                                 stop_main, stop_refine,
+                                 options)
+    else:
+        # Go back to the original dimension ordering.
+        factors = aux.unsort_dims(factors, ordering)
+
+        # Save and display final informations.
+        output = aux.output_info(T_orig, Tsize, factors,
+                                 step_sizes_main, step_sizes_refine,
+                                 errors_main, errors_refine,
+                                 improv_main, improv_refine,
+                                 gradients_main, gradients_refine,
+                                 stop_main, stop_refine,
+                                 options)
 
     if display > 0:
         print('===============================================================================================')

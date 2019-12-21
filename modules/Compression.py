@@ -59,10 +59,13 @@ def mlsvd(T, Tsize, R, options):
     """
 
     # INITIALIZE RELEVANT VARIABLES.    
-
-    # Set the main variables about T.
-    dims = T.shape
-    L = len(dims)
+    
+    # Verify if T is sparse, in which case it will be given as a list with the data.
+    if type(T) == list:
+        data, idxs, dims = T
+    else:
+        dims = T.shape
+    L = len(dims) 
 
     # Set options.
     options = aux.make_options(options, L)
@@ -75,6 +78,39 @@ def mlsvd(T, Tsize, R, options):
             tol_mlsvd = tol_mlsvd[0]
         else:
             tol_mlsvd = tol_mlsvd[1]
+            
+    if type(T) == list:
+        sigmas = []
+        U = []
+        for l in range(L):
+            Tl = cnv.sparse_unfold(data, idxs, dims, l+1)
+            if l == 0:
+                T1 = Tl.copy()
+            Tl = Tl.dot(Tl.T)
+            low_rank = min(R, dims[l])
+            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+
+            # Truncate more based on energy.
+            Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
+            sigmas.append(sigma_l)
+            U.append(Ul)
+
+        # Compute (U_1^T,...,U_L^T)*T = S.
+        new_dims = [U[l].shape[1] for l in range(L)]
+        UT = [U[l].T for l in range(L)]
+        S = mlinalg.sparse_multilin_mult(UT, data, idxs, new_dims)
+
+        # Compute error of compressed tensor.
+        if display > 2 or display < -1:
+            S1 = cnv.unfold(S, 1)
+            T1_dense = T1.toarray()
+            T_dense = empty(dims, dtype=float64)
+            T_dense = cnv.foldback(T_dense, T1_dense, 1)
+            best_error = mlinalg.compute_error(T_dense, Tsize, S1, U, S.shape)
+            return S, U, T1, sigmas, best_error
+        else:
+            return S, U, T1, sigmas
+        
 
     # tol_mlsvd = -1 means no truncation and no compression, in other words, the original tensor.
     if tol_mlsvd == -1:
@@ -98,10 +134,12 @@ def mlsvd(T, Tsize, R, options):
                 T1 = copy(Sl)
             low_rank = min(R, dims[l])
             Ul, sigma_l, Vlt = rand_svd(Sl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+
             # Truncate more based on energy.
             Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
             sigmas.append(sigma_l)
             U.append(Ul)
+
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigma_l).T  
             S_dims[l] = dim
@@ -119,6 +157,7 @@ def mlsvd(T, Tsize, R, options):
                 T1 = copy(Tl)
             low_rank = min(R, dims[l])
             Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+
             # Truncate more based on energy.
             Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
             sigmas.append(sigma_l)

@@ -5,10 +5,12 @@
 """
 
 # Python modules
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, sqrt
+import numpy as np
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
+from scipy.sparse import coo_matrix
 
 # Tensor Fox modules
 import Critical as crt
@@ -103,9 +105,47 @@ def cpd2unfold1(T1_approx, factors):
     return T1_approx
 
 
+def sparse2dense(data, idxs, dims):
+    """
+    Given the variables defining a sparse tensor, this function computes its dense representation.
+
+    Inputs
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+
+    Outputs
+    -------
+    T: L-D array
+        Dense representation of the tensor.
+    """
+
+    T1 = sparse_unfold(data, idxs, dims, 1)
+    T1_dense = T1.toarray()
+    T_dense = empty(dims, dtype=float64)
+    T_dense = foldback(T_dense, T1_dense, 1)
+
+    return T_dense
+
+
 def unfold(T, mode):
     """
     Computes any unfolding of a tensor up to order L = 12. 
+    
+    Inputs
+    ------
+    T: float L-D array
+       The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: 2-D array
+        The requested unfolding of T.
     """
  
     dims = T.shape
@@ -114,6 +154,58 @@ def unfold(T, mode):
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
+    return Tl
+
+
+def sparse_unfold(data, idxs, dims, mode):
+    """
+    Computes any unfolding of a sparse L-th order tensor. 
+    
+    Inputs
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array 
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+    mode: int
+        The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: csr matrix
+        Sparse representation (in compressed sparse row format) of the requested unfolding.
+    """
+    
+    L = len(dims)
+    nnz = len(data)
+    idx = list(np.arange(L))
+    idx.remove(mode-1)
+    K = zeros(L, dtype=np.int64)
+    rows = zeros(nnz, dtype=np.int64)
+    cols = zeros(nnz, dtype=np.int64)
+                 
+    c = 0
+    for l in range(L):
+        if l == mode-1:
+            K[l] = 0
+        else:
+            s = 1
+            for ll in range(c):
+                s *= dims[idx[ll]]
+            K[l] = int(s)
+            c += 1
+    
+    for i in range(nnz):
+        y = idxs[i]
+        rows[i] = y[mode-1]
+        cols[i] = np.sum(K*y) 
+        
+    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], np.prod(dims)//dims[mode-1]))
+    Tl = Tl.tocsr()
+        
     return Tl
 
 

@@ -28,6 +28,7 @@ from numba import njit, prange
 import Auxiliar as aux
 import Compression as cmpr
 import Conversion as cnv
+import Critical as crt
 
 
 def multilin_mult_cpd(U, W, dims):
@@ -62,8 +63,8 @@ def multilin_mult_cpd(U, W, dims):
 
 def multilin_mult(U, T1, dims):
     """    
-    Performs the multilinear multiplication (U[0],...,U[L-1])*T, where dims = T.shape. We need the first unfolding T1 of 
-    T to start the computations.
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape. We need the first unfolding
+    T1 of T to start the computations.
 
     Inputs
     ------
@@ -76,7 +77,7 @@ def multilin_mult(U, T1, dims):
     Outputs
     -------
     S: float array
-        S is the resulting multidimensional of the multilinear multiplication (U[0],...,U[L-1])*T.
+        S is the resulting multidimensional of the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T.
     """
 
     L = len(dims)
@@ -94,7 +95,39 @@ def multilin_mult(U, T1, dims):
             unfolding1 = cnv.unfold(S, l+2)
         else:
             return S
-        
+
+
+def sparse_multilin_mult(U, data, idxs, dims):
+    """
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape and T is sparse. The first
+    unfolding T1 of T is given as a csr matrix.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor T.
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the multilinear multiplication (U[0],...,U[L-1])*T.
+    """
+
+    L = len(dims)
+    # dims_out are the dimensions of the output tensor S.
+    dims_out = [U[l].shape[0] for l in range(L)]
+    S = np.empty(dims_out, dtype=float64)
+    func_name = "sparse_multilin_mult_order" + str(L)
+    S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+
+    return S
+
 
 def multirank_approx(T, multi_rank, options):
     """
@@ -286,8 +319,17 @@ def compute_error(T, Tsize, S1, U, dims):
     Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S.
     """
 
-    T_compress = multilin_mult(U, S1, dims)
-    error = norm(T - T_compress)/Tsize
+    # T is sparse.
+    if type(T) == list:
+        data, idxs, Tdims = T
+        T_dense = cnv.sparse2dense(data, idxs, Tdims)
+        T_compress = multilin_mult(U, S1, dims)
+        error = norm(T_dense - T_compress) / Tsize
+    # T is dense.
+    else:
+        T_compress = multilin_mult(U, S1, dims)
+        error = norm(T - T_compress)/Tsize
+
     return error
 
 

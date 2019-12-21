@@ -6,7 +6,7 @@
 """ 
 
 # Python modules
-from numpy import prod, diag, dot, argsort, array, size, inf, moveaxis, arange
+from numpy import prod, diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray
 from numpy.linalg import norm, pinv
 from numpy.random import randn
 import sys
@@ -86,10 +86,24 @@ def sort_dims(T):
     """
     Change the axis of T in decreasing order. This can speed up the mlsvd function.
     """
-
-    L = len(T.shape)
-    ordering = argsort(-array(T.shape))
-    T_sorted = moveaxis(T, ordering, arange(-L, 0))
+    
+    # Sparse tensor.
+    if type(T) == list:
+        data, idxs, dims = T
+        dims = array(dims)
+        ordering = argsort(-dims)
+        dims = tuple(dims[ordering])
+        nnz = len(data)
+        for i in range(nnz):
+            idxs[i, :] = idxs[i, ordering]
+        T_sorted = [data, idxs, dims]
+    
+    # Dense tensor.
+    else:    
+        dims = array(T.shape)
+        L = len(dims)
+        ordering = argsort(-dims)
+        T_sorted = moveaxis(T, ordering, arange(-L, 0))
 
     return T_sorted, ordering
         
@@ -124,7 +138,15 @@ def output_info(T1, Tsize, T1_approx,
     else:
         num_steps = size(step_sizes_main)
 
-    rel_error = crt.fastnorm(T1, T1_approx)/Tsize
+    if type(T1) == ndarray:
+        rel_error = crt.fastnorm(T1, T1_approx)/Tsize
+
+    # In the sparse case, the variable T1 is the triple T = [data, idxs, dims] and T1_approx is the variable factors.
+    # We keep the original variable names used for the dense case but this distinction is important to know.
+    else:
+        data, idxs, dims = T1
+        factors = T1_approx
+        rel_error = crt.sparse_fastnorm(data, idxs, dims, factors)/Tsize
 
     class output:
         def __init__(self):
