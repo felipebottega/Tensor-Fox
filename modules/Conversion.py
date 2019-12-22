@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit, prange
@@ -331,7 +331,7 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     Inputs
     ------
     factors: list of 2D arrays
-    low, upp: float
+    low, upp: float or 1D arrays
     symm: bool
     factors_norm: float
         
@@ -341,13 +341,18 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     """ 
 
     L = len(factors)
-    
-    if low != 0 and upp != 0:
+
+    if low != 0 or upp != 0:
+        if type(low) != ndarray:
+            low = array([low for l in range(L)])
+        if type(upp) != ndarray:
+            upp = array([upp for l in range(L)])
+
         eps = 0.02
-        B = log( (upp-low)/eps - 1 )/( factor*(upp-low)/2 - eps )
-        A = -B*(low+upp)/2
         for l in range(L):
-            factors[l] = low + (upp-low) * 1/( 1 + exp(-A-B*factors[l]) )
+            B = log((upp[l] - low[l]) / eps - 1) / (factor * (upp[l] - low[l]) / 2 - eps)
+            A = -B * (low[l] + upp[l]) / 2
+            factors[l] = low[l] + (upp[l] - low[l]) * 1/( 1 + exp(-A-B*factors[l]) )
         
     if symm:
         s = factors[0]
