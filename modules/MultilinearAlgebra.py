@@ -213,7 +213,7 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
     return M[i*b1:(i+1)*b1, :]
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def hadamard(A, B, M):
     """
     Computes M = A * B, where * is the Hadamard product. Since all Hadamard products in this context are between R x R
@@ -222,7 +222,7 @@ def hadamard(A, B, M):
 
     R = A.shape[0]
     
-    for r in prange(R):
+    for r in range(R):
         for rr in range(R):
             M[r, rr] = A[r, rr]*B[r, rr]
 

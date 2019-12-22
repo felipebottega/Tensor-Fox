@@ -12,11 +12,11 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, mean, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, nan, prod, diag, exp, sign
+from numpy import inf, mean, concatenate, empty, array, zeros, ones, identity, float64, sqrt, dot, nan, diag, exp, sign
 from numpy.linalg import norm, solve, qr, LinAlgError
-from numpy.random import randint, randn
+from numpy.random import randint
 import sys
-from numba import njit, prange
+from numba import njit
 from copy import deepcopy
 
 # Tensor Fox modules
@@ -238,7 +238,7 @@ def dGN(T, factors, R, init_error, options):
                 stop = 6
                 break
 
-                # SAVE LAST COMPUTED INFORMATION
+    # SAVE LAST COMPUTED INFORMATION
 
     errors = errors[0: it+1]
     step_sizes = step_sizes[0: it+1]
@@ -269,8 +269,6 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     elif inner_method == 'als':
         factors = als.als_iteration(Tl, factors, fix_mode)
-        Gr, P1, P2, A, B, P_VT_W, tmp, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
-        Gr, P1, P2 = gramians(factors, Gr, P1, P2)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
         
@@ -324,7 +322,7 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     maxiter = min(maxiter, R * sum(dims))
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, tmp, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
+    Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
 
     # Compute the values of all arrays.
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)
@@ -340,7 +338,7 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     for l in range(L):
         dot(V[l], factors[l], out=A[l])
         dot(V[l].T, P1[l], out=B[l])        
-    JT_J_grad = matvec(factors, P2, P_VT_W, tmp, result, result_tmp, JT_J_grad, A, B, dims, sum_dims)
+    JT_J_grad = matvec(factors, P2, P_VT_W, result, result_tmp, JT_J_grad, A, B, dims, sum_dims)
 
     # Compute initial variables for CG.        
     residual_cg = M * grad
@@ -350,13 +348,13 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
         residualnorm = 1e-6
 
     # CG iterations.
-    y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result, result_tmp,
+    y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp,
                                          M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
 
     return M * y, grad, JT_J_grad, itn + 1, residualnorm
 
 
-def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result, result_tmp,
+def cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp,
                   M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims):
     """
     Conjugate gradient iterations.
@@ -373,7 +371,7 @@ def cg_iterations(factors, P1, P2, A, B, P_VT_W, tmp, result, result_tmp,
             dot(V[l], factors[l], out=A[l])
             dot(V[l].T, P1[l], out=B[l])
             
-        z = matvec(factors, P2, P_VT_W, tmp, result, result_tmp, z, A, B, dims, sum_dims) + damp * Gamma * Q
+        z = matvec(factors, P2, P_VT_W, result, result_tmp, z, A, B, dims, sum_dims) + damp * Gamma * Q
         z = M * z
         denominator = dot(P.T, z)
         if denominator == 0.0:
@@ -443,7 +441,6 @@ def prepare_data(dims, R):
     A = zeros((L, R, R), dtype=float64)
     B = [zeros((dims[l], R)) for l in range(L)]
     P_VT_W = zeros((R, R), dtype=float64)
-    tmp = zeros((R, R), dtype=float64)
     result = [zeros((dims[l], R), dtype=float64) for l in range(L)]
     result_tmp = zeros((L, R, R), dtype=float64)
 
@@ -465,7 +462,7 @@ def prepare_data(dims, R):
     # Arrays to be used in the compute_grad function.
     g = zeros(R * sum(dims), dtype=float64)
 
-    data = [Gr, P1, P2, A, B, P_VT_W, tmp, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg]
+    data = [Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg]
 
     return data
 
@@ -548,7 +545,7 @@ def gramians(factors, Gr, P1, P2):
     return Gr, P1, P2
 
 
-def matvec(factors, P2, P_VT_W, tmp, result, result_tmp, z, A, B, dims, sum_dims):
+def matvec(factors, P2, P_VT_W, result, result_tmp, z, A, B, dims, sum_dims):
     """
     Makes the matrix-vector computation (Jf^T * Jf)*v.
     """
@@ -638,7 +635,7 @@ def direct(Tl, factors, data, y, damp):
     dims = [factors[l].shape[0] for l in range(L)]
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, tmp, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, N, gg = data
+    Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, N, gg = data
 
     # Compute the values of all arrays.
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)

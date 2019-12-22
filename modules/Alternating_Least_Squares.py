@@ -174,13 +174,18 @@ def als(T, factors, R, options):
             if gradients[it] < tol_grad:
                 stop = 3
                 break
-            # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents the
-            # program to continue iterating when the error starts to oscillate.
             if it > 2*const and it % const == 0:
-                mean1 = mean(errors[it - 2*const: it - const])
+                # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents
+                # the program to continue iterating when the error starts to oscillate without decreasing.
+                mean1 = mean(errors[it - 2 * const: it - const])
                 mean2 = mean(errors[it - const: it])
                 if mean1 - mean2 <= tol_improv:
                     stop = 4
+                    break
+                # If the average improvements is too small compared to the average errors, the program stops.
+                mean3 = mean(improv[it - const: it])
+                if mean3 < 1e-3 * mean2:
+                    stop = 7
                     break
             # Prevent blow ups.
             if error > max(1, Tsize ** 2) / (1e-16 + tol):

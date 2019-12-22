@@ -228,7 +228,7 @@ def init_W(m, L, n, R):
     return W
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def dot_products(x, W):
     """
     Function to compute all the dot products between an input x and the weights.
@@ -251,7 +251,7 @@ def dot_products(x, W):
     # Initialize array to receive all dot products
     dot_prods = np.ones((m, L, R))
 
-    for k in prange(m):
+    for k in range(m):
         for r in range(R):
             dot_prods[k, :, r] = np.dot(W[k, :, :, r], x)
 

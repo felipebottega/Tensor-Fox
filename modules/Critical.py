@@ -35,11 +35,11 @@ def sparse_fastnorm(data, idxs, dims, factors):
     return s
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def sparse_fastnorm_computations(data, idxs, factors, L, nnz):
     R = factors[0].shape[1]
     s = 0
-    for i in prange(nnz):
+    for i in range(nnz):
         j = idxs[i]
         tmp = 0
         for r in range(R):

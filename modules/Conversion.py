@@ -9,7 +9,7 @@ import numpy as np
 from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray
 from numpy.linalg import norm
 from numpy.random import randn
-from numba import njit, prange
+from numba import njit
 from scipy.sparse import coo_matrix
 
 # Tensor Fox modules
@@ -369,28 +369,15 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     return factors
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def vec(M, Bv, num_rows, R):
     """ 
     Take a matrix M with shape (num_rows, R) and stack vertically its columns to form the matrix Bv = vec(M) with shape
     (num_rows*R,).
     """
     
-    for r in prange(R):
+    for r in range(R):
         Bv[r*num_rows:(r+1)*num_rows] = M[:, r]
-        
-    return Bv
-
-
-@njit(nogil=True, parallel=True)
-def vect(M, Bv, num_cols, R):
-    """ 
-    Take a matrix M with shape (R, num_cols) and stack vertically its rows to form the matrix Bv = vec(M) with shape
-    (num_cols*R,).
-    """
-    
-    for r in prange(R):
-        Bv[r*num_cols:(r+1)*num_cols] = M[r, :]
         
     return Bv
 
