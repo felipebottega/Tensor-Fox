@@ -24,7 +24,7 @@
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, prod, float64, copy, sqrt
+from numpy import identity, ones, empty, array, prod, float32, float64, copy, sqrt
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
@@ -178,7 +178,8 @@ def mlsvd(T, Tsize, R, options):
 def compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l):
     low_rank = min(R, dims[l])
     if gpu:
-        Tl_gpu = gpuarray.to_gpu(Tl.T)
+        tmp = array(Tl.T, dtype=float32)
+        Tl_gpu = gpuarray.to_gpu(tmp)
         Ul, sigma, Vlt = rlinalg.rsvd(Tl_gpu, k=low_rank, p=10, q=2, method='standard')
     else:
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
