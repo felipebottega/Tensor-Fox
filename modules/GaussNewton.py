@@ -6,8 +6,8 @@
 
  References
  ==========
- - K. Madsen, H. B. Nielsen, and O. Tingleff, Methods for Non-Linear Least Squares Problems, 2nd edition,
-   Informatics and Mathematical Modelling, Technical University of Denmark, 2004.
+ - K. Madsen, H. B. Nielsen, and O. Tingleff, Methods for Non-Linear Least Squares Problems, 2nd edition, Informatics
+   and Mathematical Modelling, Technical University of Denmark, 2004.
 """
 
 # Python modules
@@ -58,7 +58,7 @@ def dGN(T, factors, R, init_error, options):
         current iteration and the previous one.
     gradients: float 1-D array
         Gradient of the error function at each iteration.
-    stop: 0, 1, 2, 3, 4, 5 or 6
+    stop: 0, 1, 2, 3, 4, 5, 6 or 7
         This value indicates why the dGN function stopped. Below we summarize the cases.
         0: errors[it] < tol. Relative error is small enough.
         1: step_sizes[it] < tol_steps. Steps are small enough.
@@ -77,7 +77,7 @@ def dGN(T, factors, R, init_error, options):
 
     # INITIALIZE RELEVANT VARIABLES 
 
-    # Extract all variable from the class of options.
+    # Extract all relevant variables from the class of options.
     init_damp = options.init_damp
     maxiter = options.maxiter
     tol = options.tol
@@ -221,7 +221,7 @@ def dGN(T, factors, R, init_error, options):
                 stop = 3
                 break
             if it > 2*const and it % const == 0:
-                # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents 
+                # Let const=1+int(maxiter/10). Comparing the average errors of const consecutive iterations prevents
                 # the program to continue iterating when the error starts to oscillate without decreasing.
                 mean1 = mean(errors[it - 2*const: it - const])
                 mean2 = mean(errors[it - const: it])
@@ -348,14 +348,14 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
         residualnorm = 1e-6
 
     # CG iterations.
-    y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp,
-                                         M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
+    y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp, M, P,
+                                         Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
 
     return M * y, grad, JT_J_grad, itn + 1, residualnorm
 
 
-def cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp,
-                  M, P, Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims):
+def cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp, M, P,
+                  Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims):
     """
     Conjugate gradient iterations.
     """
@@ -433,9 +433,6 @@ def prepare_data(dims, R):
     Gr = zeros((L, R, R), dtype=float64)
     P1 = ones((L, R, R), dtype=float64)
     P2 = ones((L, L, R, R), dtype=float64)
-    #P2 = []
-    #for l in range(L):
-     #   P2.append([ones((R, R), dtype=float64) for l in range(L)])
 
     # Initializations of matrices to receive the results of the computations.
     A = zeros((L, R, R), dtype=float64)
@@ -635,13 +632,13 @@ def direct(Tl, factors, data, y, damp):
     dims = [factors[l].shape[0] for l in range(L)]
 
     # Give names to the arrays.
-    Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, N, gg = data
+    Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
 
     # Compute the values of all arrays.
     Gr, P1, P2 = gramians(factors, Gr, P1, P2)
-    Gamma, gamma = regularization(factors, Gamma, gamma, P1, dims, sum_dims)
+    Gamma, gamma = regularization(Gamma, gamma, P1, dims, sum_dims)
     M = precond(Gamma, gamma, M, damp, dims, sum_dims)
-    grad = -compute_grad(Tl, factors, P1, g, dims, sum_dims)
+    grad = -compute_grad(Tl, factors, P1, g, N, gg, dims, sum_dims)
     H = hessian(factors, P1, P2, sum_dims)
     Hd = H + damp * diag(Gamma)
     MHd = ((Hd.T) * (M**2)).T
@@ -695,8 +692,8 @@ def hessian(factors, P1, P2, sum_dims):
 @njit(nogil=True)
 def compute_blocks(tmp2, factor, vec, dims, R, l, ll):
     """
-    Auxiliary function for the hessian function. The computation of the rank one matrices between the factor
-    matrices (factors[l][:, r] * factors[ll][:, rr].T) are done here.
+    Auxiliary function for the hessian function. The computation of the rank one matrices between the factor matrices
+    (factors[l][:, r] * factors[ll][:, rr].T) are done here.
     """
     
     for r in range(R):
@@ -728,7 +725,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, e
         damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
         
         # Apply dog leg method.
-        y = dogleg(factors, y, grad, JT_J_grad, delta)
+        y = dogleg(y, grad, JT_J_grad, delta)
         
         # Update results.
         x = x + y
@@ -760,7 +757,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, e
     return best_factors, best_x, best_y, best_error
 
 
-def dogleg(factors, y, grad, JT_J_grad, delta):
+def dogleg(y, grad, JT_J_grad, delta):
     """
     Subroutine for function compute_dogleg_steps.
     """

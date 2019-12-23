@@ -63,8 +63,8 @@ def pca(X, p):
     X: 2D array
         Train data in 2D array format. Each row correspond to a single sample of the data.
     p: Float
-        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if
-        p = 0.90, then 90 % of the data is retained after compression.
+        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if p = 0.90, then
+        90 % of the data is retained after compression.
         
     Outputs
     -------
@@ -98,17 +98,17 @@ def pca(X, p):
 
 def prepare_data(X, p):
     """
-    Before the starting the training stage, you will need to prepare your data, that is, make the PCA, construct the hot
-    encoded classes, adding bias, and so on. This function and the function normalize_data are close since both prepare
-    the data for training.
+    Before the starting the training stage, you will need to prepare your data, that is, make the PCA, construct the one
+    hot encoded classes, adding bias, and so on. This function and the function normalize_data are close since both
+    prepare the data for training.
 
     Inputs
     ------
     X: 2D array
         Train data in 2D array format. Each row correspond to a single sample of the data.
     p: Float
-        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if
-        p = 0.90, then 90 % of the data is retained after compression.
+        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if p = 0.90, then
+        90 % of the data is retained after compression.
         
     Outputs
     -------
@@ -133,7 +133,7 @@ def prepare_data(X, p):
 
 def hot_encoded_target(Y):
     """
-    If the labels are not hot encoded, then this function is mandatory, otherwise we get errors. We are using hot
+    If the labels are not hot encoded, then this function is mandatory, otherwise we get errors. We are using one hot
     encoded outputs of the form [1,0,0,...,0], [0,1,0,...,0], ..., [0,0,...,0,1]. To make the conversion the program
     assumes the classes (the entries of Y) are numbers, from 0 to m-1 (so we have m classes).
 
@@ -163,9 +163,9 @@ def hot_encoded_target(Y):
 
 def norm_pca(X_new, U, mu, sigma):
     """
-    After normalizing and performing pca over the train dataset, we may be interested in making predictions about 
-    some newinputs. In any case, normalizing and compressing in the same way it is necessary in order to get
-    meaningful results.
+    After normalizing and performing pca over the train dataset, we may be interested in making predictions about some
+    new inputs. In any case, normalizing and compressing in the same way it is necessary in order to get meaningful
+    results.
 
     Inputs
     ------
@@ -228,7 +228,6 @@ def init_W(m, L, n, R):
     return W
 
 
-@njit(nogil=True)
 def dot_products(x, W):
     """
     Function to compute all the dot products between an input x and the weights.
@@ -459,7 +458,7 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     Y: 1D array
         Each entry i of Y correspond to the original class of the ith input (ith row of X).
     X_val: 2D array
-        Piece of train dataset used as validation input set. If no validation is intended, set X_val to np.nan.
+        Piece of train dataset used as validation input set. If no validation is intended, set X_val to nan.
     Y_val: 1D array
         Piece of train dataset used as validation target set.
     W: 4D array

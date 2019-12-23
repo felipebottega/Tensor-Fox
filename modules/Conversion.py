@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray, ascontiguousarray
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit
@@ -121,7 +121,7 @@ def sparse2dense(data, idxs, dims):
 
     Outputs
     -------
-    T: L-D array
+    T_dense: L-D array
         Dense representation of the tensor.
     """
 
@@ -153,6 +153,7 @@ def unfold(T, mode):
     Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
+    Tl = ascontiguousarray(Tl)
 
     return Tl
 
@@ -296,9 +297,9 @@ def equalize(factors, R):
 
 def change_sign(factors):
     """
-    After the CPD is computed it may be interesting that each vector of a rank one term is as positive as possible,
-    in the sense that its mean is positive. If two vectors in the same rank one term have negative mean, then we 
-    can multiply both by -1 without changing the tensor. 
+    After the CPD is computed it may be interesting that each vector of a rank one term is as positive as possible, in
+    the sense that its mean is positive. If two vectors in the same rank one term have negative mean, then we can
+    multiply both by -1 without changing the tensor.
     """
     
     L = len(factors)
@@ -320,18 +321,19 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     """
     Depending on the choice of the user, this function can project the entries of the factor matrices in a given 
     interval (this is very useful with we have constraints at out disposal), it can make the corresponding tensor 
-    symmetric or non-negative. It is advisable to transform the tensor so that its entries have mean zero and 
-    variance 1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that it is always 
-    better to choose low and upp such that low = -upp.
-    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over 
-    the factor matrices.
-    The parameter factors_norm forces the factor matrices to always have the same prescribed norm, which is the
-    value factors_norm.
+    symmetric or non-negative. It is advisable to transform the tensor so that its entries have mean zero and variance
+    1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that it is always better to choose
+    low and upp such that low = -upp.
+    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the
+    factor matrices.
+    The parameter factors_norm forces the factor matrices to always have the same prescribed norm, which is the value
+    factors_norm.
     
     Inputs
     ------
     factors: list of 2D arrays
     low, upp: float or 1D arrays
+    factor: float
     symm: bool
     factors_norm: float
         

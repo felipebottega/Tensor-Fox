@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, empty, zeros, ones, int64, float64, arange, sqrt, inf, argmax, array, prod, unravel_index
+from numpy import dot, empty, zeros, ones, int64, arange, sqrt, inf, argmax, array, prod, unravel_index
 from numpy.linalg import norm
 from numpy.random import randn, randint
 import sys
@@ -14,7 +14,6 @@ from numba import njit
 
 # Tensor Fox modules
 import Conversion as cnv
-import GaussNewton as gn
 import MultilinearAlgebra as mlinalg
 
 
@@ -34,7 +33,7 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
     Tsize: float
     S: float array
         The core tensor of the MLSVD of T.
-    U: list of float 2-D arrays
+    U: list of float 2D arrays
         Each element of U is a orthogonal matrix of the MLSVD of T.
     R: int
         the desired rank.
@@ -45,7 +44,7 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
     
     Outputs
     -------
-    init_factors: list of float 2-D arrays
+    init_factors: list of float 2D arrays
     """
 
     # Extract all variable from the class of options.
@@ -97,8 +96,8 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
 def smart_random(S, dims, R):
     """
     This function generates 1 + int(sqrt(prod(dims))) samples of random possible initializations. The closest to S is
-    saved. This method draws R random points in S and generates a tensor with rank <= R from them. The distribution
-    is such that it tries to maximize the energy of the sampled tensor, so the error is minimized.
+    saved. This method draws R random points in S and generates a tensor with rank <= R from them. The distribution is
+    such that it tries to maximize the energy of the sampled tensor, so the error is minimized.
     
     Inputs
     ------
@@ -111,7 +110,7 @@ def smart_random(S, dims, R):
         
     Outputs
     -------
-    best_factors: list of float 2-D arrays
+    best_factors: list of float 2D arrays
     """
 
     # Initialize auxiliary values and arrays.
@@ -139,8 +138,8 @@ def smart_sample(S, dims, R):
     """
     We consider a distribution that gives more probability to smaller coordinates. This is because these are associated 
     with more energy. As example, let S be a third order tensor of dimensions R1, R2, R3. First the program takes a
-    random number c1 in the integer interval [0, R1 + (R1-1) + (R1-2) + ... + 1]. If 0 <= c1 < R1, then it takes
-    i = 1, and if R1 <= c1 < R1 + (R1-1), it takes i = 2, and so on. The same goes for the other coordinates.
+    random number c1 in the integer interval [0, R1 + (R1-1) + (R1-2) + ... + 1]. If 0 <= c1 < R1, then it takes i = 1,
+    and if R1 <= c1 < R1 + (R1-1), it takes i = 2, and so on. The same goes for the other coordinates.
     Let S_{i_r,j_r,k_r}, r = 1...R, be the points chosen by this method. With them we can form the tensor
     S_init = sum_{r=1}^R S_{i_r,j_r,k_r} e_{i_r} ⊗ e_{j_r} ⊗ e_{k_r}, which should be close to S.
     
@@ -152,7 +151,7 @@ def smart_sample(S, dims, R):
     
     Ouputs
     ------
-    init_factors: list of float 2-D arrays
+    init_factors: list of float 2D arrays
     """
 
     L = len(dims)
@@ -213,7 +212,7 @@ def smart(S, dims, R):
             
     Outputs
     -------
-    init_factors: list of float 2-D arrays
+    init_factors: list of float 2D arrays
     """
 
     L = len(dims)

@@ -37,10 +37,9 @@
 import numpy as np
 from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod, float64, ndarray
 from numpy.linalg import norm
-from scipy.sparse import coo_matrix
 import sys
 import time
-import copy as cp
+from copy import deepcopy
 from decimal import Decimal
 import matplotlib.pyplot as plt
 from numba.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning, NumbaPerformanceWarning
@@ -139,7 +138,7 @@ def cpd(T, R, options=False):
     
     Outputs
     -------
-    factors: list of float 2-D arrays with shape (dims[i], R) each
+    factors: list of float 2D arrays with shape (dims[i], R) each
         The factors matrices which corresponds to an approximate CPD for T.
     final_outputs: list of classes
         Each tricpd and bicpd call gives a output class with all sort of information about the computations. The list 
@@ -150,7 +149,9 @@ def cpd(T, R, options=False):
 
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
-        data, idxs, dims_orig = T
+        T_orig = deepcopy(T)
+        T = deepcopy(T_orig)
+        data_orig, idxs_orig, dims_orig = T_orig
     else:
         dims_orig = T.shape
     L = len(dims_orig)
@@ -253,7 +254,7 @@ def cpd(T, R, options=False):
         # Go back to the original dimension ordering.
         factors = aux.unsort_dims(factors, ordering)
 
-        rel_error = crt.sparse_fastnorm(data, idxs, dims_orig, factors)/Tsize
+        rel_error = crt.sparse_fastnorm(data_orig, idxs_orig, dims_orig, factors)/Tsize
 
     num_steps = 0
     for output in outputs:
@@ -344,7 +345,7 @@ def tricpd(T, R, options):
     
     Outputs
     -------
-    factors: list of float 2-D arrays
+    factors: list of float 2D arrays
     output: class
         This class contains all information needed about the computations made. We summarize these information below.
             num_steps: the total number of steps (iterations) the dGN function used at the two runs.
@@ -365,12 +366,14 @@ def tricpd(T, R, options):
 
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
-        dims_orig = T[2]
+        T_orig = deepcopy(T)
+        T = deepcopy(T_orig)
+        dims_orig = T_orig[2]
     else:
+        T_orig = T.copy()
         dims_orig = T.shape
     L = len(dims_orig)    
     init_error = inf
-    T_orig = T.copy()
     
     # Set options.
     initialization = options.initialization
@@ -951,7 +954,7 @@ def foxit(T, R, options=False, bestof=1):
         if outputs.rel_error < best_error:
             best_error = outputs.rel_error
             best_factors = copy(factors)
-            best_outputs = cp.deepcopy(outputs)
+            best_outputs = deepcopy(outputs)
 
     print('Final results')
     print('    Number of steps =', best_outputs.num_steps)

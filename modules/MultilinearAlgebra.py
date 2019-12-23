@@ -108,8 +108,8 @@ def sparse_multilin_mult(U, data, idxs, dims):
     data: float 1-D arrays
         data[i] is the nonzero value of the tensor at index idxs[i, :].
     idxs: int 2-D array
-        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
-        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array of shape (nnz, L) such that
+        idxs[i, :] is the index of the i-th nonzero entry.
     dims: list or tuple
         The dimensions (shape) of the tensor T.
 
@@ -131,8 +131,8 @@ def sparse_multilin_mult(U, data, idxs, dims):
 
 def multirank_approx(T, multi_rank, options):
     """
-    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the core tensor of
-    the MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
+    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the core tensor of the
+    MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
     
     Inputs
     ------
@@ -179,16 +179,16 @@ def kronecker(A, B):
     
     for i in range(a1):
         for j in range(a2):
-            M[i*b1:(i+1)*b1, j*b2:(j+1)*b2] = A[i, j]*B
+            M[i*b1: (i+1)*b1, j*b2: (j+1)*b2] = A[i, j]*B
 
-    return M 
+    return M
 
 
 @njit(nogil=True, parallel=True)
 def khatri_rao(A, B, M):
     """
     Computes the Khatri-Rao product between A and B. We must have M.shape = (a1*b1, a2), where A.shape = (a1, a2) and 
-    B.shape = (b1, b2), with a2 == b2. 
+    B.shape = (b1, b2), with a2 == b2. This function makes the computation of A ⊙ B row by row, starting at the top.
     """
 
     a1, a2 = A.shape
@@ -210,7 +210,7 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
         for j in range(b2):
             M[i*b1 + k, j] = A[i, j]*B[k, j]
 
-    return M[i*b1:(i+1)*b1, :]
+    return M[i*b1: (i+1)*b1, :]
 
 
 @njit(nogil=True)
@@ -407,8 +407,8 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
     is an element of the permutation group S_R.
 
-    Given the rank R, this function tests 'trials' random permutations (not necessarily distinct). We remark that 
-    the forward error is always equal or greater than the backward error.
+    Given the rank R, this function tests 'trials' random permutations (not necessarily distinct). We remark that the
+    forward error is always equal or greater than the backward error.
 
     Inputs
     ------

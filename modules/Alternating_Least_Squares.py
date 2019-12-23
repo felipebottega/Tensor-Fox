@@ -42,13 +42,13 @@ def als(T, factors, R, options):
         current iteration and the previous one.
     gradients: float 1-D array
         Gradient of the error function at each iteration.
-    stop: 0, 1, 2, 3, 4, 5 or 6
+    stop: 0, 1, 2, 3, 4, 5, 6 or 7
         This value indicates why the function stopped. See the function dGN for more details.
     """  
 
     # INITIALIZE RELEVANT VARIABLES 
     
-    # Extract all variable from the class of options.
+    # Extract all relevant variables from the class of options.
     maxiter = options.maxiter
     tol = options.tol
     tol_step = options.tol_step
@@ -220,7 +220,7 @@ def als_iteration(Tl, factors, fix_mode):
             itr.remove(l)
             M = factors[itr[0]]
 
-            # Compute Khatri-Rao products W^(L) ⊙ ... ⊙ W^(l+1) ⊙ W^(l-1) ⊙ ... ⊙ W^(1)..
+            # Compute Khatri-Rao products W^(L) ⊙ ... ⊙ W^(l+1) ⊙ W^(l-1) ⊙ ... ⊙ W^(1).
             for ll in range(L-2):
                 tmp = M
                 dim1, dim2 = tmp.shape[0], dims[itr[ll+1]]

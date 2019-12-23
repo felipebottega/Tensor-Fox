@@ -18,7 +18,7 @@
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, prod, float64, copy
+from numpy import identity, ones, empty, array, prod, float64, copy, sqrt
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
@@ -78,7 +78,8 @@ def mlsvd(T, Tsize, R, options):
             tol_mlsvd = tol_mlsvd[0]
         else:
             tol_mlsvd = tol_mlsvd[1]
-            
+    
+    # T is sparse.        
     if type(T) == list:
         sigmas = []
         U = []
@@ -92,7 +93,7 @@ def mlsvd(T, Tsize, R, options):
 
             # Truncate more based on energy.
             Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
-            sigmas.append(sigma_l)
+            sigmas.append(sqrt(sigma_l))
             U.append(Ul)
 
         # Compute (U_1^T,...,U_L^T)*T = S.

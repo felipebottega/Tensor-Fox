@@ -238,7 +238,7 @@ def make_options(options, L):
         - inner_method is the name of the method used to compute each iteration, the choices are 'cg', 'cg_static',
           'als' and 'direct'.
         - cg_maxiter is the maximum number of iterations for 'cg_static'.
-        - cg_factor is the multiplying factor cg_factor for 'cg'. 
+        - cg_factor is the multiplying factor for the 'cg' method.
         - cg_tol is the tolerance error to stop the iterations of the inner method.
     """
 
@@ -510,7 +510,7 @@ def cpd_cores(G, max_trials, epochs, R, display, options):
     return cpd_list, outputs, best_Z
 
 
-def gen_rand_tensor(dims, R):
+def gen_rand_tensor(dims, R, noise=0):
     """
     This function generates a random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where L is the order
     of T. Each factor matrix of T is a matrix of shape (dims[l], R) with its entries drawn from the standard Gaussian
@@ -524,6 +524,8 @@ def gen_rand_tensor(dims, R):
         The dimensions of the tensor
     R: int
         The rank of the tensor (must satisfy R < min(dims))
+    noise: float
+        Size of the noise added to the original tensor. Default is without noise.
 
     Output
     ------
@@ -540,6 +542,8 @@ def gen_rand_tensor(dims, R):
         M = randn(dims[l], R)
         orig_factors.append(M)
 
-    T = tfx.cnv.cpd2tens(orig_factors) 
+    T = tfx.cnv.cpd2tens(orig_factors)
+    E = noise * randn(*dims)
+    T = T + E
 
     return T, orig_factors

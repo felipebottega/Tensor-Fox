@@ -182,8 +182,7 @@ def rank_progress(X, Y, Z, m, n, R, k=0, greys=True, rgb=False):
         Slice we want to visualize.
     greys: bool
         If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the
-        slices.
-        In this case the parameter 'rgb' should be set to True.
+        slices. In this case the parameter 'rgb' should be set to True.
     rgb: bool
         If True, it will show all the RGB evolution of the slices. False is default.    
     """
@@ -390,9 +389,9 @@ def make_plots(names,
                errors_mean_bad, errors_var_bad, num_bad,
                timings):
     """
-    After the function 'test_tensors' is finished, all data is passed to this function, which makes informative
-    plots with the percentage of successes and failures, plus a plot with the average timings. These two functions
-    combined are a great tool for modelling and hyperparameter grid search.
+    After the function 'test_tensors' is finished, all data is passed to this function, which makes informative plots
+    with the percentage of successes and failures, plus a plot with the average timings. These two functions combined
+    are a great tool for modelling and hyperparameter grid search.
     """    
     
     plt.figure(figsize=[16, 6])
