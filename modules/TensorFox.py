@@ -383,7 +383,7 @@ def tricpd(T, R, options):
     tol_mlsvd = options.tol_mlsvd
     method = options.method
     if type(tol_mlsvd) == list:
-        tol_mlsvd = tol_mlsvd[1]
+        tol_mlsvd = tol_mlsvd[0]
         
     # Change ordering of indexes to improve performance if possible.
     T, ordering = aux.sort_dims(T)
@@ -393,8 +393,11 @@ def tricpd(T, R, options):
         # If T is sparse, we must use the classic method, and tol_mlsvd is set to the default 1e-16 in the case the
         # user requested -1 or 0.
         if tol_mlsvd <= 0:
-            options.tol_mlsvd = 1e-16
             tol_mlsvd = 1e-16
+            if type(tol_mlsvd) == list:
+                options.tol_mlsvd[0] = 1e-16
+            else:
+                options.tol_mlsvd = 1e-16
     else:
         Tsize = norm(T)
         dims = T.shape  

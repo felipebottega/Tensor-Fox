@@ -108,9 +108,8 @@ def mlsvd(T, Tsize, R, options):
             Tl = cnv.sparse_unfold(data, idxs, dims, l+1)
             if l == 0:
                 T1 = Tl.copy()
-            Tl = Tl.dot(Tl.T)
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
-            sigmas[-1] = sqrt(sigmas[-1])
+            mlsvd_method = 'sparse'
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
         new_dims = [U[l].shape[1] for l in range(L)]
@@ -127,7 +126,7 @@ def mlsvd(T, Tsize, R, options):
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = Sl.copy()
-            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigmas[-1]).T
@@ -144,7 +143,7 @@ def mlsvd(T, Tsize, R, options):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = Tl.copy()
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
         UT = [U[l].T for l in range(L)]
@@ -177,15 +176,25 @@ def mlsvd(T, Tsize, R, options):
 
 def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l):
     low_rank = min(R, dims[l])
+
     if gpu:
-        if mlsvd_method == 'gpu':
+        if mlsvd_method == 'gpu' or mlsvd_method == 'sparse':
             tmp = array(dot(Tl, Tl.T), dtype=float32, order='F')
+            Tl_gpu = gpuarray.to_gpu(tmp)
+            Ul, sigma_l, Vlt = rlinalg.rsvd(Tl_gpu, k=low_rank, p=10, q=2, method='standard')
+            sigma_l = sqrt(sigma_l)
         else:
             tmp = array(Tl.T, dtype=float32)
-        Tl_gpu = gpuarray.to_gpu(tmp)
-        Ul, sigma, Vlt = rlinalg.rsvd(Tl_gpu, k=low_rank, p=10, q=2, method='standard')
+            Tl_gpu = gpuarray.to_gpu(tmp)
+            Ul, sigma_l, Vlt = rlinalg.rsvd(Tl_gpu, k=low_rank, p=10, q=2, method='standard')
+
     else:
-        Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+        if mlsvd_method == 'sparse':
+            Tl = Tl.dot(Tl.T)
+            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+            sigma_l = sqrt(sigma_l)
+        else:
+            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
 
     # Truncate more based on energy.
     Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
