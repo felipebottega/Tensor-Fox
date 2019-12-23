@@ -269,6 +269,7 @@ def make_options(options, L):
             self.trials = 3
             self.display = 0
             self.epochs = 1
+            self.gpu = False
 
     temp_options = temp_options()
 
@@ -341,6 +342,8 @@ def make_options(options, L):
         temp_options.display = options.display
     if 'epochs' in dir(options):
         temp_options.epochs = options.epochs
+    if 'gpu' in dir(options):
+        temp_options.gpu = options.gpu
     
     return temp_options
 

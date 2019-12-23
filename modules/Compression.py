@@ -14,6 +14,12 @@
    decomposition, SIAM J. Sci. Comput. 34 (2012), no. 2, A1027-A1052.
    
  - https://en.wikipedia.org/wiki/Higher-order_singular_value_decomposition#Computation
+
+ - N. Halko, P. Martinsson, and J. Tropp. Finding structure with randomness: probabilistic algorithms for constructing
+   approximate matrix decompositions (2009).
+
+ - S. Voronin and P.Martinsson. RSVDPACK: Subroutines for computing partial singular value decompositions via
+   randomized sampling on single core, multi core, and GPU architectures (2015).
 """
 
 # Python modules
@@ -78,6 +84,11 @@ def mlsvd(T, Tsize, R, options):
             tol_mlsvd = tol_mlsvd[0]
         else:
             tol_mlsvd = tol_mlsvd[1]
+    gpu = options.gpu
+    if gpu:
+        import pycuda.gpuarray as gpuarray
+        import pycuda.autoinit
+        from skcuda import linalg, rlinalg
 
     # tol_mlsvd = -1 means no truncation and no compression, that is, the original tensor.
     if tol_mlsvd == -1:
@@ -98,7 +109,7 @@ def mlsvd(T, Tsize, R, options):
             if l == 0:
                 T1 = Tl.copy()
             Tl = Tl.dot(Tl.T)
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
             sigmas[-1] = sqrt(sigmas[-1])
 
         # Compute (U_1^T,...,U_L^T)*T = S.
@@ -116,7 +127,7 @@ def mlsvd(T, Tsize, R, options):
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = Sl.copy()
-            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, tol_mlsvd, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
 
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigmas[-1]).T
@@ -133,7 +144,7 @@ def mlsvd(T, Tsize, R, options):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = Tl.copy()
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
         UT = [U[l].T for l in range(L)]
@@ -164,9 +175,13 @@ def mlsvd(T, Tsize, R, options):
     return S, U, T1, sigmas
 
 
-def compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, L, l):
+def compute_svd(Tl, U, sigmas, dims, R, tol_mlsvd, gpu, L, l):
     low_rank = min(R, dims[l])
-    Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+    if gpu:
+        Tl_gpu = gpuarray.to_gpu(Tl.T)
+        Ul, sigma, Vlt = rlinalg.rsvd(Tl_gpu, k=low_rank, p=10, q=2, method='standard')
+    else:
+        Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
 
     # Truncate more based on energy.
     Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
