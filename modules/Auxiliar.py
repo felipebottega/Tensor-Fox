@@ -344,6 +344,13 @@ def make_options(options, L):
         temp_options.epochs = options.epochs
     if 'gpu' in dir(options):
         temp_options.gpu = options.gpu
+
+    # If gpu is True, the variable mlsvd_method is set to 'gpu', which is a special strategy aiming to minimize the
+    # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the
+    # user wants to use a specific MLSVD method, then the variable mlsvd_method should be passed to the function cpd.
+    # This is only valid for dense tensors. Sparse tensors has its own strategy which isn't affect by mlsvd_method.
+    if (temp_options.gpu) and ('mlsvd_method' not in dir(options)):
+        temp_options.mlsvd_method = 'gpu'
     
     return temp_options
 
