@@ -539,8 +539,10 @@ def gen_rand_tensor(dims, R, noise=0):
 
     Output
     ------
-    T: float array with L dimensions
-        The tensor in coordinate format
+    T: float L-D array 
+        The tensor in coordinate format.
+    T_noise: float L-D array 
+        Noisy tensor in coordinate format.
     orig_factors: list
         List of the factor matrices of T. We have that orig_factors[l] = W[l], as described above.
     """
@@ -553,7 +555,11 @@ def gen_rand_tensor(dims, R, noise=0):
         orig_factors.append(M)
 
     T = tfx.cnv.cpd2tens(orig_factors)
-    E = noise * randn(*dims)
-    T = T + E
-
-    return T, orig_factors
+    
+    if noise != 0:
+        E = noise * randn(*dims)
+        T_noise = T + E
+        return T, T_noise, orig_factors
+    
+    else:
+        return T, orig_factors

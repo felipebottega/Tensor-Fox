@@ -35,7 +35,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, copy, dot, empty, array, nanargmin, log10, arange, prod, float64, ndarray
+from numpy import inf, dot, empty, array, nanargmin, log10, arange, prod, ndarray
 from numpy.linalg import norm
 import sys
 import time
@@ -370,7 +370,6 @@ def tricpd(T, R, options):
         T = deepcopy(T_orig)
         dims_orig = T_orig[2]
     else:
-        T_orig = T.copy()
         dims_orig = T.shape
     L = len(dims_orig)    
     init_error = inf
@@ -956,7 +955,7 @@ def foxit(T, R, options=False, bestof=1):
         factors, outputs = cpd(T, R, options)
         if outputs.rel_error < best_error:
             best_error = outputs.rel_error
-            best_factors = copy(factors)
+            best_factors = deepcopy(factors)
             best_outputs = deepcopy(outputs)
 
     print('Final results')

@@ -64,7 +64,10 @@ def mlsvd(T, Tsize, R, options):
         List with truncated arrays of the original sigmas.
     """
 
-    # INITIALIZE RELEVANT VARIABLES.    
+    # INITIALIZE RELEVANT VARIABLES.
+
+    sigmas = []
+    U = []
     
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
@@ -102,12 +105,10 @@ def mlsvd(T, Tsize, R, options):
     
     # T is sparse.        
     elif type(T) == list:
-        sigmas = []
-        U = []
         for l in range(L):
             Tl = cnv.sparse_unfold(data, idxs, dims, l+1)
             if l == 0:
-                T1 = Tl.copy()
+                T1 = cnv.sparse_unfold(data, idxs, dims, l+1)
             mlsvd_method = 'sparse'
             U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
@@ -118,31 +119,26 @@ def mlsvd(T, Tsize, R, options):
 
     # Compute MLSVD base on sequentially truncated method.
     elif mlsvd_method == 'seq':
-        sigmas = []
-        U = []
         S_dims = copy(dims)
-        S = copy(T)
+        S = T
         for l in range(L):
             Sl = cnv.unfold(S, l+1)
             if l == 0:
-                T1 = Sl.copy()
+                T1 = cnv.unfold_C(S, l+1)
             U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigmas[-1]).T
             S_dims[l] = dim
-            S = empty(S_dims, float64)
+            S = empty(S_dims, dtype=float64)
             S = cnv.foldback(S, Sl, l+1)
 
     # Compute MLSVD based on classic method.
     elif mlsvd_method == 'classic':
-        sigmas = []
-        U = []
-        T1 = empty((dims[0], prod(dims) // dims[0]), dtype=float64)
         for l in range(L):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
-                T1 = Tl.copy()
+                T1 = cnv.unfold_C(S, l+1)
             U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
@@ -271,7 +267,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
     for l in range(L):
         Tl = cnv.unfold(T, l+1)
         if l == 0:
-            T1 = copy(Tl)
+            T1 = cnv.unfold_C(T, l+1)
         low_rank = min(dims[l], max_trunc_dims[l])
         Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=n_iter, power_iteration_normalizer=power_iteration_normalizer)
         sigmas.append(sigma_l)

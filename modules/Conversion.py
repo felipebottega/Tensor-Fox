@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray, ascontiguousarray
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit
@@ -144,16 +144,39 @@ def unfold(T, mode):
         
     Outputs
     -------
-    Tl: 2-D array
+    Tl: 2-D array with Fortran order
         The requested unfolding of T.
     """
  
     dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
+    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')  
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
-    Tl = ascontiguousarray(Tl)
+
+    return Tl
+
+
+def unfold_C(T, mode):
+    """
+    Computes any unfolding of a tensor up to order L = 12. 
+    
+    Inputs
+    ------
+    T: float L-D array
+       The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: 2-D array with C order
+        The requested unfolding of T.
+    """
+ 
+    dims = T.shape
+    L = len(dims)
+    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]))    
+    func_name = "unfold" + str(mode) + "_order" + str(L)
+    Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
     return Tl
 

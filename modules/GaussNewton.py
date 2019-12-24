@@ -130,7 +130,7 @@ def dGN(T, factors, R, init_error, options):
     data = prepare_data(dims, R)
 
     # Compute unfoldings.
-    Tl = [cnv.unfold(T, l+1) for l in range(L)]
+    Tl = [cnv.unfold_C(T, l+1) for l in range(L)]
     T1_approx = zeros(Tl[0].shape, dtype=float64)
 
     if display > 1:
