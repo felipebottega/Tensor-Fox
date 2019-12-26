@@ -939,7 +939,10 @@ def foxit(T, R, options=False, bestof=1):
     """
 
     best_error = inf
-    dims = array(T.shape)
+    if type(T) == list:
+        data, idxs, dims = T
+    else:
+        dims = T.shape
     L = len(dims)
     options = aux.make_options(options, L)
 
