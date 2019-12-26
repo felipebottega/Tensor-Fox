@@ -783,9 +783,8 @@ def rank(T, options=False, plot=True, trials=3):
         # Difference between errors small enough.
         if r > Rmin:
             if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
-                final_rank = min(error_per_rank[1:r])
-                final_idx = nanargmin(error_per_rank[1:r])
-                final_error = error_per_rank[final_idx]
+                final_rank = nanargmin(error_per_rank[1:r])+1
+                final_error = error_per_rank[final_rank-1]
                 break
         # Error decreased orders of magnitude abruptly.
         if r > 2:
