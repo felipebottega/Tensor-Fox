@@ -49,7 +49,7 @@ def mlsvd(T, Tsize, R, options):
     Tsize: float
         Frobenius norm of T.
     R: int
-        The desired rank of the approximating tensor.
+        An upper bound for the multilinear rank of T. Normally one will use the rank of T.
     options: class with the parameters previously defined.
 
     Outputs
