@@ -401,17 +401,14 @@ def rank1(X, Y, Z, m, n, R, k):
     return rank1_slices
 
 
-def forward_error(orig_factors, approx_factors, trials=1000):
+def forward_error(orig_factors, approx_factors):
     """
     Let T = T_1 + T_2 + ... + T_R be the decomposition of T as sum of rank-1 terms and let
     T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly
     T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely
-    without changing the tensor. While |T - T_approx| is the backward error of the CPD computation problem, we have that
-    min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
-    is an element of the permutation group S_R.
-
-    Given the rank R, this function tests 'trials' random permutations (not necessarily distinct). We remark that the
-    forward error is always equal or greater than the backward error.
+    without changing the tensor. While |cpd2tens(T) - cpd2tens(T_approx)| is the backward error of the CPD computation 
+    problem, we have that min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of 
+    the problem, where s is an element of the permutation group S_R.
 
     Inputs
     ------
@@ -419,8 +416,6 @@ def forward_error(orig_factors, approx_factors, trials=1000):
         The elements of the list are the factor matrices of the original tensor.
     approx_factors: list of arrays
         The elements of the list are the factor matrices of the approximated tensor.
-    trials: int
-        Number of of trials before stopping testing permutation. Default is 1000.
 
     Outputs
     -------
@@ -434,11 +429,10 @@ def forward_error(orig_factors, approx_factors, trials=1000):
 
     R = orig_factors[0].shape[1]
     L = len(orig_factors)
-    best_error = inf
     orig_rank1 = rank1_terms_list(orig_factors)
     approx_rank1 = rank1_terms_list(approx_factors)
 
-    best_forward_error, s = search_forward_error(tuple(orig_rank1), tuple(approx_rank1), R, best_error, trials)
+    best_forward_error, s = search_forward_error(tuple(orig_rank1), tuple(approx_rank1), R)
 
     # Rearrange approx_factors with the best permutation found.
     new_factors = [approx_factors[l][:, s] for l in range(L)]
@@ -446,24 +440,22 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     return best_forward_error, new_factors, s
 
 
-@njit(nogil=True)
-def search_forward_error(orig_rank1, approx_rank1, R, best_error, trials):
+def search_forward_error(orig_rank1, approx_rank1, R):
     """
     Auxiliary function for the function forward_error.
     """
-
-    # Create list with rank 1 flattened terms of original tensor.
-    orig_rank1_flat = [orig_rank1[r].ravel() for r in range(R)]
-
-    # Start the search for the best rank-1 permutation.
-    for i in range(trials):
-        s = permutation(arange(R))
-        f_error = 0
-        for r in range(R):
-            f_error += norm(orig_rank1_flat[r] - approx_rank1[s[r]].ravel())**2
-        f_error = sqrt(f_error)
-        if f_error < best_error:
-            best_error = f_error
-            best_s = s.copy()
+    
+    best_error = 0
+    best_s = arange(R)
+    idx = []
+    for r in range(R):
+        f_error = inf
+        for rr in range(len(approx_rank1)):
+            if (rr not in idx) and (norm(orig_rank1[r] - approx_rank1[rr]) < f_error):
+                best_s[r] = rr
+                f_error = norm(orig_rank1[r] - approx_rank1[rr])
+        idx.append(best_s[r])
+        best_error += f_error**2
+    best_error = sqrt(best_error)
 
     return best_error, best_s
