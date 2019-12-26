@@ -321,10 +321,12 @@ def compute_error(T, Tsize, S1, U, dims):
 
     # T is sparse.
     if type(T) == list:
+        S = S1
+        L = len(U)
+        UT = [U[l].T for l in range(L)]
         data, idxs, Tdims = T
-        T_dense = cnv.sparse2dense(data, idxs, Tdims)
-        T_compress = multilin_mult(U, S1, dims)
-        error = norm(T_dense - T_compress) / Tsize
+        T_compress = sparse_multilin_mult(UT, data, idxs, Tdims)
+        error = norm(T_compress - S) / Tsize
     # T is dense.
     else:
         T_compress = multilin_mult(U, S1, dims)

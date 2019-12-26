@@ -84,10 +84,12 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
         init_factors = cnv.transform(init_factors, low, upp, factor, symm, c)
 
     if display > 2 or display < -1:
-        # Computation of relative error associated with the starting point given.
         S_init = cnv.cpd2tens(init_factors)
-        S1_init = cnv.unfold(S_init, 1)
-        rel_error = mlinalg.compute_error(T, Tsize, S1_init, U, dims)
+        if type(T) == list:
+            rel_error = mlinalg.compute_error(T, Tsize, S_init, U, dims)
+        else:
+            S1_init = cnv.unfold(S_init, 1)
+            rel_error = mlinalg.compute_error(T, Tsize, S1_init, U, dims)
         return init_factors, rel_error
 
     return init_factors
