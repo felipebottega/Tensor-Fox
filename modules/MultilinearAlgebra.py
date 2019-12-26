@@ -316,7 +316,8 @@ def khatri_rao_factors(factors):
 
 def compute_error(T, Tsize, S1, U, dims):
     """
-    Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S.
+    Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S. In the case T is sparse, we 
+    should pass S instead of the unfolding S1.
     """
 
     # T is sparse.
