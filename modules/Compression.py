@@ -145,11 +145,6 @@ def mlsvd(T, Tsize, R, options):
         UT = [U[l].T for l in range(L)]
         S = mlinalg.multilin_mult(UT, T1, dims)
 
-    # tol_mlsvd = 0 means to not truncate the compression, we use the core tensor if the MLSVD without truncating it.
-    if tol_mlsvd == 0:
-        UT = [U[l].T for l in range(L)]
-        S = mlinalg.multilin_mult(UT, T1, dims)
-
     # Specific truncation is given by the user.
     if type(trunc_dims) == list:
         slices = []

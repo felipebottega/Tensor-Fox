@@ -86,10 +86,8 @@ def cpd(T, R, options=False):
                 4) | grad F(w^(k)) | < tol_grad, where F(w^(k)) = 1/2 |T - T^(k)|^2
         tol_mlsvd: float
             Tolerance criterion for the truncation. The idea is to obtain a truncation (U_1,...,U_L)*S such that
-            |T - (U_1,...,U_L)*S| / |T| < tol_mlsvd. Default is 1e-16. There are also two special cases:
-                1) tol_mlsvd = 0: compress the tensor (that is, compute its MLSVD) but do not truncate the central
-                tensor of the MLSVD.
-                2) tol_mlsvd = -1: use the original tensor, so the computation of the MLSVD is not performed.
+            |T - (U_1,...,U_L)*S| / |T| < tol_mlsvd. Default is 1e-16. If tol_mlsvd = -1 the program uses the original 
+        tensor, so the computation of the MLSVD is not performed.
         trunc_dims: int or list of ints
             Consider a third order tensor T. If trunc_dims is not 0, then it should be a list with three integers
             [R1,R2,R3] such that 1 <= R1 <= m, 1 <= R2 <= n, 1 <= R3 <= p. The compressed tensor will have dimensions
@@ -202,10 +200,7 @@ def cpd(T, R, options=False):
         S, U, T1, sigmas = cmpr.mlsvd(T, Tsize, R, options)
 
     if display != 0:
-        if tol_mlsvd == 0:
-            print('    Compression without truncation requested by user')
-            print('    Compressing from', dims, 'to', S.shape)
-        elif prod(array(S.shape) == array(dims)):
+        if prod(array(S.shape) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', dims) 
@@ -423,10 +418,7 @@ def tricpd(T, R, options):
         U = [U[l][:, :R_min] for l in range(L)]
           
     if display > 0:
-        if tol_mlsvd == 0:
-            print('    Compression without truncation requested by user')
-            print('    Compressing from', dims, 'to', S.shape)
-        elif dims_cmpr == dims:
+        if dims_cmpr == dims:
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', dims) 
@@ -606,10 +598,7 @@ def bicpd(T, R, fixed_factor, options):
         U1, U2, U3 = U1[:, :R_min], U2[:, :R_min], U3[:, :R_min]
           
     if display > 0:
-        if tol_mlsvd == 0:
-            print('    Compression without truncation requested by user')
-            print('    Compressing from', T.shape, 'to', S.shape)  
-        elif (R1, R2, R3) == (m, n, p):
+        if (R1, R2, R3) == (m, n, p):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
                 print('    Working with dimensions', T.shape) 
