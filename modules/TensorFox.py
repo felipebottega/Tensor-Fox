@@ -806,13 +806,17 @@ def rank(T, options=False, plot=True, trials=3):
     print('|T - T_approx|/|T| =', final_error)
     
     if plot:
+        plt.figure(figsize=[14, 4])
         plt.plot(range(1, r+1), error_per_rank, color='blue')
         plt.plot(range(1, r+1), error_per_rank, 's', color='blue')
         plt.plot(final_rank, final_error, marker='s', color='red')
         plt.xlabel('Rank')
         plt.ylabel('Relative error')
         plt.yscale('log')
-        plt.xticks(range(1, r+1))
+        if r > 20:
+            plt.xticks(range(1, r+1, int((r+1)/20)))
+        else:
+            plt.xticks(range(1, r+1))
         plt.grid()
         plt.show()
             
