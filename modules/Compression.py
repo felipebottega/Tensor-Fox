@@ -138,7 +138,7 @@ def mlsvd(T, Tsize, R, options):
         for l in range(L):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
-                T1 = cnv.unfold_C(S, l+1)
+                T1 = cnv.unfold_C(T, l+1)
             U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
