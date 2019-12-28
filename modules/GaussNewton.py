@@ -26,7 +26,7 @@ import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-def dGN(T, factors, R, init_error, options):
+def dGN(T, factors, R, options):
     """
     This function uses the Damped Gauss-Newton method to compute an approximation of T with rank R. A starting point to
     initiate the iterations must be given. This point is given by the parameter factors.
@@ -40,8 +40,6 @@ def dGN(T, factors, R, init_error, options):
         The factor matrices used as starting point.
     R: int
         The desired rank of the approximating tensor.
-    init_error: float
-        Relative error of the initial approximation.
     options: class
         Class with the options. See the Auxiliar module documentation for more information.
 
@@ -108,7 +106,7 @@ def dGN(T, factors, R, init_error, options):
     dims = T.shape
     Tsize = norm(T)
     error = 1
-    best_error = init_error
+    best_error = inf
     stop = 5
     if type(init_damp) == list:
         damp = init_damp[0]

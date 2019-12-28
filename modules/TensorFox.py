@@ -366,8 +366,7 @@ def tricpd(T, R, options):
         dims_orig = T_orig[2]
     else:
         dims_orig = T.shape
-    L = len(dims_orig)    
-    init_error = inf
+    L = len(dims_orig) 
     
     # Set options.
     initialization = options.initialization
@@ -460,15 +459,13 @@ def tricpd(T, R, options):
             als.als(S, init_factors, R, options)
     else:
         factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
-            gn.dGN(S, init_factors, R, init_error, options)
+            gn.dGN(S, init_factors, R, options)
 
     # Use the orthogonal transformations to work in the original space.
     for l in range(L):
         factors[l] = dot(U[l], factors[l])
     
     # REFINEMENT STAGE
-
-    init_error = errors_main[-1]
 
     # If T is sparse, no refinement is made.
     if type(T) == list:
@@ -495,7 +492,7 @@ def tricpd(T, R, options):
                 als.als(T, factors, R, options)
         else:
             factors, step_sizes_refine, errors_refine, improv_refine, gradients_refine, stop_refine = \
-                gn.dGN(T, factors, R, init_error, options)
+                gn.dGN(T, factors, R, options)
 
     else:
         step_sizes_refine = array([0])
@@ -571,7 +568,6 @@ def bicpd(T, R, fixed_factor, options):
     m, n, p = T.shape
     Tsize = norm(T)
     ordering = [0, 1, 2]
-    init_error = inf
                            
     # Test consistency of dimensions and rank.
     aux.consistency(R, (m, n, p), options)
@@ -659,7 +655,7 @@ def bicpd(T, R, fixed_factor, options):
             als.als(S, [X, Y, Z], R, options)
     else:
         factors, step_sizes_main, errors_main, improv_main, gradients_main, stop_main = \
-            gn.dGN(S, [X, Y, Z], R, init_error, options)
+            gn.dGN(S, [X, Y, Z], R, options)
     X, Y, Z = factors
  
     # FINAL WORKS
