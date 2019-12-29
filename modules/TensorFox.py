@@ -811,7 +811,7 @@ def rank(T, options=False, plot=True, trials=3):
         plt.grid()
         plt.show()
             
-    return final_rank, error_per_rank
+    return int(final_rank), error_per_rank
 
 
 def stats(T, R, options=False, num_samples=100):
