@@ -307,8 +307,6 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
             if error > tol_jump * old_error:
                 x = x - y
                 factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, error, inner_parameters)
-            elif tol_jump == 0:
-                factors, x, y, error = compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, error, inner_parameters)
 
     if inner_method == 'als':
         return T1_approx, factors, x, y, [nan], '-', Tsize*error, error
