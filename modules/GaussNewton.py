@@ -113,6 +113,13 @@ def dGN(T, factors, R, options):
     else:
         damp = init_damp * mean(np.abs(T))
     const = 1 + int(maxiter / 10)
+    
+    # The program is encouraged to make more iterations for small problems. 
+    if R * sum(dims) <= 100: 
+        tol = 0
+        tol_step = 0
+        tol_improv = 0
+        tol_grad = 0
 
     # INITIALIZE RELEVANT ARRAYS
 
@@ -317,7 +324,11 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     L = len(factors)
     R = factors[0].shape[1]
     dims = array([factors[l].shape[0] for l in range(L)])
-    maxiter = min(maxiter, R * sum(dims))
+    # The program is encouraged to make more CG iterations for small problems. 
+    if R * sum(dims) > 100: 
+        maxiter = min(maxiter, R * sum(dims))
+    else:
+        tol = 0
 
     # Give names to the arrays.
     Gr, P1, P2, A, B, P_VT_W, result, result_tmp, Gamma, gamma, sum_dims, M, residual_cg, P, Q, z, g, JT_J_grad, N, gg = data
