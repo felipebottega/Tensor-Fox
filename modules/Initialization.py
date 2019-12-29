@@ -49,7 +49,6 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
 
     # Extract all variable from the class of options.
     initialization = options.initialization
-    low, upp, factor = options.constraints
     c = options.factors_norm
     symm = options.symm
     display = options.display
@@ -81,7 +80,7 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
         init_factors = cnv.equalize(init_factors, R)
 
         # Apply additional transformations if requested.
-        init_factors = cnv.transform(init_factors, low, upp, factor, symm, c)
+        init_factors = cnv.transform(init_factors, symm, c)
 
     if display > 2 or display < -1:
         S_init = cnv.cpd2tens(init_factors)

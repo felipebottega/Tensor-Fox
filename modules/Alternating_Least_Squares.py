@@ -56,7 +56,6 @@ def als(T, factors, R, options):
     tol_grad = options.tol_grad
     symm = options.symm
     display = options.display
-    low, upp, factor = options.constraints
     factors_norm = options.factors_norm
 
     # Verify if some factor should be fixed or not. This only happens when the bicpd function was called.
@@ -117,7 +116,7 @@ def als(T, factors, R, options):
         x = concatenate([factors[l].flatten('F') for l in range(L)])
                                      
         # Transform factors.
-        factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+        factors = cnv.transform(factors, symm, factors_norm)
         # Some mode may be fixed when the bicpd is called.
         if L == 3:
             for l in range(L):

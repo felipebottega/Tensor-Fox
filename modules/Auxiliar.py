@@ -264,7 +264,6 @@ def make_options(options, L):
             self.init_damp = 1
             self.refine = False
             self.symm = False
-            self.constraints = [0, 0, 0]
             self.factors_norm = 0
             self.trials = 3
             self.display = 0
@@ -328,12 +327,6 @@ def make_options(options, L):
         temp_options.refine = options.refine
     if 'symm' in dir(options):
         temp_options.symm = options.symm
-    if 'low' in dir(options):
-        temp_options.constraints[0] = options.low
-    if 'upp' in dir(options):
-        temp_options.constraints[1] = options.upp
-    if 'factor' in dir(options):
-        temp_options.constraints[2] = options.factor
     if 'factors_norm' in dir(options):
         temp_options.factors_norm = options.factors_norm
     if 'trials' in dir(options):

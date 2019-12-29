@@ -85,7 +85,6 @@ def dGN(T, factors, R, options):
     tol_jump = options.tol_jump
     symm = options.symm
     display = options.display
-    low, upp, factor = options.constraints
     factors_norm = options.factors_norm
     inner_method = options.inner_method 
     cg_maxiter = options.cg_maxiter 
@@ -167,8 +166,7 @@ def dGN(T, factors, R, options):
 
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
         # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
-        inner_parameters = \
-            damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode
+        inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, symm, factors_norm, fix_mode
         T1_approx, factors, x, y, grad, itn, residualnorm, error = \
             compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error)
 
@@ -260,7 +258,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     # Initialize first variables.
     L = len(factors)
-    damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+    damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, symm, factors_norm, fix_mode = inner_parameters
     if type(inner_method) == list:
         inner_method = inner_method[it]
 
@@ -288,7 +286,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
 
     # Balance and transform factors.
     factors = cnv.x2cpd(x, factors)
-    factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+    factors = cnv.transform(factors, symm, factors_norm)
 
     # Some mode may be fixed when the bicpd is called.
     if L == 3:
@@ -729,7 +727,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, e
         old_x = x
         old_y = y
         old_error = error
-        damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, low, upp, factor, symm, factors_norm, fix_mode = inner_parameters
+        damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, symm, factors_norm, fix_mode = inner_parameters
         
         # Apply dog leg method.
         y = dogleg(y, grad, JT_J_grad, delta)
@@ -739,7 +737,7 @@ def compute_dogleg_steps(Tsize, Tl, T1_approx, factors, grad, JT_J_grad, x, y, e
 
         # Balance and transform factors.
         factors = cnv.x2cpd(x, factors, eq=False)
-        factors = cnv.transform(factors, low, upp, factor, symm, factors_norm)
+        factors = cnv.transform(factors, symm, factors_norm)
 
         # Compute error.
         T1_approx = cnv.cpd2unfold1(T1_approx, factors)

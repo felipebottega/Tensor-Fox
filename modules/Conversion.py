@@ -340,13 +340,8 @@ def change_sign(factors):
     return factors
 
 
-def transform(factors, low, upp, factor, symm, factors_norm):
+def transform(factors, symm, factors_norm):
     """
-    Depending on the choice of the user, this function can project the entries of the factor matrices in a given 
-    interval (this is very useful with we have constraints at out disposal), it can make the corresponding tensor 
-    symmetric or non-negative. It is advisable to transform the tensor so that its entries have mean zero and variance
-    1, this way choosing low=-1 and upp=1 works the best way possible. We also remark that it is always better to choose
-    low and upp such that low = -upp.
     The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the
     factor matrices.
     The parameter factors_norm forces the factor matrices to always have the same prescribed norm, which is the value
@@ -355,8 +350,6 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     Inputs
     ------
     factors: list of 2D arrays
-    low, upp: float or 1D arrays
-    factor: float
     symm: bool
     factors_norm: float
         
@@ -366,18 +359,6 @@ def transform(factors, low, upp, factor, symm, factors_norm):
     """ 
 
     L = len(factors)
-
-    if low != 0 or upp != 0:
-        if type(low) != ndarray:
-            low = array([low for l in range(L)])
-        if type(upp) != ndarray:
-            upp = array([upp for l in range(L)])
-
-        eps = 0.02
-        for l in range(L):
-            B = log((upp[l] - low[l]) / eps - 1) / (factor * (upp[l] - low[l]) / 2 - eps)
-            A = -B * (low[l] + upp[l]) / 2
-            factors[l] = low[l] + (upp[l] - low[l]) * 1/( 1 + exp(-A-B*factors[l]) )
         
     if symm:
         s = factors[0]

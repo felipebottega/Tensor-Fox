@@ -101,10 +101,6 @@ def cpd(T, R, options=False):
         symm: bool
             The user should set symm to True if the objective tensor is symmetric, otherwise symm is False. Default is
             False.
-        low, upp, factor: floats
-            These values sets constraints to the entries of the tensor. Default for all of them is 0, which means no 
-            restriction. The parameter factor is auxiliar and influences how tight are the projections into the 
-            interval [low, upp]. These parameters are experimental.
         trials: int
             This parameter is only used for tensor with order higher than 3. The computation of the tensor train CPD 
             requires the computation of several CPD of third order tensors. If only one of these CPD's is of low 
