@@ -768,7 +768,7 @@ def rank(T, options=False, plot=True, trials=3):
         # STOPPING CONDITIONS
         
         # Error small enough.
-        if best_error < 1e-4:
+        if best_error < 1e-14:
             final_rank = r
             final_error = error_per_rank[r-1]
             break
