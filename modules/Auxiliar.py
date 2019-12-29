@@ -246,7 +246,7 @@ def make_options(options, L):
     class temp_options:
         def __init__(self):
             self.maxiter = 200  
-            self.tol = 1e-6
+            self.tol = 1e-16
             self.tol_step = 1e-6
             self.tol_improv = 1e-6
             self.tol_grad = 1e-6
