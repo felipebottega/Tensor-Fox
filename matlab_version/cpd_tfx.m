@@ -1,4 +1,4 @@
-function [factors, output] = cp_tfx(T, R, options, load_results)
+function [factors, T_approx, output] = cp_tfx(T, R, options, load_results)
     % Matlab wrapper for the CP decomposition function of Tensor Fox.
     % By default this function assumes that the user will pass the tensor as an array without saving it to the disk 
     % manually. If the tensor originally comes from a file, you should pass T as a string with the filename where the 
@@ -82,6 +82,8 @@ function [factors, output] = cp_tfx(T, R, options, load_results)
     % ---------------------------------
     % factors: ktensor
     %     Each array factors{i} correspond to the i-th factor matrix of the approximated CPD of T.
+    % T_approx: array
+    %     Approximated tensor in coordinate format.
     % output: structure
     %     Structure with all relevant information obtained during the computation of the CPD.
     %
@@ -105,13 +107,16 @@ function [factors, output] = cp_tfx(T, R, options, load_results)
         T = double(T);
     end
 
-    % Get path to tensorfox. It will be something like path_tfx = '/home/usr/Documents/tensor_toolbox-v3.1/tensorfox/'.
-    path_tfx = which('dummy.m');
-    path_tfx = path_tfx(1:length(path_tfx)-7);
-
-    % Get path to Python file. It will be something like path_tfx = '/home/usr/Documents/tensor_toolbox-v3.1/cpd_tfx.py'. 
-    cpd_tfx_path = path_tfx(1:length(path_tfx)-10);
-    cpd_tfx_path = cpd_tfx_path + "cpd_tfx.py";
+    % Get path to tensorfox folder and file.
+    % I will be something like path_cp_tfx = "/home/usr/Documents/tensor_toolbox-v3.1/cp_tfx.py".
+    % We also have path_tfx = "/home/usr/Documents/tensor_toolbox-v3.1/tensorfox".
+    path_cp_tfx = mfilename('fullpath');
+    % Remove the "cp_tfx" from the string.
+    path_tfx = path_cp_tfx(1:length(path_cp_tfx)-7);
+    % Add "tensorfox" to the end of the string;
+    path_tfx = path_tfx + "tensorfox";
+    % Get path to Python file "cp_tfx.py". 
+    path_cp_tfx = path_cp_tfx + ".py";
 
     % Get path of the current workspace.
     path_ws = pwd;
@@ -138,9 +143,9 @@ function [factors, output] = cp_tfx(T, R, options, load_results)
     % command_line = "!conda activate base";
     % eval(command_line)
     if load_results
-        command_line = "!python " + cpd_tfx_path + " " + tensor_path + " " + num2str(R) + " " + options_path + " 1 " + path_tfx;
+        command_line = "!python " + path_cp_tfx + " " + tensor_path + " " + num2str(R) + " " + options_path + " 1 " + path_tfx;
     else
-        command_line = "!python " + cpd_tfx_path + " " + tensor_path + " " + num2str(R) + " " + options_path + " 0 " + path_tfx;
+        command_line = "!python " + path_cp_tfx + " " + tensor_path + " " + num2str(R) + " " + options_path + " 0 " + path_tfx;
     end
     eval(command_line)
     fprintf(repmat('\b',1,4));
@@ -159,6 +164,13 @@ function [factors, output] = cp_tfx(T, R, options, load_results)
             factors{i} = factors_struct.(fn{l});
             i = i+1;
         end
+        factors = ktensor(factors);
+        % Arrange the final tensor so that the columns are normalized.
+        factors = arrange(factors);
+        % Fix the signs
+        factors = fixsigns(factors);
+        % Coordinate approximate tensor. 
+        T_approx = double(factors);
         % Output structure.
         path_output = fullfile(path_ws, 'outputs', 'output.mat');
         output = load(path_output);

@@ -88,8 +88,11 @@ with open(tensor_paths) as f:
 tensor_list = [x.strip() for x in tensor_list]
 
 with open(ranks_path) as f:
-    rank_list = f.readlines()
-rank_list = [x.strip() for x in rank_list]
+    rank_list_txt = f.readlines()[0]
+    rank_list_txt = rank_list_txt.split('\n')[0]
+    with open(rank_list_txt) as ff:
+        rank_list = ff.readlines()
+    rank_list = [x.strip() for x in rank_list]
 
 with open(options_paths) as f:
     options_list = f.readlines()
