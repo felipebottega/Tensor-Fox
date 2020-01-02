@@ -96,7 +96,7 @@ def infotens(T):
     class options:
         display = 3
 
-    options = aux.make_options(options)
+    options = aux.make_options(options, L)
     print('Computing multilinear rank...')
     print('------------------------------------')
     S, U, UT, sigmas, rel_error = cmpr.mlsvd(T, Tsize, R_gen, options)
@@ -120,8 +120,8 @@ def rank1_plot(X, Y, Z, m, n, R, k=0, num_rows=5, num_cols=5, greys=True, rgb=Fa
 
     Inputs
     ------
-    X, Y, Z: float ndarray
-        Their are the CPD of some tensor.
+    X, Y, Z: 2-D arrays
+        Their are the CPD of some third order tensor.
     m, n, R: int
     k: int
         Slice we want to visualize.
@@ -175,15 +175,14 @@ def rank_progress(X, Y, Z, m, n, R, k=0, greys=True, rgb=False):
 
     Inputs
     ------
-    X, Y, Z: float ndarrays
-        Their are the CPD of some tensor.
+    X, Y, Z: 2-D arrays
+        Their are the CPD of some third order tensor.
     m, n, p, R: int
     k: int
         Slice we want to visualize.
     greys: bool
         If True (default), it will show all slices in gray scale. Otherwise it will show the RGB evolution of the
-        slices.
-        In this case the parameter 'rgb' should be set to True.
+        slices. In this case the parameter 'rgb' should be set to True.
     rgb: bool
         If True, it will show all the RGB evolution of the slices. False is default.    
     """
@@ -241,7 +240,7 @@ def test_tensors(tensors_list, options_list, trials, display):
         - 'name' is any name for the tensor  
         ' T is the tensor itself 
         - R is the rank
-        - thr is a threshold for the relative error to be considered a successif smaller than thr. 
+        - thr is a threshold for the relative error to be considered a success if smaller than thr.
     In the case we are working with noise, then T_noise is the noisy tensor. The CPD will be computed for T_noise but 
     the error will be computed for T.
     Each element of 'options_list' is a class of options to use in the respective CPD computation of the corresponding
@@ -261,7 +260,8 @@ def test_tensors(tensors_list, options_list, trials, display):
     names = []
 
     i = 0
-    df = pd.DataFrame(columns=['Tensor name',
+    df = pd.DataFrame(columns=['Name',
+                               'Method',
                                'Maxiter',
                                'Tol error',
                                'Tol step size',
@@ -294,13 +294,15 @@ def test_tensors(tensors_list, options_list, trials, display):
         options = options_list[i]
             
         start = time.time()
+
         for t in range(trials):
             if len(element) == 4:
-                factors, T_approx, output = tfx.cpd(T, R, options)
-                errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+                factors, output = tfx.cpd(T, R, options) 
             else:
-                factors, T_approx, output = tfx.cpd(T_noise, R, options)
-                errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+                factors, output = tfx.cpd(T_noise, R, options)
+            T_approx = tfx.cnv.cpd2tens(factors)
+            errors_per_tensor[t] = np.linalg.norm(T - T_approx)/Tsize  
+
         end = time.time()
         timings[i] = (end - start)/trials
     
@@ -332,29 +334,29 @@ def test_tensors(tensors_list, options_list, trials, display):
             num_good[i] = trials
             num_bad_print = 0
    
+        method = output.options.method
         maxiter = output.options.maxiter
         tol = output.options.tol
         tol_step = output.options.tol_step
         tol_improv = output.options.tol_improv
         tol_grad = output.options.tol_grad
         init = output.options.initialization
+        if type(init) == list:
+            init = 'user'
         if output.options.method == 'als' or output.options.method == 'ttcpd':
-            temp1 = [output.options.method, '', '']
-        elif output.options.inner_method == 'cg':
+            temp1 = ['', '', '']
+        elif output.options.inner_method == 'cg' or output.options.inner_method == 'cg_static':
             temp1 = [output.options.inner_method, output.options.cg_factor, output.options.cg_tol]
-        elif output.options.inner_method == 'cg_static':
-            temp1 = [output.options.inner_method, output.options.cg_maxiter, output.options.cg_tol]
-        elif output.options.inner_method == 'direct':
-            temp1 = [output.options.inner_method, '', '']
         elif output.options.inner_method == 'gd':
             temp1 = [output.options.inner_method, '', '']
         else:
-            temp1 = ['hybrid strategy', '', '']
-        if T.ndim > 3:
-            temp2 = output.options.bicpd_method_parameters
+            temp1 = ['hybrid strategy', '', '', '']
+        if output.options.method == 'ttcpd':
+            temp2 = output.options.bi_method_parameters
         else:
             temp2 = '          '
         df.loc[i] = [name,
+                     method,
                      maxiter,
                      tol, 
                      tol_step, 
@@ -387,9 +389,9 @@ def make_plots(names,
                errors_mean_bad, errors_var_bad, num_bad,
                timings):
     """
-    After the function 'test_tensors' is finished, all data is passed to this function, which makes informative
-    plots with the percentage of successes and failures, plus a plot with the average timings. These two functions
-    combined are a great tool for modelling and hyperparameter grid search.
+    After the function 'test_tensors' is finished, all data is passed to this function, which makes informative plots
+    with the percentage of successes and failures, plus a plot with the average timings. These two functions combined
+    are a great tool for modelling and hyperparameter grid search.
     """    
     
     plt.figure(figsize=[16, 6])
@@ -451,7 +453,9 @@ def make_plots(names,
 
 
 def show_options(output):
-    """ This function display all parameter options used. """
+    """
+    This function display all parameter options used in a previous call of the cpd function.
+    """
 
     members_names = [attr for attr in dir(output.options) if not attr.startswith("__")]
     members = [getattr(output.options, attr) for attr in dir(output.options) if not attr.startswith("__")]

@@ -5,76 +5,67 @@
 """
 
 # Python modules
-from numpy import empty, array, zeros, prod, int64, dot, log, exp, copy
+import numpy as np
+from numpy import empty, array, zeros, prod, int64, dot, log, exp, sign, float64, ndarray
 from numpy.linalg import norm
 from numpy.random import randn
-from numba import njit, prange
+from numba import njit
+from scipy.sparse import coo_matrix
 
 # Tensor Fox modules
 import Critical as crt
 import MultilinearAlgebra as mlinalg
 
 
-@njit(nogil=True)
-def x2cpd(x, X, Y, Z, m, n, p, R):
+def x2cpd(x, factors, eq=True):
     """
-    Given the point x (the flattened CPD), this function breaks it in parts, to form the CPD. Then this function return
-    the following arrays:
-    X = [X_1,...,X_R],
-    Y = [Y_1,...,Y_R],
-    Z = [Z_1,...,Z_R].
-    Then we have that T_approx = (X,Y,Z)*I, where I is the diagonal R x R x R tensor.
+    Given the point x (the flattened CPD), this function breaks it in parts to form the factors of the CPD.
     
     Inputs
     ------
-    x: float 1-D ndarray
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
-    m, n, p: int
-    R: int
+    x: float 1-D array
+    factors: list of 2-D arrays
+        Factors matrices to be updated.
         
     Outputs
     -------
-    X: float 2-D ndarray of shape (m, R)
-    Y: float 2-D ndarray of shape (n, R)
-    Z: float 2-D ndarray of shape (p, R)
+    factors: list of 2-D arrays
     """ 
 
+    R = factors[0].shape[1]
+    L = len(factors)
+
     s = 0
-    for r in range(R):
-        X[:, r] = x[s:s+m]
-        s = s+m
-            
-    for r in range(R):
-        Y[:, r] = x[s:s+n]
-        s = s+n
-            
-    for r in range(R):
-        Z[:, r] = x[s:s+p]
-        s = s+p
-            
-    X, Y, Z = equalize([X, Y, Z], R)
+    for l in range(L):
+        dim = factors[l].shape[0]
+        for r in range(R):
+            factors[l][:, r] = x[s: s+dim]
+            s += dim
+    
+    if eq:        
+        factors = equalize(factors, R)
           
-    return X, Y, Z
+    return factors
 
 
-def cpd2tens(T_approx, factors, dims):
+def cpd2tens(factors):
     """
     Converts the factor matrices to tensor in coordinate format using a Khatri-Rao product formula.
 
     Inputs
     ------
-    factors: list of L floats 2-D ndarray of shape (dims[i], R) each
-    dims: tuple of L ints
+    factors: list of 2-D arrays
+        The factor matrices.
 
     Outputs
     ------
-    T_approx: float L-D ndarray
+    T_approx: float L-D array
         Tensor (factors[0],...,factors[L-1])*I in coordinate format. 
     """
 
-    L = len(dims)
+    L = len(factors)
+    dims = [factors[l].shape[0] for l in range(L)]
+    T_approx = empty(dims)
     M = factors[1]
    
     for l in range(2, L):
@@ -82,31 +73,175 @@ def cpd2tens(T_approx, factors, dims):
         M = mlinalg.khatri_rao(factors[l], M, N)
 
     T1_approx = dot(factors[0], M.T)
-    T_approx = foldback(T_approx, T1_approx, 1, dims)
+    T_approx = foldback(T_approx, T1_approx, 1)
+
     return T_approx
 
 
-def unfold(T, mode, dims):
+def cpd2unfold1(T1_approx, factors):
+    """
+    Converts the factor matrices to the first unfolding of the corresponding tensor.
+
+    Inputs
+    ------
+    factors: list of 2-D arrays
+        The factor matrices.
+
+    Outputs
+    ------
+    T1_approx: float 2-D array
+        First unfolding of T_approx, where T_approx is (factors[0],...,factors[L-1])*I in coordinate format.
+    """
+
+    L = len(factors)
+    M = factors[1]
+   
+    for l in range(2, L):
+        N = empty((M.shape[0]*factors[l].shape[0], M.shape[1]))
+        M = mlinalg.khatri_rao(factors[l], M, N)
+
+    dot(factors[0], M.T, out=T1_approx)
+
+    return T1_approx
+
+
+def sparse2dense(data, idxs, dims):
+    """
+    Given the variables defining a sparse tensor, this function computes its dense representation.
+
+    Inputs
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+
+    Outputs
+    -------
+    T_dense: L-D array
+        Dense representation of the tensor.
+    """
+
+    T1 = sparse_unfold(data, idxs, dims, 1)
+    T1_dense = T1.toarray()
+    T_dense = empty(dims, dtype=float64)
+    T_dense = foldback(T_dense, T1_dense, 1)
+
+    return T_dense
+
+
+def unfold(T, mode):
     """
     Computes any unfolding of a tensor up to order L = 12. 
+    
+    Inputs
+    ------
+    T: float L-D array
+       The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: 2-D array with Fortran order
+        The requested unfolding of T.
     """
  
+    dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')    
+    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]), order='F')  
     func_name = "unfold" + str(mode) + "_order" + str(L)
-    Tl = getattr(crt, func_name)(T, Tl, dims)
+    Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
+
     return Tl
 
 
-def foldback(T, Tl, mode, dims):
+def unfold_C(T, mode):
     """
-    Computes the tensor with dimension dims given an unfolding with its mode. Attention: dims are the dimensions of the 
-    output tensor, not the input.
+    Computes any unfolding of a tensor up to order L = 12. 
+    
+    Inputs
+    ------
+    T: float L-D array
+       The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: 2-D array with C order
+        The requested unfolding of T.
     """
  
+    dims = T.shape
+    L = len(dims)
+    Tl = empty((dims[mode-1], prod(dims)//dims[mode-1]))    
+    func_name = "unfold" + str(mode) + "_order" + str(L)
+    Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
+
+    return Tl
+
+
+def sparse_unfold(data, idxs, dims, mode):
+    """
+    Computes any unfolding of a sparse L-th order tensor. 
+    
+    Inputs
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array 
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+    mode: int
+        The mode we are interested in. Note that 1 <= mode <= L.
+        
+    Outputs
+    -------
+    Tl: csr matrix
+        Sparse representation (in compressed sparse row format) of the requested unfolding.
+    """
+    
+    L = len(dims)
+    nnz = len(data)
+    idx = list(np.arange(L))
+    idx.remove(mode-1)
+    K = zeros(L, dtype=np.int64)
+    rows = zeros(nnz, dtype=np.int64)
+    cols = zeros(nnz, dtype=np.int64)
+                 
+    c = 0
+    for l in range(L):
+        if l == mode-1:
+            K[l] = 0
+        else:
+            s = 1
+            for ll in range(c):
+                s *= dims[idx[ll]]
+            K[l] = int(s)
+            c += 1
+    
+    for i in range(nnz):
+        y = idxs[i]
+        rows[i] = y[mode-1]
+        cols[i] = np.sum(K*y) 
+        
+    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], np.prod(dims)//dims[mode-1]))
+    Tl = Tl.tocsr()
+        
+    return Tl
+
+
+def foldback(T, Tl, mode):
+    """
+    Computes the tensor with dimension dims given an unfolding with its mode. 
+    """
+ 
+    dims = T.shape
     L = len(dims)
     func_name = "foldback" + str(mode) + "_order" + str(L)
-    T = getattr(crt, func_name)(T, Tl, dims)
+    T = getattr(crt, func_name)(T, Tl, tuple(dims))
     
     return T
 
@@ -120,48 +255,40 @@ def normalize(factors):
     R = factors[0].shape[1]
     Lambda = zeros(R)
     L = len(factors)
+    new_factors = factors.copy()
     
     for r in range(R):
         norms = zeros(L)
         for l in range(L):
             W = factors[l]
-            # Save norm of the l-th column of the ll factor and normalize the current factor.
             norms[l] = norm(W[:, r])
             W[:, r] = W[:, r]/norms[l]
-            # Update factors accordingly.
-            factors[l] = W
-
+            # Update factor matrix.
+            new_factors[l] = W
         Lambda[r] = prod(norms)
         
-    return Lambda, factors
+    return Lambda, new_factors
 
 
-def denormalize(Lambda, X, Y, Z):
+def denormalize(Lambda, factors):
     """
     By undoing the normalization of the factors this function makes it unnecessary the use of the diagonal tensor
-    Lambda. This is useful when one wants the CPD described only by the triplet (X, Y, Z).
+    Lambda. 
     """
 
     R = Lambda.size
-    X_new = zeros(X.shape)
-    Y_new = zeros(Y.shape)
-    Z_new = zeros(Z.shape)
+    L = len(factors)
+    new_factors = [zeros(factors[l].shape) for l in range(L)]
+
     for r in range(R):
-        if Lambda[r] >= 0:
-            a = Lambda[r]**(1/3)
-            X_new[:, r] = a*X[:, r]
-            Y_new[:, r] = a*Y[:, r]
-            Z_new[:, r] = a*Z[:, r]
-        else:
-            a = (-Lambda[r])**(1/3)
-            X_new[:, r] = -a*X[:, r]
-            Y_new[:, r] = a*Y[:, r]
-            Z_new[:, r] = a*Z[:, r]
-            
-    return X_new, Y_new, Z_new
+        a = abs(Lambda[r])**(1/L)
+        new_factors[0][:, r] = sign(Lambda[r]) * a * factors[0][:, r]
+        for l in range(1, L):
+            new_factors[l][:, r] = a * factors[l][:, r]
+
+    return new_factors
 
 
-@njit(nogil=True)
 def equalize(factors, R):
     """ 
     Let W[0], ..., W[L-1] = factors. After a Gauss-Newton iteration we have an approximated CPD with factors 
@@ -180,7 +307,7 @@ def equalize(factors, R):
     """
     
     L = len(factors)
-
+    
     for r in range(R):
         norm_r = array([norm(factors[l][:, r]) for l in range(L)])
         if prod(norm_r) != 0.0:
@@ -191,80 +318,72 @@ def equalize(factors, R):
     return factors
 
 
-@njit(nogil=True)
-def transform(X, Y, Z, a, b, factor, symm, factors_norm):
+def change_sign(factors):
     """
-    Depending on the choice of the user, this function can project the entries of X, Y, Z in a given interval (this is 
-    very useful with we have constraints at out disposal), it can make the corresponding tensor symmetric or
-    non-negative. It is advisable to transform the tensor so that its entries have mean zero and variance 1, this way
-    choosing low=-1 and upp=1 works the best way possible. We also remark that it is always better to choose low and upp
-    such that low = -upp.
-    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the 
-    factors X, Y, Z.
-    The parameter factors_norm forces the factor matrices X, Y, Z to always have the same prescribed norm, which is the
-    value factors_norm.
+    After the CPD is computed it may be interesting that each vector of a rank one term is as positive as possible, in
+    the sense that its mean is positive. If two vectors in the same rank one term have negative mean, then we can
+    multiply both by -1 without changing the tensor.
+    """
+    
+    L = len(factors)
+    R = factors[0].shape[1]
+    
+    for r in range(R):
+        parity = 0
+        for l in range(L):
+            if factors[l][:, r].mean() < 0:
+                factors[l][:, r] *= -1
+                parity += 1
+        if parity%2 == 1:
+            factors[0] *= -1
+            
+    return factors
+
+
+def transform(factors, symm, factors_norm):
+    """
+    The parameter symm indicates that the objective tensor is symmetric, so the program forces this symmetry over the
+    factor matrices.
+    The parameter factors_norm forces the factor matrices to always have the same prescribed norm, which is the value
+    factors_norm.
     
     Inputs
     ------
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
-    m, n, p: int
-    r: int
-    low, upp: float
+    factors: list of 2D arrays
     symm: bool
     factors_norm: float
         
     Outputs
     -------
-    X: float 2-D ndarray of shape (m, r)
-    Y: float 2-D ndarray of shape (n, r)
-    Z: float 2-D ndarray of shape (p, r)
+    factors: list of 2D arrays
     """ 
 
-    if a != 0 and b != 0:
-        eps = 0.02
-        B = log( (b-a)/eps - 1 )/( factor*(b-a)/2 - eps )
-        A = -B*(a+b)/2
-        X = a + (b-a) * 1/( 1 + exp(-A-B*X) )
-        Y = a + (b-a) * 1/( 1 + exp(-A-B*Y) )
-        Z = a + (b-a) * 1/( 1 + exp(-A-B*Z) )
+    L = len(factors)
         
     if symm:
-        X = (X+Y+Z)/3
-        Y = X
-        Z = X
+        s = factors[0]
+        for l in range(1, L):
+            s += factors[l]
+        factors[0] = s/L
+        for l in range(1, L):
+            factors[l] = factors[0]
 
     if factors_norm > 0:
-        X = factors_norm * (1/norm(X)) * X
-        Y = factors_norm * (1/norm(Y)) * Y
-        Z = factors_norm * (1/norm(Z)) * Z
+        for l in range(L):
+            factors[l] = factors_norm * (1/norm(factors[l])) * factors[l]
     
-    return X, Y, Z
+    return factors
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def vec(M, Bv, num_rows, R):
     """ 
     Take a matrix M with shape (num_rows, R) and stack vertically its columns to form the matrix Bv = vec(M) with shape
     (num_rows*R,).
     """
     
-    for r in prange(R):
+    for r in range(R):
         Bv[r*num_rows:(r+1)*num_rows] = M[:, r]
-        
-    return Bv
-
-
-@njit(nogil=True, parallel=True)
-def vect(M, Bv, num_cols, R):
-    """ 
-    Take a matrix M with shape (R, num_cols) and stack vertically its rows to form the matrix Bv = vec(M) with shape
-    (num_cols*R,).
-    """
-    
-    for r in prange(R):
-        Bv[r*num_cols:(r+1)*num_cols] = M[r, :]
         
     return Bv
 

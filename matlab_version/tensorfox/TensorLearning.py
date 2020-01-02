@@ -63,8 +63,8 @@ def pca(X, p):
     X: 2D array
         Train data in 2D array format. Each row correspond to a single sample of the data.
     p: Float
-        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if
-        p = 0.90, then 90 % of the data is retained after compression.
+        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if p = 0.90, then
+        90 % of the data is retained after compression.
         
     Outputs
     -------
@@ -98,17 +98,17 @@ def pca(X, p):
 
 def prepare_data(X, p):
     """
-    Before the starting the training stage, you will need to prepare your data, that is, make the PCA, construct the hot
-    encoded classes, adding bias, and so on. This function and the function normalize_data are close since both prepare
-    the data for training.
+    Before the starting the training stage, you will need to prepare your data, that is, make the PCA, construct the one
+    hot encoded classes, adding bias, and so on. This function and the function normalize_data are close since both
+    prepare the data for training.
 
     Inputs
     ------
     X: 2D array
         Train data in 2D array format. Each row correspond to a single sample of the data.
     p: Float
-        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if
-        p = 0.90, then 90 % of the data is retained after compression.
+        Float between 0 and 1. The program compress the data so that 100*p % is retained. For example, if p = 0.90, then
+        90 % of the data is retained after compression.
         
     Outputs
     -------
@@ -133,7 +133,7 @@ def prepare_data(X, p):
 
 def hot_encoded_target(Y):
     """
-    If the labels are not hot encoded, then this function is mandatory, otherwise we get errors. We are using hot
+    If the labels are not hot encoded, then this function is mandatory, otherwise we get errors. We are using one hot
     encoded outputs of the form [1,0,0,...,0], [0,1,0,...,0], ..., [0,0,...,0,1]. To make the conversion the program
     assumes the classes (the entries of Y) are numbers, from 0 to m-1 (so we have m classes).
 
@@ -160,11 +160,12 @@ def hot_encoded_target(Y):
 
     return Y_hot_encoded
 
+
 def norm_pca(X_new, U, mu, sigma):
     """
-    After normalizing and performing pca over the train dataset, we may be interested in making predictions about 
-    some newinputs. In any case, normalizing and compressing in the same way it is necessary in order to get
-    meaningful results.
+    After normalizing and performing pca over the train dataset, we may be interested in making predictions about some
+    new inputs. In any case, normalizing and compressing in the same way it is necessary in order to get meaningful
+    results.
 
     Inputs
     ------
@@ -227,7 +228,6 @@ def init_W(m, L, n, R):
     return W
 
 
-@njit(nogil=True, parallel=True)
 def dot_products(x, W):
     """
     Function to compute all the dot products between an input x and the weights.
@@ -250,7 +250,7 @@ def dot_products(x, W):
     # Initialize array to receive all dot products
     dot_prods = np.ones((m, L, R))
 
-    for k in prange(m):
+    for k in range(m):
         for r in range(R):
             dot_prods[k, :, r] = np.dot(W[k, :, :, r], x)
 
@@ -437,7 +437,7 @@ def find_class(x, W):
     Outputs
     -------
     x_class: int
-        At the moment the program is limited to classification problem. So each prediction is a number (of a class).
+        At the moment the program is limited to classification problems. So each prediction is a number (of a class).
     """
 
     dot_prods = dot_products(x, W)
@@ -447,7 +447,7 @@ def find_class(x, W):
     return x_class
 
 
-def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=10, display=True):
+def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=1, display=True):
     """
     Function to start the training stage.
 
@@ -458,7 +458,7 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     Y: 1D array
         Each entry i of Y correspond to the original class of the ith input (ith row of X).
     X_val: 2D array
-        Piece of train dataset used as validation input set. If no validation is intended, set X_val to np.nan.
+        Piece of train dataset used as validation input set. If no validation is intended, set X_val to nan.
     Y_val: 1D array
         Piece of train dataset used as validation target set.
     W: 4D array
@@ -466,16 +466,16 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     alpha: float
         Step parameter of the gradient descent algorithm. We must have alpha > 0.
     alpha_decay: float
-        The more the program is closer to the optimum, the more it is necessary to take smaller steps. In this case
+        The more the program is closer to the optimum, the more it is necessary to take smaller steps. In this case it
         is interesting to decrease alpha a little. At each epoch we update date alpha with alpha = alpha_decay * alpha.
         Default is alpha_decay = 1.
     Lambda: float
-        Regularization parameter for the cost function. We must have Lambda >= 0.
+        Regularization parameter for the cost function. We must have Lambda >= 0. Default is Lambda = 0.1.
     epochs: int
-        Number desired of epochs to use in the training stage.
+        Desired number of epochs to use in the training stage. Default is 10 epochs.
     batch: int
         Size of the batch in the learning algorithm. After passing through batch inputs and accumulating their costs,
-        the corresponding gradient is used to make the next step.
+        the corresponding gradient is used to make the next step. Default is 1 batch.
     display: bool
         If set to True (default), the program displays some relevant results and plots about the training stage.
         
@@ -696,68 +696,47 @@ def cpd_predictions(X_test, W, U, mu=0, sigma=1):
     return predictions
 
 
-def W2tens(W):
+def simplify_model(W, r, options=False):
     """
-    With the set of weights W, obtained after training and testing, now we construct the corresponding coordinate
-    tensors and form a list from them. Each T_list[k] is a n x n x ... x n (L times) tensor, representing the tensor
-    Tk in coordinates.
+    With the set of weights W, obtained after training and testing, we can construct the corresponding coordinate
+    tensors and compute a rank-r CPD for them. The idea is to simplify the model, using less rank-1 terms.
 
     Inputs
     ------
     W: 4D array
         Weights obtained after the training stage.
+    r: int
+        Desired rank.
+    options: class
+        Set of options to be used in the CPD computation (see the Tensor Fox documentation for more details).
         
     Outputs
     -------
-    T_list: list of L-D arrays
-        Each T_list[k] is the tensor Tk of the model.
+    new_W: float 4D-ndarray
+        New model based in rank-r approximations. An array with the same shape as W, except for the last dimension.
+    errors: list
+        Each errors[k] is the relative error between the rank-r approximation and Tk.
     """
 
+    # Initialize variables.
     m, L, n, R = W.shape
-    dims = L*(n,)
-    T_list = []
+    new_W = np.zeros((m, L, n, r))
+    errors = []
 
     for k in range(m):
-        # Construct list of factor matrices.
+        # Construct list of factor matrices for Tk.
         factors = []
         for l in range(L):
             factors.append(W[k, l, :, :])
         # Convert factor matrices to coordinates format.
-        Tk = np.zeros(dims)
-        Tk = tfx.cnv.cpd2tens(Tk, factors, dims)
-        T_list.append(Tk)
+        Tk = tfx.cnv.cpd2tens(factors)
+        # Compute rank-r approximation for Tk.
+        factors, output = tfx.cpd(Tk, r, options)
+        errors.append(output.rel_error)
+        for l in range(L):
+            new_W[k, l, :, :] = factors[l]
 
-    return T_list
-
-
-def cpd_W(T_list, r, options=False):
-    """
-    With the set of weights W extracted in tensor form inside T_list, we try to find a rank-r CPD for them. The idea is
-    to simplify the model, using less rank-1 terms.
-
-    Inputs
-    ------
-    T_list: list of L-D arrays.
-        Each T_list[k] is the tensor Tk of the model.
-    r: int
-        Desired rank.
-    options: class
-        The options to be used in the CPD computation (see the Tensor Fox documentation for more details).
-        
-    Outputs
-    -------
-    factors_list: list
-        Each factors_list[k] is a list with the factors of the rank-r CPD of Tk.
-    """
-
-    m = len(T_list)
-    factors_list = []
-
-    for k in range(m):
-        factors, T_approx, output = tfx.cpd(T_list[k], r, options)
-        factors_list.append(factors)
-
-    return factors_list
+    return new_W, errors
 
 
 # MLSVD LEARNING
@@ -807,7 +786,7 @@ def create_sets(X, Y, display=True):
     for i in range(num_classes):
         c = samples_per_class[i]
         diff = max_class - c
-        if max_class - c < 1:
+        if diff > 1:
             for j in range(diff):
                 idx = np.random.randint(c)
                 inputs[i].append(inputs[i][idx])
@@ -895,7 +874,7 @@ def mlsvd_train(T, r, options=False):
     num_samples, num_classes = m, p
 
     # Set options
-    options = tfx.aux.make_options(options)
+    options = tfx.aux.make_options(options, 3)
 
     Tsize = np.linalg.norm(T)
     if options.display == 3:
@@ -914,7 +893,7 @@ def mlsvd_train(T, r, options=False):
         F, U2 = 0, 0
     else:
         success = True
-        S1 = tfx.cnv.unfold(S, 1, S.shape)
+        S1 = tfx.cnv.unfold(S, 1)
         F = tfx.mlinalg.multilin_mult([np.identity(R1), np.identity(R2), U3], S1, S.shape)
         print('Shape of MLSVD:', F.shape)
         if options.display == 3:

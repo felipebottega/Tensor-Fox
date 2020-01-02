@@ -2,28 +2,50 @@
  Multilinear Algebra Module
  ==========================
  All relevant functions of the classical multilinear algebra are described and implemented in this module.
+
+ References
+ ==========
+
+ - C. J. Hillar, and L.-H. Lim. Most tensor problems are NP-hard, Journal of the ACM, 60(6):45:1-45:39, November 2013.
+   ISSN 0004-5411. doi: 10.1145/2512329.
+
+ - P. Breiding and N. Vannieuwenhoven, A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
+   Problem, SIAM J. Optim., 28(3), 2435-2465.
+
+ - P. Breiding and N. Vannieuwenhoven, The Condition Number of Join Decompositions, arXiv:1611.08117v3 (2018).
 """
 
 # Python modules
 import numpy as np
-from numpy import array, dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
 from numpy.random import permutation
 import numpy.matlib
 import scipy as scp
-from itertools import permutations
 from numba import njit, prange
 
 # Tensor Fox modules
 import Auxiliar as aux
 import Compression as cmpr
 import Conversion as cnv
+import Critical as crt
 
 
 def multilin_mult_cpd(U, W, dims):
     """    
     Performs the multilinear multiplication (U[0],...,U[L-1])*(W[0], ..., W[L-1])*I = (U[0]*W[0],...,U[L-1]*W[L-1])*I, 
-    where I.shape = dims = (W[0].shape[1],...,W[L-1].shape[1]) are the size of the columns of the W's. 
+    where I.shape = dims = (W[0].shape[1],...,W[L-1].shape[1]) are the size of the columns of the W's.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    W: list of 2-D arrays
+    dims: list of ints
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the mentioned multiplication.
     """
 
     L = len(dims)
@@ -35,15 +57,27 @@ def multilin_mult_cpd(U, W, dims):
         W_new.append( dot(U[l], W[l]) )
         dims_out.append(W_new[l].shape[0])
     
-    S = zeros(dims_out)
-    S = cnv.cpd2tens(S, W_new, dims_out)
+    S = cnv.cpd2tens(W_new)
     return S
 
 
 def multilin_mult(U, T1, dims):
     """    
-    Performs the multilinear multiplication (U[0],...,U[L-1])*T, where dims = T.shape. We need the first unfolding T1 of 
-    T to start the computations.
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape. We need the first unfolding
+    T1 of T to start the computations.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    T1: 2-D array
+        First unfolding of T.
+    dims: list of ints
+        Dimension of T.
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T.
     """
 
     L = len(dims)
@@ -56,27 +90,59 @@ def multilin_mult(U, T1, dims):
         # Update the current dimension of dims_out.
         dims_out[l] = U[l].shape[0]
         S = empty(dims_out)
-        S = cnv.foldback(S, unfolding2, l+1, dims_out)
+        S = cnv.foldback(S, unfolding2, l+1)
         if l < L-1:            
-            unfolding1 = cnv.unfold(S, l+2, S.shape)
+            unfolding1 = cnv.unfold(S, l+2)
         else:
             return S
-        
+
+
+def sparse_multilin_mult(U, data, idxs, dims):
+    """
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape and T is sparse. The first
+    unfolding T1 of T is given as a csr matrix.
+
+    Inputs
+    ------
+    U: list of 2-D arrays
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array of shape (nnz, L) such that
+        idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor T.
+
+    Outputs
+    -------
+    S: float array
+        S is the resulting multidimensional of the multilinear multiplication (U[0],...,U[L-1])*T.
+    """
+
+    L = len(dims)
+    # dims_out are the dimensions of the output tensor S.
+    dims_out = [U[l].shape[0] for l in range(L)]
+    S = np.empty(dims_out, dtype=float64)
+    func_name = "sparse_multilin_mult_order" + str(L)
+    S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+
+    return S
+
 
 def multirank_approx(T, multi_rank, options):
     """
-    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the central tensor of
-    the MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
+    This function computes an approximation of T with multilinear rank = multi_rank. Truncation the core tensor of the
+    MLSVD doesn't gives the best low multirank approximation, but gives very good approximations.
     
     Inputs
     ------
-    T: L-D float ndarray
+    T: float array
     multi_rank: list of int
         The desired low multilinear rank.
         
     Outputs
     -------
-    T_approx: L-D float ndarray
+    T_approx: float array
         The approximating tensor with multilinear rank = multi_rank.
     """
     
@@ -87,14 +153,14 @@ def multirank_approx(T, multi_rank, options):
     Tsize = norm(T)
     
     # Compute truncated MLSVD of T.
-    options = aux.complete_options(options)
+    options = aux.make_options(options, L)
     options.display = 0
     options.trunc_dims = multi_rank
     R_gen = int(ceil( prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
     S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R_gen, options)
 
     # Construct the corresponding tensor T_approx.
-    S1 = cnv.unfold(S, 1, multi_rank)
+    S1 = cnv.unfold(S, 1)
     T_approx = multilin_mult(U, S1, multi_rank)
     
     return T_approx
@@ -111,24 +177,24 @@ def kronecker(A, B):
     b1, b2 = B.shape
     M = empty((a1*b1, a2*b2), dtype=float64)
     
-    for i in range(0, a1):
-        for j in range(0, a2):
-            M[i*b1:(i+1)*b1, j*b2:(j+1)*b2] = A[i, j]*B
+    for i in range(a1):
+        for j in range(a2):
+            M[i*b1: (i+1)*b1, j*b2: (j+1)*b2] = A[i, j]*B
 
-    return M 
+    return M
 
 
 @njit(nogil=True, parallel=True)
 def khatri_rao(A, B, M):
     """
     Computes the Khatri-Rao product between A and B. We must have M.shape = (a1*b1, a2), where A.shape = (a1, a2) and 
-    B.shape = (b1, b2), with a2 == b2. 
+    B.shape = (b1, b2), with a2 == b2. This function makes the computation of A ⊙ B row by row, starting at the top.
     """
 
     a1, a2 = A.shape
     b1, b2 = B.shape
     
-    for i in prange(0, a1):
+    for i in prange(a1):
         M[i*b1:(i+1)*b1, :] = khatri_rao_inner_computations(A, B, M, i, b1, b2)
 
     return M 
@@ -144,10 +210,10 @@ def khatri_rao_inner_computations(A, B, M, i, b1, b2):
         for j in range(b2):
             M[i*b1 + k, j] = A[i, j]*B[k, j]
 
-    return M[i*b1:(i+1)*b1, :]
+    return M[i*b1: (i+1)*b1, :]
 
 
-@njit(nogil=True, parallel=True)
+@njit(nogil=True)
 def hadamard(A, B, M):
     """
     Computes M = A * B, where * is the Hadamard product. Since all Hadamard products in this context are between R x R
@@ -156,8 +222,9 @@ def hadamard(A, B, M):
 
     R = A.shape[0]
     
-    for r in prange(R):
-        M[r, :] = A[r, :]*B[r, :]
+    for r in range(R):
+        for rr in range(R):
+            M[r, rr] = A[r, rr]*B[r, rr]
 
     return M
 
@@ -166,12 +233,6 @@ def cond(factors):
     """
     Computes the geometric condition number of 'factors', where factors is a list with the factor matrices of some CPD.
     Warning: this function requires a lot of memory.
-
-    References
-    ----------
-    P. Breiding and N. Vannieuwenhoven, "A Riemannian Trust Region Method for the Canonical Tensor Rank Approximation
-    Problem", SIAM J. Optim., 28(3), 2435-2465.
-    P. Breiding and N. Vannieuwenhoven, "The Condition Number of Join Decompositions", arXiv:1611.08117v3 (2018).
     """
 
     def trd_jacobian(A):
@@ -239,7 +300,7 @@ def cond(factors):
 
 def khatri_rao_factors(factors):
     """
-    Computes the Khatri-Rao products between  the factor matrices.
+    Computes the Khatri-Rao products W^(1) ⊙ W^(2) ⊙ ... ⊙ W^(L) between the factor matrices.
     """
 
     L = len(factors)
@@ -255,11 +316,23 @@ def khatri_rao_factors(factors):
 
 def compute_error(T, Tsize, S1, U, dims):
     """
-    Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S.
+    Compute relative error between T and (U_1,...,U_L)*S, where dims is the shape of S. In the case T is sparse, we 
+    should pass S instead of the unfolding S1.
     """
 
-    T_compress = multilin_mult(U, S1, dims)
-    error = norm(T - T_compress)/Tsize
+    # T is sparse.
+    if type(T) == list:
+        S = S1
+        L = len(U)
+        UT = [U[l].T for l in range(L)]
+        data, idxs, Tdims = T
+        T_compress = sparse_multilin_mult(UT, data, idxs, Tdims)
+        error = norm(T_compress - S) / Tsize
+    # T is dense.
+    else:
+        T_compress = multilin_mult(U, S1, dims)
+        error = norm(T - T_compress)/Tsize
+
     return error
 
 
@@ -282,17 +355,15 @@ def rank1_terms_list(factors):
 
     R = factors[0].shape[1]
     L = len(factors)
-    dims = [factors[l].shape[0] for l in range(L)]
     rank1_terms = []
 
     for r in range(R):
         vectors = []
-        T_approx = zeros(dims, dtype=float64)
         for l in range(L):
             # vectors[l] = [w_r^(1),w_r^(2),...,w_r^(L)], which represents w_r^(1) ⊗ w_r^(2) ⊗ ... ⊗ w_r^(L).
             v = factors[l][:, r]
             vectors.append(v.reshape(v.size, 1))
-        term = cnv.cpd2tens(T_approx, vectors, dims)
+        term = cnv.cpd2tens(vectors)
         rank1_terms.append(term)
 
     return rank1_terms
@@ -306,15 +377,15 @@ def rank1(X, Y, Z, m, n, R, k):
 
     Inputs
     ------
-    X, Y, Z: 2-D float ndarray
-        The CPD factors of some tensor.
+    X, Y, Z: 2-D float array
+        The CPD factors of some third order tensor.
     m, n, p, R: int
     k: int
         Slice we want to compute.
 
     Outputs
     -------
-    rank1_slices: 3-D float ndarray
+    rank1_slices: 3-D float array
         Each matrix rank1_slices[:, :, l] is the k-th slice associated with the l-th factor in the CPD of some tensor.
     """
 
@@ -330,26 +401,21 @@ def rank1(X, Y, Z, m, n, R, k):
     return rank1_slices
 
 
-def forward_error(orig_factors, approx_factors, trials=1000):
+def forward_error(orig_factors, approx_factors):
     """
     Let T = T_1 + T_2 + ... + T_R be the decomposition of T as sum of rank-1 terms and let
     T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly
     T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely
-    without changing the tensor. While |T - T_approx| is the backward error of the CPD computation problem, we have that
-    min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s
-    is an element of the permutation group S_R.
-
-    Given the rank R, this function try 'trials' random permutations (not necessarily distinct). We remark that the
-    forward error is always equal or greater than the backward error.
+    without changing the tensor. While |cpd2tens(T) - cpd2tens(T_approx)| is the backward error of the CPD computation 
+    problem, we have that min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of 
+    the problem, where s is an element of the permutation group S_R.
 
     Inputs
     ------
-    orig_factors: list of ndarrays
+    orig_factors: list of arrays
         The elements of the list are the factor matrices of the original tensor.
-    approx_factors: list of ndarrays
+    approx_factors: list of arrays
         The elements of the list are the factor matrices of the approximated tensor.
-    trials: int
-        Number of of trials before stopping testing permutation. Default is 100.
 
     Outputs
     -------
@@ -363,11 +429,10 @@ def forward_error(orig_factors, approx_factors, trials=1000):
 
     R = orig_factors[0].shape[1]
     L = len(orig_factors)
-    best_error = inf
     orig_rank1 = rank1_terms_list(orig_factors)
     approx_rank1 = rank1_terms_list(approx_factors)
 
-    best_forward_error, s = search_forward_error(orig_rank1, approx_rank1, R, best_error, trials)
+    best_forward_error, s = search_forward_error(tuple(orig_rank1), tuple(approx_rank1), R)
 
     # Rearrange approx_factors with the best permutation found.
     new_factors = [approx_factors[l][:, s] for l in range(L)]
@@ -375,22 +440,22 @@ def forward_error(orig_factors, approx_factors, trials=1000):
     return best_forward_error, new_factors, s
 
 
-@njit(nogil=True)
-def search_forward_error(orig_rank1, approx_rank1, R, best_error, trials):
-    # Create list with rank 1 flattened terms of original tensor.
-    orig_rank1_flat = [orig_rank1[r].ravel() for r in range(R)]
-
-    # Start the search for the best rank-1 permutation.
-    for i in range(trials):
-        s = permutation(arange(R))
-        f_error = 0
-        for r in range(R):
-            f_error += norm(orig_rank1_flat[r] - approx_rank1[s[r]].ravel())**2
-        f_error = sqrt(f_error)
-        if f_error < best_error:
-            best_error = f_error
-            best_s = s.copy()
+def search_forward_error(orig_rank1, approx_rank1, R):
+    """
+    Auxiliary function for the function forward_error.
+    """
+    
+    best_error = 0
+    best_s = arange(R)
+    idx = []
+    for r in range(R):
+        f_error = inf
+        for rr in range(len(approx_rank1)):
+            if (rr not in idx) and (norm(orig_rank1[r] - approx_rank1[rr]) < f_error):
+                best_s[r] = rr
+                f_error = norm(orig_rank1[r] - approx_rank1[rr])
+        idx.append(best_s[r])
+        best_error += f_error**2
+    best_error = sqrt(best_error)
 
     return best_error, best_s
-
-
