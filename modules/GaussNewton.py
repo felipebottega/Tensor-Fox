@@ -172,7 +172,6 @@ def dGN(T, factors, R, options):
 
         # Update gain ratio and damping parameter. 
         gain_ratio = update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad)
-        print(gain_ratio, ',')
         damp = update_damp(damp, init_damp, gain_ratio, it)
 
         # Update best solution.
