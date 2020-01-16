@@ -975,8 +975,6 @@ def foxit(T, R, options=False, bestof=1):
         print('        cg tolerance:', options.cg_tol)
     elif options.inner_method == 'direct':
         print('        method: direct solver')
-    elif options.inner_method == 'gd':
-        print('        method: gradient descent')
     elif type(options.inner_method) == list:
         print('        method: hybrid strategy')
     print()
