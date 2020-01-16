@@ -474,11 +474,11 @@ def update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad):
     Update gain ratio.
     """
     
-    numerator = (2 * Tsize**2) * (old_error**2 - error**2)
+    numerator = (Tsize**2) * (old_error**2 - error**2)
     denominator = dot(x - old_x, grad + damp*(x - old_x))
     
     if denominator != 0.0:
-        gain_ratio = (2 * Tsize**2) * (old_error**2 - error**2) / denominator
+        gain_ratio = gain_ratio = numerator / denominator
     elif numerator != 0.0 and denominator == 0.0:
         gain_ratio = sign(numerator) * inf
     else:
