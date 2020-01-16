@@ -495,7 +495,7 @@ def tricpd(T, R, options):
         errors_refine = array([0])
         improv_refine = array([0]) 
         gradients_refine = array([0]) 
-        stop_refine = 7
+        stop_refine = 8
     
     # FINAL WORKS
 
