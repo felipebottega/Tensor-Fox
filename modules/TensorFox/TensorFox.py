@@ -748,11 +748,11 @@ def rank(T, options=False, plot=True, trials=3):
     error_per_rank = empty(Rmax)
     
     print('Start searching for rank')
-    print('Stops at r =', Rmax, ' or less')
+    print('Stops at R =', Rmax, ' or less')
     print('-----------------------------')
 
     for r in range(1, Rmax+1):  
-        s = "Testing r = " + str(r)
+        s = "Testing R = " + str(r)
         sys.stdout.write('\r'+s)
     
         best_error = inf
