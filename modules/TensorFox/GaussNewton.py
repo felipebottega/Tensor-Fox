@@ -20,10 +20,10 @@ from numba import njit
 from copy import deepcopy
 
 # Tensor Fox modules
-import Alternating_Least_Squares as als
-import Conversion as cnv
-import Critical as crt
-import MultilinearAlgebra as mlinalg
+import TensorFox.Alternating_Least_Squares as als
+import TensorFox.Conversion as cnv
+import TensorFox.Critical as crt
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def dGN(T, factors, R, options):

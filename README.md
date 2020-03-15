@@ -32,7 +32,7 @@ In order to have everything working properly, all files of Tensor Fox must be in
 
 Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. 
 
-That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Inside the folder 'modules' in this repository you will find a folder called 'TensorFox'. This folder is the package we will be using here. Just put it together with the other packages of your project. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 

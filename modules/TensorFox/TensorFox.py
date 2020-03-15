@@ -50,15 +50,15 @@ warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
 
 # Tensor Fox modules
-import Alternating_Least_Squares as als
-import Auxiliar as aux
-import Compression as cmpr
-import Conversion as cnv
-import Critical as crt
-import Display as disp
-import GaussNewton as gn
-import Initialization as init
-import MultilinearAlgebra as mlinalg
+import TensorFox.Alternating_Least_Squares as als
+import TensorFox.Auxiliar as aux
+import TensorFox.Compression as cmpr
+import TensorFox.Conversion as cnv
+import TensorFox.Critical as crt
+import TensorFox.Display as disp
+import TensorFox.GaussNewton as gn
+import TensorFox.Initialization as init
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def cpd(T, R, options=False):

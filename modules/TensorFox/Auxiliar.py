@@ -15,8 +15,8 @@ import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 
 # Tensor Fox modules
-import Critical as crt
-import TensorFox as tfx
+import TensorFox.Critical as crt
+import TensorFox.TensorFox as tfx
 
 
 def consistency(R, dims, options):

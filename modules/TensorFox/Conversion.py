@@ -13,8 +13,8 @@ from numba import njit
 from scipy.sparse import coo_matrix
 
 # Tensor Fox modules
-import Critical as crt
-import MultilinearAlgebra as mlinalg
+import TensorFox.Critical as crt
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def x2cpd(x, factors, eq=True):

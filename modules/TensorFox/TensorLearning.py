@@ -2,7 +2,7 @@ import numpy as np
 import sys
 import matplotlib.pyplot as plt
 from numba import njit, prange
-import TensorFox as tfx
+import TensorFox.TensorFox as tfx
 
 
 # PREPROCESSING

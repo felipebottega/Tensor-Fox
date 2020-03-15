@@ -16,10 +16,10 @@ from numba import njit
 import pandas as pd
 
 # Tensor Fox modules
-import Auxiliar as aux
-import Compression as cmpr
-import MultilinearAlgebra as mlinalg
-import TensorFox as tfx
+import TensorFox.Auxiliar as aux
+import TensorFox.Compression as cmpr
+import TensorFox.MultilinearAlgebra as mlinalg
+import TensorFox.TensorFox as tfx
 
 
 def showtens(T):

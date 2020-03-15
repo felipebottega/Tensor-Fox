@@ -10,9 +10,9 @@ from numpy import inf, mean, copy, concatenate, empty, float64, dot
 from numpy.linalg import norm, pinv
 
 # Tensor Fox modules
-import Conversion as cnv
-import Critical as crt
-import MultilinearAlgebra as mlinalg
+import TensorFox.Conversion as cnv
+import TensorFox.Critical as crt
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def als(T, factors, R, options):

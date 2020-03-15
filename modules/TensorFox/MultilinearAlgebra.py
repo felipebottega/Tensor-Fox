@@ -25,10 +25,10 @@ import scipy as scp
 from numba import njit, prange
 
 # Tensor Fox modules
-import Auxiliar as aux
-import Compression as cmpr
-import Conversion as cnv
-import Critical as crt
+import TensorFox.Auxiliar as aux
+import TensorFox.Compression as cmpr
+import TensorFox.Conversion as cnv
+import TensorFox.Critical as crt
 
 
 def multilin_mult_cpd(U, W, dims):

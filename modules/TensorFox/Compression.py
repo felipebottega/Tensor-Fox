@@ -30,9 +30,9 @@ from sklearn.utils.extmath import randomized_svd as rand_svd
 import sys
 
 # Tensor Fox modules
-import Auxiliar as aux
-import Conversion as cnv
-import MultilinearAlgebra as mlinalg
+import TensorFox.Auxiliar as aux
+import TensorFox.Conversion as cnv
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def mlsvd(T, Tsize, R, options):

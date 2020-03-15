@@ -13,8 +13,8 @@ import sys
 from numba import njit
 
 # Tensor Fox modules
-import Conversion as cnv
-import MultilinearAlgebra as mlinalg
+import TensorFox.Conversion as cnv
+import TensorFox.MultilinearAlgebra as mlinalg
 
 
 def starting_point(T, Tsize, S, U, R, ordering, options):
