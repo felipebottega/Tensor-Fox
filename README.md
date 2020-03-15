@@ -21,7 +21,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Getting Started
 
-In order to have everything working properly, all files of Tensor Fox must be in the same folder of your program. At the moment we are only offering the module files, so there is no install procedure to follow, just download the modules and import them locally. To be able to use Tensor Fox properly you will need the following packages already installed on your computer:
+In order to have everything working properly, all files of Tensor Fox must be in the same folder of your program. At the moment we are only offering the module files, so there is no install procedure to follow, just download the modules and import them locally. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
     numpy
     pandas
