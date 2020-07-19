@@ -21,7 +21,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Getting Started
 
-Inside the folder *modules* of this repository you will find a folder called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
+Inside the folder *modules* of this repository you will find another one called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
     numpy
     pandas
@@ -30,7 +30,7 @@ Inside the folder *modules* of this repository you will find a folder called *Te
     matplotlib
     numba
 
-Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 
