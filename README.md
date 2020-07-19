@@ -1,6 +1,6 @@
 # Tensor Fox
 
-Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP, see [the wikipedia article](https://en.wikipedia.org/wiki/Tensor_rank_decomposition) for a introduction to this decomposition. In this package you will find an efficient CPD solver, a great variety of parameters for fine tuning, support to sparse tensors, routines to test models and tensor behavior, rank estimate, statistics, and many more!
+Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP. We recommend [the wikipedia article](https://en.wikipedia.org/wiki/Tensor_rank_decomposition) for a introduction to this decomposition. In this package you will find an efficient CPD solver, a great variety of parameters for fine tuning, support to sparse tensors, routines to test models and tensor behavior, rank estimate, statistics, and many more!
 
 ## Table of Contents
 - [:fox_face: Motivation](#motivation)
@@ -17,11 +17,11 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
- Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
+ Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of a tensor is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm plus the Tensor Train Decomposition in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
 
 ## :fox_face: Getting Started
 
-In order to have everything working properly, all files of Tensor Fox must be in the same folder of your program. At the moment we are only offering the module files, so there is no install procedure to follow, just download the modules and import them locally. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
+Inside the folder *modules* of this repository you will find a folder called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
     numpy
     pandas
@@ -30,9 +30,7 @@ In order to have everything working properly, all files of Tensor Fox must be in
     matplotlib
     numba
 
-Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. 
-
-Inside the folder *modules* in this repository you will find a folder called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 
@@ -42,7 +40,7 @@ Let's create a little tensor **T** just to see how Tensor Fox works at its basic
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
 
-Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions with an example of third order tensor. 
+Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions for this third order tensor. 
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
 
