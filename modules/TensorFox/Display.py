@@ -24,11 +24,11 @@ import TensorFox.TensorFox as tfx
 
 def showtens(T):
     """
-    Let T = T_(i,j,k) be a tensor in coordinates. It is usual to consider that i is the row coordinate, j is the column 
-    coordinate and k is the section coordinate. But if we just run the command print(T) we will see that numpy considers
-    i as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual way to consider
-    tensors, and if we want to print T section by section (i.e., each frontal slice separately), this function does the
-    job.
+    Let T = T_(i,j,k) be a third order tensor in coordinates. It is usual to consider that i is the row coordinate, j is
+    the column coordinate and k is the section coordinate. But if we just run the command print(T) we will see that
+    Numpy considers i as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual
+    way to consider tensors, and if we want to print T, section by section (i.e., each frontal slice separately), this
+    function does the job.
     """
     
     dims = T.shape
