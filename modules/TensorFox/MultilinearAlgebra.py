@@ -17,12 +17,13 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, zeros, empty, float64, array, sort, ceil, prod, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
-from numpy.random import permutation
 import numpy.matlib
 import scipy as scp
 from numba import njit, prange
+from operator import mul
+from functools import reduce
 
 # Tensor Fox modules
 import TensorFox.Auxiliar as aux
@@ -156,7 +157,7 @@ def multirank_approx(T, multi_rank, options):
     options = aux.make_options(options, L)
     options.display = 0
     options.trunc_dims = multi_rank
-    R_gen = int(ceil( prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
+    R_gen = int(ceil( reduce(mul, sorted_dims, 1)/(np.sum(sorted_dims) - L + 1) ))
     S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R_gen, options)
 
     # Construct the corresponding tensor T_approx.
@@ -244,7 +245,7 @@ def cond(factors):
         dims = array([A[i].shape[0] for i in range(L)])
         N = 1 + np.sum(dims - 1)
         r = A[0].shape[1]
-        Pi = np.prod(dims)
+        Pi = reduce(mul, dims, 1)
         Sigma = 1 + np.sum(dims - 1)
 
         idxSet = zeros((L - 1, r))
@@ -284,7 +285,7 @@ def cond(factors):
     R = factors[0].shape[1]
 
     # Verify if current rank is bigger than the generic rank of the space.
-    P = prod(dims)
+    P = reduce(mul, dims, 1)
     S = R * (1 + np.sum(dims - 1))
     if P < S:
         J = []

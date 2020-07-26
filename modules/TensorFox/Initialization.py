@@ -6,11 +6,13 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, empty, zeros, ones, int64, arange, sqrt, inf, argmax, array, prod, unravel_index
+from numpy import dot, empty, zeros, ones, int64, arange, sqrt, inf, argmax, array, unravel_index
 from numpy.linalg import norm
 from numpy.random import randn, randint
 import sys
 from numba import njit
+from operator import mul
+from functools import reduce
 
 # Tensor Fox modules
 import TensorFox.Conversion as cnv
@@ -116,7 +118,7 @@ def smart_random(S, dims, R):
 
     # Initialize auxiliary values and arrays.
     dims = array(dims)
-    samples = 1 + int(sqrt(prod(dims)))
+    samples = 1 + int(sqrt(reduce(mul, dims, 1)))
     best_error = inf
     S1 = cnv.unfold(S, 1)
     Ssize = norm(S)

@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import mean, var, array, prod, sort, ceil, floor, zeros, uint8
+from numpy import mean, var, array, sort, ceil, floor, zeros, uint8
 from numpy.linalg import norm
 import time
 import warnings
@@ -14,6 +14,8 @@ import IPython.display as ipd
 import matplotlib.pyplot as plt
 from numba import njit
 import pandas as pd
+from operator import mul
+from functools import reduce
 
 # Tensor Fox modules
 import TensorFox.Auxiliar as aux
@@ -24,11 +26,11 @@ import TensorFox.TensorFox as tfx
 
 def showtens(T):
     """
-    Let T = T_(i,j,k) be a third order tensor in coordinates. It is usual to consider that i is the row coordinate, j is
-    the column coordinate and k is the section coordinate. But if we just run the command print(T) we will see that
-    Numpy considers i as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual
-    way to consider tensors, and if we want to print T, section by section (i.e., each frontal slice separately), this
-    function does the job.
+    Let T = T_(i,j,k) be a tensor in coordinates. It is usual to consider that i is the row coordinate, j is the column 
+    coordinate and k is the section coordinate. But if we just run the command print(T) we will see that numpy considers
+    i as the slice coordinate, j the row coordinate and k the column coordinate. This is not the usual way to consider
+    tensors, and if we want to print T section by section (i.e., each frontal slice separately), this function does the
+    job.
     """
     
     dims = T.shape
@@ -83,12 +85,12 @@ def infotens(T):
     
     # Bounds on rank.
     sorted_dims = sort(array(dims))
-    R = prod(sorted_dims[1:])
+    R = reduce(mul, sorted_dims[1:], 1)
     print(1, '<= rank(T) <=', R)
     print()
 
     # Show generic rank.
-    R_gen = int(ceil( prod(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
+    R_gen = int(ceil( reduce(mul, sorted_dims, 1)/(np.sum(sorted_dims) - L + 1) ))
     print('Generic rank of the tensor space of T =', R_gen)
     print()
     

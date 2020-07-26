@@ -6,13 +6,15 @@
 """ 
 
 # Python modules
-from numpy import prod, diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray
+from numpy import diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray
 from numpy.linalg import norm, pinv
 from numpy.random import randn
 import sys
 import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
+from operator import mul
+from functools import reduce
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
@@ -353,7 +355,7 @@ def tt_core(V, dims, r1, r2, l):
     Computation of one core of the CPD Tensor Train function (cpdtt).
     """
 
-    V = V.reshape(r1*dims[l], prod(dims[l+1:]), order='F')
+    V = V.reshape(r1*dims[l], reduce(mul, dims[l+1:], 1), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:, :r2]

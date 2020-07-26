@@ -24,9 +24,11 @@
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, prod, float32, float64, copy, sqrt, dot
+from numpy import identity, ones, empty, array, float32, float64, copy, sqrt, dot
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
+from operator import mul
+from functools import reduce
 import sys
 
 # Tensor Fox modules
@@ -261,7 +263,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
     U = []
-    T1 = empty((dims[0], prod(dims) // dims[0]), dtype=float64)
+    T1 = empty((dims[0], reduce(mul, dims, 1) // dims[0]), dtype=float64)
     for l in range(L):
         Tl = cnv.unfold(T, l+1)
         if l == 0:

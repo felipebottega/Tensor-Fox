@@ -20,7 +20,7 @@ from numba import njit
 from copy import deepcopy
 
 # Tensor Fox modules
-import TensorFox.Alternating_Least_Squares as als
+import TensorFox.Alternating_Least_Squares as alsq
 import TensorFox.Conversion as cnv
 import TensorFox.Critical as crt
 import TensorFox.MultilinearAlgebra as mlinalg
@@ -271,7 +271,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
         y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
 
     elif inner_method == 'als':
-        factors = als.als_iteration(Tl, factors, fix_mode)
+        factors = alsq.als_iteration(Tl, factors, fix_mode)
         x = concatenate([factors[l].flatten('F') for l in range(L)])
         y *= 0
         
