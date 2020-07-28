@@ -27,6 +27,7 @@ import numpy as np
 from numpy import identity, ones, empty, array, float32, float64, copy, sqrt, dot
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
+from scipy.sparse import coo_matrix
 from operator import mul
 from functools import reduce
 import sys
@@ -186,7 +187,10 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l):
 
     else:
         if mlsvd_method == 'sparse':
-            Tl = Tl.dot(Tl.T)
+            try:
+                Tl = Tl.dot(Tl.T)
+            except MemoryError:
+                Tl = sparse_dot(Tl)
             Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
             sigma_l = sqrt(sigma_l)
         else:
@@ -300,3 +304,31 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
             print()
 
     return trunc_error
+
+
+def sparse_dot(Tl):
+    """
+    Given a csr sparse matrix Tl, this function computes the product Tl * Tl.T. The result is also given as a csr sparse
+    matrix. This function is used only when the direct method Tl.dot(Tl.T) fails. This happens when the number of
+    columns of Tl is very large. The dot method is faster but its memory consumption varies with the number of columns,
+    whereas this function is slower but requires less memory usage (it varies with the nonzero entries of Tl).
+    """
+
+    m = Tl.shape[0]
+    B = Tl.tocsr()
+    C = Tl.tocsr().T
+
+    rows, cols, data = [], [], []
+
+    for i in range(m):
+        for j in range(m):
+            tmp = B[i, :].multiply(C[:, j].T).data
+            if len(tmp) > 0:
+                rows.append(i)
+                cols.append(j)
+                data.append(tmp.sum())
+
+    out = coo_matrix((data, (rows, cols)), shape=(m, m))
+    out = out.tocsr()
+
+    return out

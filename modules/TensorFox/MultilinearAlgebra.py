@@ -121,6 +121,8 @@ def sparse_multilin_mult(U, data, idxs, dims):
     """
 
     L = len(dims)
+    # The entries of idxs must be arrays to properly work in the next function call.
+    idxs = [np.array(idx) for idx in idxs]
     # dims_out are the dimensions of the output tensor S.
     dims_out = [U[l].shape[0] for l in range(L)]
     S = np.empty(dims_out, dtype=float64)
