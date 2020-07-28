@@ -318,17 +318,35 @@ def sparse_dot(Tl):
     B = Tl.tocsr()
     C = Tl.tocsr().T
 
-    rows, cols, data = [], [], []
+    rows, cols, datas = [], [], []
 
+    # Store the sparse arrays in a list to speed-up the computations.
+    bi = [B[i, :] for i in range(B.shape[0])]
+    cjt = [C[:, j].T for j in range(C.shape[1])]
+
+    # Compute lower trinagular (not the diagonal) entries and assign to its transpose entries.
     for i in range(m):
-        for j in range(m):
-            tmp = B[i, :].multiply(C[:, j].T).data
+        for j in range(i):
+            tmp = bi[i].multiply(cjt[j]).data
             if len(tmp) > 0:
+                tmpsum = tmp.sum()
                 rows.append(i)
                 cols.append(j)
-                data.append(tmp.sum())
+                datas.append(tmpsum)
+                rows.append(j)
+                cols.append(i)
+                datas.append(tmpsum)
+     
+    # Compute the diagonal entries.
+    for i in range(m):
+        tmp = bi[i].multiply(cjt[i]).data
+        if len(tmp) > 0:
+            tmpsum = tmp.sum()
+            rows.append(i)
+            cols.append(i)
+            datas.append(tmpsum)
 
-    out = coo_matrix((data, (rows, cols)), shape=(m, m))
+    out = coo_matrix((datas, (rows, cols)), shape=(m, m))
     out = out.tocsr()
 
     return out
