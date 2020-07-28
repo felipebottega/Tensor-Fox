@@ -541,11 +541,11 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
             if j % (num_samples//80) == 0 and j >= (num_samples//80):
                 count += 1
                 s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + \
-                    " " + str(np.round(100*j/num_samples, 2)) + "%"
+                    " " + str(np.round(100*j/num_samples, 1)) + "%"
                 sys.stdout.write('\r' + s)
 
         # Display progress bar at 100%.
-        s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00% / acc=" + str(round(100 * success/num_samples, 2)) + '%'
+        s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.0% / acc=" + str(round(100 * success/num_samples, 2)) + '%'
         sys.stdout.write('\r' + s)
 
         # Update relevant information.
