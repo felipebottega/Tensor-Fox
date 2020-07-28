@@ -543,9 +543,10 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
                 s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + \
                     " " + str(np.round(100*j/num_samples, 2)) + "%"
                 sys.stdout.write('\r' + s)
-            else:
-                s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00%"
-                sys.stdout.write('\r' + s)
+
+        # Display progress bar at 100%.
+        s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00% / acc=" + str(round(100 * success/num_samples, 2)) + '%'
+        sys.stdout.write('\r' + s)
 
         # Update relevant information.
         acc = 100 * success/num_samples
@@ -556,11 +557,6 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
         if np.sum(np.isnan(X_val)) == 0:
             accuracy_val.append(cpd_test(X_val, Y_val, W, I))
         print()
-
-        # Display progress bar at 100%.
-        if display:
-            s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00% / acc=" + str(round(acc, 2)) + '%'
-            sys.stdout.write('\r' + s)
 
     if display:
         disp_results(accuracy, accuracy_val, cost_function, W, epochs)
