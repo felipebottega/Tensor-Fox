@@ -538,27 +538,29 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
             cum_cost += cost
 
             # Display progress bar.
-            if j % (num_samples//90) == 0 and j >= (num_samples//90):
+            if j % (num_samples//80) == 0 and j >= (num_samples//80):
                 count += 1
-                s = "Epoch " + str(ep+1) + ": [" + count * "=" + (90-count) * " " + "]" + \
+                s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + \
                     " " + str(np.round(100*j/num_samples, 2)) + "%"
                 sys.stdout.write('\r' + s)
-            elif j == num_samples-1:
-                s = "Epoch " + str(ep+1) + ": [" + count * "=" + (90-count) * " " + "]" + " " + "100.00%"
+            else:
+                s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00%"
                 sys.stdout.write('\r' + s)
 
         # Update relevant information.
         acc = 100 * success/num_samples
         accuracy.append(100 * success/num_samples)
         cost_function.append(cum_cost/num_samples)
-        if display:
-            s = "Epoch " + str(ep+1) + ": [" + count * "=" + (90-count) * " " + "]" + " " + "100.00% / acc=" + str(round(acc, 2)) + '%'
-            sys.stdout.write('\r' + s)
 
         # The X_val dataset is supposed to be already normalized.
         if np.sum(np.isnan(X_val)) == 0:
             accuracy_val.append(cpd_test(X_val, Y_val, W, I))
         print()
+
+        # Display progress bar at 100%.
+        if display:
+            s = "Epoch " + str(ep+1) + ": [" + min(80, count) * "=" + min((80-count), 80) * " " + "]" + " " + "100.00% / acc=" + str(round(acc, 2)) + '%'
+            sys.stdout.write('\r' + s)
 
     if display:
         disp_results(accuracy, accuracy_val, cost_function, W, epochs)
