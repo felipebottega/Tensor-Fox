@@ -71,7 +71,10 @@ def cpd(T, R, options=False):
     Inputs
     ------
     T: float array
-        Objective tensor in coordinates.
+        Objective tensor in coordinates. If T is a sparse tensor, give it as a list T = [data, idxs, dims], where dims
+        are the dimensions of T (it can be a list, tuple or array). We remark that each idxs[i] is a tuple (or list or
+        array) of the coordinates of T such that T[idxs[i]] = data[i]. If idxs is given as an array, note that each row
+        of idxs is taken as a set of coordinates.
     R: int
         The desired rank of the approximating tensor.
     options: class with the following parameters
