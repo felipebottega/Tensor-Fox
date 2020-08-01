@@ -42,7 +42,7 @@ import time
 from copy import deepcopy
 from decimal import Decimal
 import matplotlib.pyplot as plt
-from numba.errors import NumbaDeprecationWarning, NumbaPendingDeprecationWarning, NumbaPerformanceWarning
+import numba
 import warnings
 
 # Tensor Fox modules
@@ -57,6 +57,9 @@ from TensorFox.Initialization import *
 from TensorFox.MultilinearAlgebra import *
 
 
+NumbaDeprecationWarning = numba.errors.NumbaDeprecationWarning
+NumbaPendingDeprecationWarning = numba.errors.NumbaPendingDeprecationWarning
+NumbaPerformanceWarning = numba.errors.NumbaPerformanceWarning
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
