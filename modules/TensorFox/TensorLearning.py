@@ -513,6 +513,7 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
         success = 0
         cum_cost = 0
         cum_grad = np.zeros(W.shape)
+        
         for j in range(num_samples):
             x = X[j, :]
             y = Y_hot_encoded[j, :]
@@ -747,11 +748,13 @@ def simplify_model(W, r, options=False):
 # MLSVD LEARNING
 
 
-def create_sets(X, Y, display=True):
+def create_sets(X, Y, p=0, var_type='int', display=True):
     """
-    This function separates the inputs by class in a list called samples_per_class. The number of inputs per class 
-    should be equal. If this is not the case, the program randomly select some inputs to be repeated in a certain 
-    class. This is done so that all classes have the same number of elements.
+    This function separates the inputs by class in a list called samples_per_class. If the number of inputs per 
+    class is no equal, the program randomly select some inputs to be repeated in a certain class. This is done 
+    so that all classes have the same number of elements. 
+    There is the option to add noise to these repeated inputs, so we can have a simple method of data augmentation
+    to apply.
 
     Inputs
     ------
@@ -759,17 +762,27 @@ def create_sets(X, Y, display=True):
         Train data in 2D array format. Each row correspond to a single sample of the data.
     Y: 1D array
         Each entry i of Y correspond to the class of the ith input (ith row of X).
+    p: float
+        Proportion of the noise with respect to the original data. For example, if p=0.1, then the noise added has
+        size less or equal than 10% of the size of the original data. Default is p=0, which means to not perturb. 
+    var_type: str
+        This variable indicates the type or perturbation. In both cases we use uniform distribution to pick the
+        perturbations. The only possibilities considered are 'int' and 'float'. Default is 'int'.
     display: bool
         If True (default), the function shows the number of inputs for each class.
         
     Outputs
     -------
+    X_new, Y_new: arrays
+        New versions of X and Y, maybe with more data.
     inputs: list
         Each element of this list is a list with all inputs with same class.
     """
 
     num_samples = X.shape[0]
     num_classes = int(max(Y)) + 1
+    X_new = []
+    Y_new = []
     inputs = [[] for i in range(num_classes)]
 
     # Create list with all inputs separated by class.
@@ -781,10 +794,9 @@ def create_sets(X, Y, display=True):
     # Counting of inputs for each class.
     samples_per_class = []
     for i in range(num_classes):
-        c = len(inputs[i])
-        samples_per_class.append(c)
+        samples_per_class.append(len(inputs[i]))
         if display:
-            print('Inputs of class', i, '=', c)
+            print('Inputs of class', i, '=', len(inputs[i]))
 
     # Make each class to have the same number of inputs.
     max_class = max(samples_per_class)
@@ -794,19 +806,36 @@ def create_sets(X, Y, display=True):
         if diff > 1:
             for j in range(diff):
                 idx = np.random.randint(c)
-                inputs[i].append(inputs[i][idx])
+                x = inputs[i][idx]
+                # Apply data augmentation.
+                if var_type == 'int':
+                    xp = np.random.randint(low=int(min(x)), high=1+int(max(x)), size=x.shape[0])
+                    x_new = x + (p * xp).astype(int)
+                elif var_type == 'float':
+                    xp = np.random.uniform(low=min(x), high=1+max(x), size=x.shape[0])
+                    x_new = x + p*xp
+                inputs[i].append(x_new)
+          
+                # Update X_new and Y_new.
+                X_new.append(x_new)
+                Y_new.append(i)             
+                
+    # Convert X_new and Y_new to arrays.
+    X_new = np.array(X_new)
+    Y_new = np.array(Y_new)
+    X_new = np.concatenate([X, X_new])
+    Y_new = np.concatenate([Y, Y_new])
 
     if display:
         print()
         print('After fixing number of inputs per class:')
         for i in range(num_classes):
-            c = len(inputs[i])
-            print('Inputs of class', i, '=', c)
+            print('Inputs of class', i, '=', len(inputs[i]))
 
-    return inputs
+    return X_new, Y_new, inputs
 
 
-def data2tens(X, Y, display=True):
+def data2tens(X, Y, p=0, var_type='int', display=True):
     """
     Given the input dataset X and the target dataset Y, this function separates the inputs by class so that each
     class has the same number of inputs m. If n is the dimension of the inputs and each class has p inputs, the
@@ -828,7 +857,7 @@ def data2tens(X, Y, display=True):
     """
 
     # Create list with inputs organized by class.
-    inputs = create_sets(X, Y, display=display)
+    X, Y, inputs = create_sets(X, Y, p=p, var_type=var_type, display=display)
     num_inputs = len(inputs[0])
     input_size = inputs[0][0].size
     num_classes = len(inputs)
@@ -839,7 +868,7 @@ def data2tens(X, Y, display=True):
         for k in range(num_classes):
             T[i, :, k] = np.array(inputs[k][i])
 
-    return T
+    return T, X, Y
 
 
 def mlsvd_train(T, r, options=False):
@@ -1019,3 +1048,4 @@ def mlsvd_predictions(X_test, F, U2, p, mu=0, sigma=1):
     print('Finished')
 
     return predictions
+
