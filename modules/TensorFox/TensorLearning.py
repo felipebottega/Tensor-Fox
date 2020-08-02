@@ -748,7 +748,7 @@ def simplify_model(W, r, options=False):
 # MLSVD LEARNING
 
 
-def create_sets(X, Y, p=0, var_type='int', display=True):
+def create_sets(X, Y, num_samples, p, var_type, display):
     """
     This function separates the inputs by class in a list called samples_per_class. If the number of inputs per 
     class is no equal, the program randomly select some inputs to be repeated in a certain class. This is done 
@@ -762,12 +762,16 @@ def create_sets(X, Y, p=0, var_type='int', display=True):
         Train data in 2D array format. Each row correspond to a single sample of the data.
     Y: 1D array
         Each entry i of Y correspond to the class of the ith input (ith row of X).
+    num_samples: int
+        The desired number of samples per class. This number should be equal or greater than the current maximum number
+    of samples in a class.
     p: float
         Proportion of the noise with respect to the original data. For example, if p=0.1, then the noise added has
-        size less or equal than 10% of the size of the original data. Default is p=0, which means to not perturb. 
+        size less or equal than 10% of the size of the original data.  
     var_type: str
         This variable indicates the type or perturbation. In both cases we use uniform distribution to pick the
-        perturbations. The only possibilities considered are 'int' and 'float'. Default is 'int'.
+        perturbations. The only possibilities considered are 'int' and 'float'. We remark that you should use float 
+        whenever the data is normalized.
     display: bool
         If True (default), the function shows the number of inputs for each class.
         
@@ -779,14 +783,14 @@ def create_sets(X, Y, p=0, var_type='int', display=True):
         Each element of this list is a list with all inputs with same class.
     """
 
-    num_samples = X.shape[0]
+    total_num_samples = X.shape[0]
     num_classes = int(max(Y)) + 1
     X_new = []
     Y_new = []
     inputs = [[] for i in range(num_classes)]
 
     # Create list with all inputs separated by class.
-    for i in range(num_samples):
+    for i in range(total_num_samples):
         x = X[i, :]
         y = int(Y[i])
         inputs[y].append(x)
@@ -799,7 +803,11 @@ def create_sets(X, Y, p=0, var_type='int', display=True):
             print('Inputs of class', i, '=', len(inputs[i]))
 
     # Make each class to have the same number of inputs.
-    max_class = max(samples_per_class)
+    if num_samples is not None:
+        max_class = max(max(samples_per_class), num_samples)
+    else:
+        max_class = max(samples_per_class)
+
     for i in range(num_classes):
         c = samples_per_class[i]
         diff = max_class - c
@@ -807,13 +815,13 @@ def create_sets(X, Y, p=0, var_type='int', display=True):
             for j in range(diff):
                 idx = np.random.randint(c)
                 x = inputs[i][idx]
+
                 # Apply data augmentation.
-                if var_type == 'int':
-                    xp = np.random.randint(low=int(min(x)), high=1+int(max(x)), size=x.shape[0])
-                    x_new = x + (p * xp).astype(int)
-                elif var_type == 'float':
-                    xp = np.random.uniform(low=min(x), high=1+max(x), size=x.shape[0])
+                xp = np.random.uniform(low=min(x), high=1+max(x), size=x.shape[0])
+                if var_type == 'float':
                     x_new = x + p*xp
+                elif var_type == 'int':
+                    x_new = x + (p*xp).astype(int)               
                 inputs[i].append(x_new)
           
                 # Update X_new and Y_new.
@@ -835,7 +843,7 @@ def create_sets(X, Y, p=0, var_type='int', display=True):
     return X_new, Y_new, inputs
 
 
-def data2tens(X, Y, p=0, var_type='int', display=True):
+def data2tens(X, Y, num_samples=None, p=0, var_type='float', display=True):
     """
     Given the input dataset X and the target dataset Y, this function separates the inputs by class so that each
     class has the same number of inputs m. If n is the dimension of the inputs and each class has p inputs, the
@@ -847,6 +855,16 @@ def data2tens(X, Y, p=0, var_type='int', display=True):
         Train data in 2D array format. Each row correspond to a single sample of the data.
     Y: 1D array
         Each entry i of Y correspond to the class of the ith input (ith row of X).
+    num_samples: int
+        The desired number of samples per class. This number should be equal or greater than the current maximum number
+    of samples in a class.
+    p: float
+        Proportion of the noise with respect to the original data. For example, if p=0.1, then the noise added has
+        size less or equal than 10% of the size of the original data. Default is p=0, which means to not perturb. 
+    var_type: str
+        This variable indicates the type or perturbation. In both cases we use uniform distribution to pick the
+        perturbations. The only possibilities considered are 'int' and 'float'. Default is 'float'. We remark that you 
+        should use float whenever the data is normalized.
     display: bool
         If True (default), the function shows the number of inputs for each class.
         
@@ -854,10 +872,12 @@ def data2tens(X, Y, p=0, var_type='int', display=True):
     -------
     T: 3D array
         Each vector T[i, :, k] is the ith input of the kth class.
+    X_new, Y_new: arrays
+        New versions of X and Y, maybe with more data.
     """
 
     # Create list with inputs organized by class.
-    X, Y, inputs = create_sets(X, Y, p=p, var_type=var_type, display=display)
+    X, Y, inputs = create_sets(X, Y, num_samples, p, var_type, display)
     num_inputs = len(inputs[0])
     input_size = inputs[0][0].size
     num_classes = len(inputs)
