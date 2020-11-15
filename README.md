@@ -1,15 +1,15 @@
 # Tensor Fox
 
-Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP, see [the wikipedia article](https://en.wikipedia.org/wiki/Tensor_rank_decomposition) for a introduction to this decomposition. In this package you will find an efficient CPD solver, a great variety of parameters for fine tuning, support to sparse tensors, routines to test models and tensor behavior, rank estimate, statistics, and many more!
+Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP. We recommend [the wikipedia article](https://en.wikipedia.org/wiki/Tensor_rank_decomposition) for a introduction to this decomposition. In this package you will find an efficient CPD solver, a great variety of parameters for fine tuning, support to sparse tensors, routines to test models and tensor behavior, rank estimate, statistics, and many more!
 
 ## Table of Contents
-* [ :fox_face: Motivation](#motivation)
-* [ :fox_face: Getting Started](#started)
-* [ :fox_face: Performance](#performance)
-* [ :fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
-* [ :fox_face: Author](#author)
-* [ :fox_face: License](#license)
-* [ :fox_face: References](#references)
+- [:fox_face: Motivation](#motivation)
+- [:fox_face: Getting Started](#started)
+- [:fox_face: Performance](#performance)
+- [:fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
+- [:fox_face: Author](#author)
+- [:fox_face: License](#license)
+- [:fox_face: References](#references)
 
 ## :fox_face: Motivation
 
@@ -17,11 +17,11 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
 
- Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
+ Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of a tensor is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm plus the Tensor Train Decomposition in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
 
 ## :fox_face: Getting Started
 
-In order to have everything working properly, all files of Tensor Fox must be in the same folder of your program. At the moment we are only offering the module files, so there is no install procedure to follow, just download the modules and import them locally. To be able to use Tensor Fox properly you will need the following packages already installed on your computer:
+Inside the folder *modules* of this repository you will find another one called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
     numpy
     pandas
@@ -30,9 +30,7 @@ In order to have everything working properly, all files of Tensor Fox must be in
     matplotlib
     numba
 
-Make sure Numba and Numpy updated. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is just to install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. 
-
-That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 
@@ -42,7 +40,7 @@ Let's create a little tensor **T** just to see how Tensor Fox works at its basic
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
 
-Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions with an example of third order tensor. 
+Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions for this third order tensor. 
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
 
@@ -112,22 +110,24 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 |**Auxiliar**|  |
 |---|---|
 | tens2matlab| given a tensor, this function saves the tensor in Matlab format file. |
-| sort_dims| given a tensor, this function sort its dimensions in descending order and returns the sorted tensor. |
-| rank1| given the factors of a CPD, this function converts them into a matrix, which is the first frontal slice of the tensor in coordinates obtained by this rank-1 term. |
+| gen_rand_tensor| this function generates a random tensor with standard Gaussian distribution. |
    
 | **Compression**|  |
 |---|---|
 | mlsvd| computes the MLSVD of a tensor. |
-| clean_compression| truncates the MLSVD. |
+| test_truncation| this function test one or several possible truncations for the MLSVD of **T**, showing the  error of the truncations. |
    
 | **Conversion**|  |
 |---|---|
 | cpd2tens| converts the factor matrices to the corresponding tensor in coordinate format. |
-| unfold| given a tensor and a choice of a mode, this function computes the unfolding of the tensor with respect of that mode.  |
+| sparse2dense| given the variables defining a sparse tensor, this function computes its dense representation. |
+| unfold| given a tensor and a mode, this function computes the unfolding of the tensor with respect of that mode. |
+| sparse_unfold| given a sparse tensor and a mode, this function computes the sparse unfolding of the tensor with respect of that mode. |
 | foldback| given a matrix representing a unfolding of some mode and the dimensions of the original tensor, this function retrieves the original tensor from its unfolding. |
 | normalize| normalize the columns of the factors to have unit column norm and introduce a central tensor with the scaling factors. |
 | denormalize| given the normalized factors together with a central tensor, this function retrives the non-normalized factors. |
 | equalize| make the vectors of each mode to have the same norm. |
+| change_sign| after the CPD is computed it may be interesting that each vector of a rank one term is as positive as possible, in the sense that its mean is positive. If two vectors in the same rank one term have negative mean, then we can multiply both by -1 without changing the tensor. |
    
 | **Critical**| |
 |---|---|
@@ -136,6 +136,8 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **Display**|  |
 |---|---|
 | infotens| display several informations about a given tensor. |
+| rank1_plot| this function generates an image with the frontal sections of all rank one terms (in coordinates) of some CPD. |
+| rank_progress| plots the partial sums of rank one terms corresponding to the k-th slice of the CPD. The last image should match the original CPD. |
 | test_tensors| a function made specifically to test different models against different tensors. It is very useful when one is facing difficult tensors and needs to tune the parameters accordingly. |
    
 | **GaussNewton**|   |
@@ -143,19 +145,23 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | dGN| [damped Gauss-Newton](https://en.wikipedia.org/wiki/Gauss%E2%80%93Newton_algorithm) function adapted for the tensor problem.. |
 | cg| [conjugate gradient](https://en.wikipedia.org/wiki/Conjugate_gradient_method) function adapted for the tensor problem. |
 | regularization| computes the [Tikhonov matrix](https://en.wikipedia.org/wiki/Tikhonov_regularization) for the inner algorithm. |
-| precond| computes the [preconditioner matrix](https://en.wikipedia.org/wiki/Preconditioner) for the inner algorithm.  |
+| precond| computes the [preconditioner matrix](https://en.wikipedia.org/wiki/Preconditioner) for the inner algorithm. |
    
 | **Initialization**|  |
 |---|---|
-| starting_point| main function to generates the starting point. There are four possible methods of initialization, 'random', 'smart_random', 'smart', or you can provide your own starting point. |
+| starting_point| main function to generates the starting point. There are four possible methods of initialization, 'random', 'smart_random', 'smart', or you can provide your own starting point as a list of the factor matrices. |
    
 | **MultilinearAlgebra**| |
 |---|---|
 | multilin_mult| performs the multilinear multiplication. |
+| sparse_multilin_mult| performs the sparse multilinear multiplication. |
 | multirank_approx| given a tensor **T** and a prescribed multirank (R1, ..., Rm), this function tries to find the (almost) best approximation of **T** with multirank (R1, ..., Rm). |
 | kronecker| computes the [Kronecker product](https://en.wikipedia.org/wiki/Kronecker_product) between two matrices. |
 | khatri_rao| computes the [Khatri-Rao product](https://en.wikipedia.org/wiki/Kronecker_product#Khatri%E2%80%93Rao_product) between two matrices. |
 | hadamard| computes the [Hadamar product](https://en.wikipedia.org/wiki/Hadamard_product_(matrices)) between two matrices. |
+| cond| computes the geometric condition number of the factor matrices of some CPD. |
+| rank1_terms_list| computes each rank 1 term, as a multidimensional array, of the CPD. |
+| forward_error| let T = T_1 + T_2 + ... + T_R be the decomposition of **T** as sum of rank-1 terms and let T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely without changing the tensor. While |cpd2tens(T) - cpd2tens(T_approx)| is the backward error of the CPD computation problem, we have that min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s is an element of the permutation group S_R. |
 
 ## :fox_face: Author
 
