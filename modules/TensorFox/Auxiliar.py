@@ -15,7 +15,6 @@ import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from operator import mul
 from functools import reduce
-import time
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
