@@ -15,6 +15,7 @@ import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from operator import mul
 from functools import reduce
+import time
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
@@ -141,7 +142,9 @@ def output_info(T1, Tsize, T1_approx,
     else:
         num_steps = size(step_sizes_main)
 
-    if type(T1) == ndarray:
+    if options.refine:
+        rel_error = errors_refine[-1]
+    elif type(T1) == ndarray:
         rel_error = crt.fastnorm(T1, T1_approx)/Tsize
 
     # In the sparse case, the variable T1 is the triple T = [data, idxs, dims] and T1_approx is the variable factors.

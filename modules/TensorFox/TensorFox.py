@@ -63,6 +63,7 @@ NumbaPerformanceWarning = numba.errors.NumbaPerformanceWarning
 warnings.simplefilter('ignore', category=NumbaDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPendingDeprecationWarning)
 warnings.simplefilter('ignore', category=NumbaPerformanceWarning)
+warnings.simplefilter("ignore", RuntimeWarning)
 
 
 def cpd(T, R, options=False):
@@ -73,11 +74,7 @@ def cpd(T, R, options=False):
 
     Inputs
     ------
-<<<<<<< HEAD:modules/TensorFox/TensorFox.py
     T: float array or list
-=======
-    T: float array
->>>>>>> 58034b32f2e81273c97359dca2f76c76f1eab7da:modules/TensorFox.py
         Objective tensor in coordinates. If T is a sparse tensor, give it as a list T = [data, idxs, dims], where dims
         are the dimensions of T (it can be a list, tuple or array). We remark that each idxs[i] is a tuple (or list or
         array) of the coordinates of T such that T[idxs[i]] = data[i]. If idxs is given as an array, note that each row
@@ -88,9 +85,8 @@ def cpd(T, R, options=False):
         maxiter: int
             Number of maximum iterations allowed for the dGN function. Default is 200.
         tol, tol_step, tol_improv, tol_grad: float
-            Tolerance criterion to stop the iteration process of the dGN function. Default is 1e-6 for all. Let T^(k) be
-            the approximation at the k-th iteration, with corresponding CPD w^(k) in vectorized form. The program stops 
-            if
+            Tolerance criterion to stop the iteration process of the dGN function. Let T^(k) be the approximation at 
+            the k-th iteration, with corresponding CPD w^(k) in vectorized form. The program stops if
                 1) |T - T^(k)| / |T| < tol
                 2) | w^(k-1) - w^(k) | < tol_step
                 3) | |T - T^(k-1)| / |T| - |T - T^(k)| / |T| | < tol_improv
@@ -254,9 +250,8 @@ def cpd(T, R, options=False):
         factors = unsort_dims(factors, ordering)
 
     else:
-        # Go back to the original dimension ordering.
+        # Go back to the original dimension ordering (sparse case).
         factors = unsort_dims(factors, ordering)
-
         rel_error = sparse_fastnorm(data_orig, idxs_orig, dims_orig, factors)/Tsize
 
     num_steps = 0
@@ -528,7 +523,7 @@ def tricpd(T, R, options):
                                  stop_main, stop_refine,
                                  options)
     else:
-        # Go back to the original dimension ordering.
+        # Go back to the original dimension ordering (sparse case).
         factors = unsort_dims(factors, ordering)
 
         # Save and display final informations.
@@ -750,11 +745,8 @@ def rank(T, options=False, plot=True, trials=3):
     else:
         dims = T.shape
     L = len(dims)
-<<<<<<< HEAD:modules/TensorFox/TensorFox.py
     
     # Set options
-=======
->>>>>>> 58034b32f2e81273c97359dca2f76c76f1eab7da:modules/TensorFox.py
     options = make_options(options, L)
 
     # START THE PROCESS OF FINDING THE RANK
@@ -778,8 +770,11 @@ def rank(T, options=False, plot=True, trials=3):
     
         best_error = inf
         for t in range(trials):
-            factors, outputs = cpd(T, r, options)
-            rel_error = outputs.rel_error
+            if L > 3 and r == 1:
+                rel_error = 1
+            else:
+                factors, outputs = cpd(T, r, options)
+                rel_error = outputs.rel_error
             if rel_error < best_error:
                 best_error = rel_error
     
@@ -796,17 +791,19 @@ def rank(T, options=False, plot=True, trials=3):
         # Difference between errors small enough.
         if r > Rmin:
             if np.abs(error_per_rank[r-1] - error_per_rank[r-2]) < 1e-5:
-                final_rank = nanargmin(error_per_rank[0:r])+1
-                final_error = error_per_rank[final_rank-1]
-                break
+                if best_error < 0.5:
+                    final_rank = nanargmin(error_per_rank[0:r])+1
+                    final_error = error_per_rank[final_rank-1]
+                    break
         # Error decreased orders of magnitude abruptly.
         if r > 2:
             previous_diff = np.abs(error_per_rank[r-2] - error_per_rank[r-3])
             current_diff = np.abs(error_per_rank[r-1] - error_per_rank[r-2])
             if previous_diff / current_diff > 100:
-                final_rank = r-1
-                final_error = error_per_rank[r-2]
-                break
+                if best_error < 0.5:
+                    final_rank = r-1
+                    final_error = error_per_rank[r-2]
+                    break
     
     # SAVE LAST INFORMATION
     
@@ -817,8 +814,8 @@ def rank(T, options=False, plot=True, trials=3):
         print('\nrank(T) =', final_rank)
         print('|T - T_approx|/|T| =', final_error)
     except:
-        final_rank = Rmax
-        final_error = error_per_rank[-1]
+        final_rank = nanargmin(error_per_rank[0:r])+1
+        final_error = error_per_rank[final_rank-1]
         print('\nrank(T) =', final_rank)
         print('|T - T_approx|/|T| =', final_error)
     

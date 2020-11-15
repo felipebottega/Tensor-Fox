@@ -64,8 +64,8 @@ def multilin_mult_cpd(U, W, dims):
 
 def multilin_mult(U, T1, dims):
     """    
-    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape. We need the first unfolding
-    T1 of T to start the computations.
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where U[i]^T is the transpose of U[i], 
+    dims = T.shape. We need the first unfolding T1 of T to start the computations.
 
     Inputs
     ------
@@ -100,8 +100,8 @@ def multilin_mult(U, T1, dims):
 
 def sparse_multilin_mult(U, data, idxs, dims):
     """
-    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where dims = T.shape and T is sparse. The first
-    unfolding T1 of T is given as a csr matrix.
+    Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where U[i]^T is the transpose of U[i], 
+    dims = T.shape and T is sparse. The first unfolding T1 of T is given as a csr matrix.
 
     Inputs
     ------
@@ -117,7 +117,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
     Outputs
     -------
     S: float array
-        S is the resulting multidimensional of the multilinear multiplication (U[0],...,U[L-1])*T.
+        S is the resulting multidimensional array of the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T.
     """
 
     L = len(dims)
@@ -128,14 +128,16 @@ def sparse_multilin_mult(U, data, idxs, dims):
     S = np.empty(dims_out, dtype=float64)
     func_name = "sparse_multilin_mult_order" + str(L)
     
-    # Change ordering of arrays to be compatible inside a Numba function.
-    for i, u in enumerate(U):
-        U[i] = array(u, order='C')
-    for i, d in enumerate(data):
-        data[i] = array(d, order='A')
-        
     # Run the multiplication function.
-    S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+    try:
+        S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+    except:    
+        # Change ordering of arrays to be compatible inside a Numba function.
+        for i, u in enumerate(U):
+            U[i] = array(u, order='C')
+        for i, d in enumerate(data):
+            data[i] = array(d, order='A')            
+        S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
 
     return S
 

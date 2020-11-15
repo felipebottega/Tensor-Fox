@@ -210,8 +210,6 @@ def sparse_unfold(data, idxs, dims, mode):
     idx = list(np.arange(L))
     idx.remove(mode-1)
     K = zeros(L, dtype=np.int64)
-    rows = zeros(nnz, dtype=np.int64)
-    cols = zeros(nnz, dtype=np.int64)
                  
     c = 0
     for l in range(L):
@@ -224,10 +222,8 @@ def sparse_unfold(data, idxs, dims, mode):
             K[l] = int(s)
             c += 1
     
-    for i in range(nnz):
-        y = idxs[i]
-        rows[i] = y[mode-1]
-        cols[i] = np.sum(K*y) 
+    rows = idxs[:, mode-1]
+    cols = np.sum(K * idxs, axis=1)
         
     Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], reduce(mul, dims, 1)//dims[mode-1]))
     Tl = Tl.tocsr()
