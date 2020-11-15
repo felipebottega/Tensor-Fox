@@ -73,7 +73,11 @@ def cpd(T, R, options=False):
 
     Inputs
     ------
+<<<<<<< HEAD:modules/TensorFox/TensorFox.py
     T: float array or list
+=======
+    T: float array
+>>>>>>> 58034b32f2e81273c97359dca2f76c76f1eab7da:modules/TensorFox.py
         Objective tensor in coordinates. If T is a sparse tensor, give it as a list T = [data, idxs, dims], where dims
         are the dimensions of T (it can be a list, tuple or array). We remark that each idxs[i] is a tuple (or list or
         array) of the coordinates of T such that T[idxs[i]] = data[i]. If idxs is given as an array, note that each row
@@ -746,8 +750,11 @@ def rank(T, options=False, plot=True, trials=3):
     else:
         dims = T.shape
     L = len(dims)
+<<<<<<< HEAD:modules/TensorFox/TensorFox.py
     
     # Set options
+=======
+>>>>>>> 58034b32f2e81273c97359dca2f76c76f1eab7da:modules/TensorFox.py
     options = make_options(options, L)
 
     # START THE PROCESS OF FINDING THE RANK
