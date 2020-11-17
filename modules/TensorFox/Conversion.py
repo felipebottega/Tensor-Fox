@@ -6,13 +6,11 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, prod, int64, dot, sign, float64
+from numpy import empty, array, zeros, prod, int64, uint64, dot, sign, float64
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit
 from scipy.sparse import coo_matrix
-from operator import mul
-from functools import reduce
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
@@ -152,7 +150,7 @@ def unfold(T, mode):
  
     dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], reduce(mul, dims, 1)//dims[mode-1]), order='F')
+    Tl = empty((dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]), order='F')
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
@@ -176,7 +174,7 @@ def unfold_C(T, mode):
  
     dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], reduce(mul, dims, 1)//dims[mode-1]))
+    Tl = empty((dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]))
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
@@ -206,10 +204,9 @@ def sparse_unfold(data, idxs, dims, mode):
     """
     
     L = len(dims)
-    nnz = len(data)
     idx = list(np.arange(L))
     idx.remove(mode-1)
-    K = zeros(L, dtype=np.int64)
+    K = zeros(L, dtype=int64)
                  
     c = 0
     for l in range(L):
@@ -224,8 +221,8 @@ def sparse_unfold(data, idxs, dims, mode):
     
     rows = idxs[:, mode-1]
     cols = np.sum(K * idxs, axis=1)
-        
-    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], reduce(mul, dims, 1)//dims[mode-1]))
+    
+    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]))
     Tl = Tl.tocsr()
         
     return Tl

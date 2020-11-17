@@ -6,15 +6,14 @@
 """ 
 
 # Python modules
-from numpy import diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray
+from numpy import diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray, unique, prod, uint64
 from numpy.linalg import norm, pinv
-from numpy.random import randn
+from numpy.random import randn, randint
 import sys
 import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
-from operator import mul
-from functools import reduce
+from itertools import product
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
@@ -359,7 +358,7 @@ def tt_core(V, dims, r1, r2, l):
     Computation of one core of the CPD Tensor Train function (cpdtt).
     """
 
-    V = V.reshape(r1*dims[l], reduce(mul, dims[l+1:], 1), order='F')
+    V = V.reshape(r1*dims[l], int(prod(dims[l+1:], dtype=uint64)), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:, :r2]
@@ -562,3 +561,76 @@ def gen_rand_tensor(dims, R, noise=0):
     
     else:
         return T, orig_factors
+
+
+def gen_rand_sparse_tensor(dims, R, nnz):
+    """
+    This function generates a sparse random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where L is the
+    order of T. Each factor matrix of T is a sparse matrix of shape (dims[l], R) with its entries drawn from the standard
+    Gaussian distribution (mean zero and variance one). The sparse representation is given by a dictionary where the
+    keys are the coordinates associated to nonzero values of the matrix.
+    T is given in the sparse format [data, idxs, dims] as described in the cpd function.
+
+    Input
+    -----
+    dims: tuple or list of ints
+        The dimensions of the tensor
+    R: int
+        The rank of the tensor (must satisfy R < min(dims))
+    nnz: int
+        Number of nonzero entries of each factor matrix. Usually the tensor will have more nonzero entries.
+
+    Output
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+    orig_factors: list
+        List of the factor matrices of the tensor.
+    """
+
+    L = len(dims)
+
+    # Generate factors.
+    orig_factors = []
+    for l in range(L):
+        # Create the nonzero values of each factor.
+        data = randn(nnz)
+
+        # Create indexes.
+        rows = randint(0, dims[l], size=nnz)
+        cols = randint(0, R, size=nnz)
+        idxs = array([[rows[i], cols[i]] for i in range(nnz)])
+
+        # Remove duplicates and update data accordingly.
+        idxs = unique(idxs, axis=0)
+        data = data[:idxs.shape[0]]
+
+        # Define sparse factors.
+        orig_factors.append({tuple(idxs[i, :]): d for i, d in enumerate(data)})
+
+    # Define sparse representation of the tensor in the format data, idxs, dims.
+    idxs = []
+    for l in range(L):
+        idxs.append([])
+        for idx in orig_factors[l].keys():
+            idxs[l].append(idx[0])
+
+    idxs = list(set(product(*(idx for idx in idxs))))
+
+    data = []
+    for j in idxs:
+        tmp = 0
+        for r in range(R):
+            p = 1
+            for l in range(L):
+                if (j[l], r) in orig_factors[l].keys():
+                    p *= orig_factors[l][j[l], r]
+            tmp += p
+        data.append(tmp)
+
+    return data, idxs, dims, orig_factors

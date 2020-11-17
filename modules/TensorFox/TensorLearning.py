@@ -1,9 +1,8 @@
 import numpy as np
+from numpy import prod, uint64
 import sys
 import matplotlib.pyplot as plt
 from numba import njit, prange
-from operator import mul
-from functools import reduce
 import TensorFox.TensorFox as tfx
 
 
@@ -953,7 +952,7 @@ def mlsvd_train(T, r, options=False):
         print('MLSVD shape:', F.shape)
         if options.display == 3:
             print('Error:', rel_error)
-        print('Working with', np.round(100*reduce(mul, F.shape, 1)/reduce(mul, T.shape, 1), 4), '% of the original size')
+        print('Working with', np.round(100*int(prod(F.shape, dtype=uint64))/int(prod(T.shape, dtype=uint64)), 4), '% of the original size')
         print()
 
     return F, U2, success
