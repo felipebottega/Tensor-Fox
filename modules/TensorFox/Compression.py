@@ -24,12 +24,10 @@
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, float32, float64, copy, sqrt, dot
+from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy.sparse import coo_matrix
-from operator import mul
-from functools import reduce
 import sys
 
 # Tensor Fox modules
@@ -75,6 +73,7 @@ def mlsvd(T, Tsize, R, options):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
+        idxs = array(idxs)
     else:
         dims = T.shape
     L = len(dims) 
@@ -267,7 +266,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
     U = []
-    T1 = empty((dims[0], reduce(mul, dims, 1) // dims[0]), dtype=float64)
+    T1 = empty((dims[0], prod(dims, dtype=uint64) // dims[0]), dtype=float64)
     for l in range(L):
         Tl = cnv.unfold(T, l+1)
         if l == 0:

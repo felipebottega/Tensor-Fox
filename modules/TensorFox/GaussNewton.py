@@ -673,7 +673,7 @@ def hessian(factors, P1, P2, sum_dims):
     dims = [factors[l].shape[0] for l in range(L)]
     H = zeros((R * sum(dims), R * sum(dims)))
     vec_factors = [zeros(R*dims[l]) for l in range(L)]
-    fortran_factors = [np.array(factors[l], order='F') for l in range(L)]
+    fortran_factors = [array(factors[l], order='F') for l in range(L)]
     for l in range(L):
         vec_factors[l] = cnv.vec(factors[l], vec_factors[l], dims[l], R) 
         vec_factors[l] = vec_factors[l].reshape(R*dims[l], 1).T

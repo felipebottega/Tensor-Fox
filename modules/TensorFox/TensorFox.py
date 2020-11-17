@@ -153,7 +153,7 @@ def cpd(T, R, options=False):
         T_orig = deepcopy(T)
         T = deepcopy(T_orig)
         data_orig, idxs_orig, dims_orig = T_orig
-        idxs_orig = np.array(idxs_orig)
+        idxs_orig = array(idxs_orig)
     else:
         dims_orig = T.shape
     L = len(dims_orig)
@@ -965,7 +965,7 @@ def foxit(T, R, options=False, bestof=1):
     best_error = inf
     if type(T) == list:
         data, idxs, dims = T
-        idxs = np.array(idxs)
+        idxs = array(idxs)
     else:
         dims = T.shape
     L = len(dims)

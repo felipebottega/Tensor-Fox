@@ -120,7 +120,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
 
     L = len(dims)
     # The entries of idxs must be arrays to properly work in the next function call.
-    idxs = [np.array(idx) for idx in idxs]
+    idxs = [array(idx) for idx in idxs]
     # dims_out are the dimensions of the output tensor S.
     dims_out = [U[l].shape[0] for l in range(L)]
     S = np.empty(dims_out, dtype=float64)
@@ -129,7 +129,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
     # Run the multiplication function.
     try:
         S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
-    except:    
+    except:
         # Change ordering of arrays to be compatible inside a Numba function.
         for i, u in enumerate(U):
             U[i] = array(u, order='C')
