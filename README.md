@@ -111,6 +111,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 |---|---|
 | tens2matlab| given a tensor, this function saves the tensor in Matlab format file. |
 | gen_rand_tensor| this function generates a random tensor with standard Gaussian distribution. |
+| gen_rand_sparse_tensor| this function generates a sparse random tensor with standard Gaussian distribution. |
    
 | **Compression**|  |
 |---|---|
