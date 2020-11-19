@@ -5,7 +5,8 @@
 """
 
 import numpy as np
-from numpy import dot, empty, float64
+from numpy import dot, empty, zeros, float64
+from numpy.linalg import norm
 from numba import njit, prange
 
 
@@ -25,31 +26,32 @@ def sparse_fastnorm(data, idxs, dims, factors):
     This function computes the error between the nonzero entries in data and their corresponding approximations given
     by the factor matrices. The zero entries are not taken in account.
     """
-
+    
+    R = factors[0].shape[1]
     L = len(dims)
     nnz = len(idxs)
     idxs_tuples = [tuple(idxs[i]) for i in range(nnz)]
-    s = sparse_fastnorm_computations(data, idxs_tuples, factors, L, nnz)
-    s = np.sqrt(s)
-
+    
+    data_approx_cols = zeros((nnz, R))
+    data_approx_cols = sparse_fastnorm_computations(data, data_approx_cols, idxs, factors, R, L, nnz)
+    data_approx_cols = np.sum(data_approx_cols, axis=1)
+    s = norm(data - data_approx_cols)
+    
     return s
-
-
-@njit(nogil=True)
-def sparse_fastnorm_computations(data, idxs, factors, L, nnz):
-    R = factors[0].shape[1]
+    
+    
+@njit(nogil=True, parallel=True)
+def sparse_fastnorm_computations(data, data_approx_cols, idxs, factors, R, L, nnz):
     s = 0
-    for i in range(nnz):
-        j = idxs[i]
-        tmp = 0
-        for r in range(R):
+    for r in prange(R):
+        for i in range(nnz):
+            j = idxs[i]
             p = 1
             for l in range(L):
                 p *= factors[l][j[l], r]
-            tmp += p
-        s += (data[i] - tmp)**2
-
-    return s
+            data_approx_cols[i, r] += p
+        
+    return data_approx_cols
 
 
 @njit(nogil=True, parallel=True)

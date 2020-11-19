@@ -148,12 +148,9 @@ def cpd(T, R, options=False):
 
     # INITIAL PREPARATIONS
 
-    # Verify if T is sparse, in which case it will be given as a list with the data.
+    # Extract the dimensions and order to generate options, test consistency and check if T is a third order tensor.
     if type(T) == list:
-        T_orig = deepcopy(T)
-        T = deepcopy(T_orig)
-        data_orig, idxs_orig, dims_orig = T_orig
-        idxs_orig = array(idxs_orig)
+        _, _, dims_orig = T
     else:
         dims_orig = T.shape
     L = len(dims_orig)
@@ -176,6 +173,12 @@ def cpd(T, R, options=False):
     if method == 'dGN' or method == 'als':
         factors, output = tricpd(T, R, options)
         return factors, output 
+        
+    # Verify if T is sparse, in which case it will be given as a list with the data.
+    if type(T) == list:
+        T_orig = deepcopy(T)
+        data_orig, idxs_orig, dims_orig = T_orig
+        idxs_orig = array(idxs_orig)
     
     # Change ordering of indexes to improve performance if possible.
     T, ordering = sort_dims(T)
@@ -365,7 +368,6 @@ def tricpd(T, R, options):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         T_orig = deepcopy(T)
-        T = deepcopy(T_orig)
         dims_orig = T_orig[2]
     else:
         dims_orig = T.shape
