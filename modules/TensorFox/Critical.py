@@ -13,7 +13,7 @@ from numba import njit, prange
 @njit(nogil=True, parallel=True)
 def fastnorm(A, B):
     m, n = A.shape
-    s = 0.0    
+    s = 0.0
     for i in prange(m):
         for j in range(n):
             s += (A[i, j] - B[i, j])**2
@@ -26,23 +26,21 @@ def sparse_fastnorm(data, idxs, dims, factors):
     This function computes the error between the nonzero entries in data and their corresponding approximations given
     by the factor matrices. The zero entries are not taken in account.
     """
-    
+
     R = factors[0].shape[1]
     L = len(dims)
     nnz = len(idxs)
-    idxs_tuples = [tuple(idxs[i]) for i in range(nnz)]
-    
+
     data_approx_cols = zeros((nnz, R))
-    data_approx_cols = sparse_fastnorm_computations(data, data_approx_cols, idxs, factors, R, L, nnz)
+    data_approx_cols = sparse_fastnorm_computations(data_approx_cols, idxs, factors, R, L, nnz)
     data_approx_cols = np.sum(data_approx_cols, axis=1)
     s = norm(data - data_approx_cols)
-    
+
     return s
-    
-    
+
+
 @njit(nogil=True, parallel=True)
-def sparse_fastnorm_computations(data, data_approx_cols, idxs, factors, R, L, nnz):
-    s = 0
+def sparse_fastnorm_computations(data_approx_cols, idxs, factors, R, L, nnz):
     for r in prange(R):
         for i in range(nnz):
             j = idxs[i]
@@ -50,7 +48,7 @@ def sparse_fastnorm_computations(data, data_approx_cols, idxs, factors, R, L, nn
             for l in range(L):
                 p *= factors[l][j[l], r]
             data_approx_cols[i, r] += p
-        
+
     return data_approx_cols
 
 
@@ -2412,8 +2410,8 @@ def tt_error_order3(T, G0, G1, G2, dims, L):
 @njit(nogil=True, parallel=True)
 def tt_error_order4(T, G0, G1, G2, G3, dims, L):
     a, b, c, d = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2422,15 +2420,15 @@ def tt_error_order4(T, G0, G1, G2, G3, dims, L):
                     B = dot(A, G1[:,i1,:])
                     C = dot(B, G2[:,i2,:])
                     T_approx[i0,i1,i2,i3] = dot(C, G3[:,i3])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order5(T, G0, G1, G2, G3, G4, dims, L):
     a, b, c, d, e = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2439,17 +2437,17 @@ def tt_error_order5(T, G0, G1, G2, G3, G4, dims, L):
                         A = G0[i0,:]
                         B = dot(A, G1[:,i1,:])
                         C = dot(B, G2[:,i2,:])
-                        D = dot(C, G3[:,i3,:])  
+                        D = dot(C, G3[:,i3,:])
                         T_approx[i0,i1,i2,i3,i4] = dot(D, G4[:,i4])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L):
     a, b, c, d, e, f = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2462,15 +2460,15 @@ def tt_error_order6(T, G0, G1, G2, G3, G4, G5, dims, L):
                             D = dot(C, G3[:,i3,:])
                             E = dot(D, G4[:,i4,:])
                             T_approx[i0,i1,i2,i3,i4,i5] = dot(E, G5[:,i5])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L):
     a, b, c, d, e, f, g = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2485,15 +2483,15 @@ def tt_error_order7(T, G0, G1, G2, G3, G4, G5, G6, dims, L):
                                 E = dot(D, G4[:,i4,:])
                                 F = dot(E, G5[:,i5,:])
                                 T_approx[i0,i1,i2,i3,i4,i5,i6] = dot(F, G6[:,i6])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L):
     a, b, c, d, e, f, g, h = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2510,15 +2508,15 @@ def tt_error_order8(T, G0, G1, G2, G3, G4, G5, G6, G7, dims, L):
                                     F = dot(E, G5[:,i5,:])
                                     G = dot(F, G6[:,i6,:])
                                     T_approx[i0,i1,i2,i3,i4,i5,i6,i7] = dot(G, G7[:,i7])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L):
     a, b, c, d, e, f, g, h, i = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2537,15 +2535,15 @@ def tt_error_order9(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, dims, L):
                                         G = dot(F, G6[:,i6,:])
                                         H = dot(G, G7[:,i7,:])
                                         T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8] = dot(H, G8[:,i8])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L):
     a, b, c, d, e, f, g, h, i, j = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2566,15 +2564,15 @@ def tt_error_order10(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, dims, L):
                                             H = dot(G, G7[:,i7,:])
                                             I = dot(H, G8[:,i8,:])
                                             T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9] = dot(I, G9[:,i9])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L):
     a, b, c, d, e, f, g, h, i, j, k = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2597,15 +2595,15 @@ def tt_error_order11(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, dims, L):
                                                 I = dot(H, G8[:,i8,:])
                                                 J = dot(I, G9[:,i9,:])
                                                 T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10] = dot(J, G10[:,i10])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
 def tt_error_order12(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11, dims, L):
     a, b, c, d, e, f, g, h, i, j, k, m = dims
-    T_approx = empty(dims, dtype = float64)
-    
+    T_approx = empty(dims, dtype=float64)
+
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
@@ -2630,68 +2628,52 @@ def tt_error_order12(T, G0, G1, G2, G3, G4, G5, G6, G7, G8, G9, G10, G11, dims, 
                                                     J = dot(I, G9[:,i9,:])
                                                     K = dot(J, G10[:,i10,:])
                                                     T_approx[i0,i1,i2,i3,i4,i5,i6,i7,i8,i9,i10,i11] = dot(K, G11[:,i11])
-                
+
     return T_approx
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order3(U, data, idxs, S, dims):
+def sparse_multilin_mult_order3(U, data, S, dims):
     a, b, c = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
-                s = 0
-                for n in range(nnz):
-                    j = idxs[n]
-                    s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * data[n])
-                S[i0, i1, i2] = s
+                S[i0, i1, i2] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order4(U, data, idxs, S, dims):
+def sparse_multilin_mult_order4(U, data, S, dims):
     a, b, c, d = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
-                    s = 0
-                    for n in range(nnz):
-                        j = idxs[n]
-                        s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * data[n])
-                    S[i0, i1, i2, i3] = s
+                    S[i0, i1, i2, i3] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order5(U, data, idxs, S, dims):
+def sparse_multilin_mult_order5(U, data, S, dims):
     a, b, c, d, e = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
             for i2 in range(c):
                 for i3 in range(d):
                     for i4 in range(e):
-                        s = 0
-                        for n in range(nnz):
-                            j = idxs[n]
-                            s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * data[n])
-                        S[i0, i1, i2, i3, i4] = s
+                        S[i0, i1, i2, i3, i4] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order6(U, data, idxs, S, dims):
+def sparse_multilin_mult_order6(U, data, S, dims):
     a, b, c, d, e, f = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2699,19 +2681,14 @@ def sparse_multilin_mult_order6(U, data, idxs, S, dims):
                 for i3 in range(d):
                     for i4 in range(e):
                         for i5 in range(f):
-                            s = 0
-                            for n in range(nnz):
-                                j = idxs[n]
-                                s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * data[n])
-                            S[i0, i1, i2, i3, i4, i5] = s
+                            S[i0, i1, i2, i3, i4, i5] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order7(U, data, idxs, S, dims):
+def sparse_multilin_mult_order7(U, data, S, dims):
     a, b, c, d, e, f, g = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2720,19 +2697,14 @@ def sparse_multilin_mult_order7(U, data, idxs, S, dims):
                     for i4 in range(e):
                         for i5 in range(f):
                             for i6 in range(g):
-                                s = 0
-                                for n in range(nnz):
-                                    j = idxs[n]
-                                    s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * data[n])
-                                S[i0, i1, i2, i3, i4, i5, i6] = s
+                                S[i0, i1, i2, i3, i4, i5, i6] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order8(U, data, idxs, S, dims):
+def sparse_multilin_mult_order8(U, data, S, dims):
     a, b, c, d, e, f, g, h = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2742,19 +2714,14 @@ def sparse_multilin_mult_order8(U, data, idxs, S, dims):
                         for i5 in range(f):
                             for i6 in range(g):
                                 for i7 in range(h):
-                                    s = 0
-                                    for n in range(nnz):
-                                        j = idxs[n]
-                                        s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * U[7][i7, j[7]] * data[n])
-                                    S[i0, i1, i2, i3, i4, i5, i6, i7] = s
+                                    S[i0, i1, i2, i3, i4, i5, i6, i7] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * U[7][i7, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order9(U, data, idxs, S, dims):
+def sparse_multilin_mult_order9(U, data, S, dims):
     a, b, c, d, e, f, g, h, i = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2765,19 +2732,14 @@ def sparse_multilin_mult_order9(U, data, idxs, S, dims):
                             for i6 in range(g):
                                 for i7 in range(h):
                                     for i8 in range(i):
-                                        s = 0
-                                        for n in range(nnz):
-                                            j = idxs[n]
-                                            s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * U[7][i7, j[7]] * U[8][i8, j[8]] * data[n])
-                                        S[i0, i1, i2, i3, i4, i5, i6, i7, i8] = s
+                                        S[i0, i1, i2, i3, i4, i5, i6, i7, i8] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * U[7][i7, :] * U[8][i8, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order10(U, data, idxs, S, dims):
+def sparse_multilin_mult_order10(U, data, S, dims):
     a, b, c, d, e, f, g, h, i, j = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2789,19 +2751,14 @@ def sparse_multilin_mult_order10(U, data, idxs, S, dims):
                                 for i7 in range(h):
                                     for i8 in range(i):
                                         for i9 in range(j):
-                                            s = 0
-                                            for n in range(nnz):
-                                                j = idxs[n]
-                                                s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * U[7][i7, j[7]] * U[8][i8, j[8]] * U[9][i9, j[9]] * data[n])
-                                            S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9] = s
+                                            S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * U[7][i7, :] * U[8][i8, :] * U[9][i9, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order11(U, data, idxs, S, dims):
+def sparse_multilin_mult_order11(U, data, S, dims):
     a, b, c, d, e, f, g, h, i, j, k = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2814,19 +2771,14 @@ def sparse_multilin_mult_order11(U, data, idxs, S, dims):
                                     for i8 in range(i):
                                         for i9 in range(j):
                                             for i10 in range(k):
-                                                s = 0
-                                                for n in range(nnz):
-                                                    j = idxs[n]
-                                                    s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * U[7][i7, j[7]] * U[8][i8, j[8]] * U[9][i9, j[9]] * U[10][i10, j[10]] * data[n])
-                                                S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10] = s
+                                                S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * U[7][i7, :] * U[8][i8, :] * U[9][i9, :] * U[10][i10, :] * data)
 
     return S
 
 
 @njit(nogil=True, parallel=True)
-def sparse_multilin_mult_order12(U, data, idxs, S, dims):
+def sparse_multilin_mult_order12(U, data, S, dims):
     a, b, c, d, e, f, g, h, i, j, k, m = dims
-    nnz = len(data)
 
     for i0 in prange(a):
         for i1 in range(b):
@@ -2840,10 +2792,6 @@ def sparse_multilin_mult_order12(U, data, idxs, S, dims):
                                         for i9 in range(j):
                                             for i10 in range(k):
                                                 for i11 in range(m):
-                                                    s = 0
-                                                    for n in range(nnz):
-                                                        j = idxs[n]
-                                                        s += (U[0][i0, j[0]] * U[1][i1, j[1]] * U[2][i2, j[2]] * U[3][i3, j[3]] * U[4][i4, j[4]] * U[5][i5, j[5]] * U[6][i6, j[6]] * U[7][i7, j[7]] * U[8][i8, j[8]] * U[9][i9, j[9]] * U[10][i10, j[10]] * U[11][i11, j[11]] * data[n])
-                                                    S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11] = s
+                                                    S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11] = np.sum(U[0][i0, :] * U[1][i1, :] * U[2][i2, :] * U[3][i3, :] * U[4][i4, :] * U[5][i5, :] * U[6][i6, :] * U[7][i7, :] * U[8][i8, :] * U[9][i9, :] * U[10][i10, :] * U[11][i11, :] * data)
 
     return S

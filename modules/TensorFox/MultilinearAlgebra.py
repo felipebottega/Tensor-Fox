@@ -123,19 +123,30 @@ def sparse_multilin_mult(U, data, idxs, dims):
     idxs = [array(idx) for idx in idxs]
     # dims_out are the dimensions of the output tensor S.
     dims_out = [U[l].shape[0] for l in range(L)]
-    S = np.empty(dims_out, dtype=float64)
+    S = empty(dims_out, dtype=float64)
     func_name = "sparse_multilin_mult_order" + str(L)
+    
+    # Generate a different version of U to deal with sparse index access.
+    nnz = len(data)
+    U_tmp = [empty((dims_out[l], nnz), dtype=float64) for l in range(L)]
+    for l in range(L):
+        for i in range(nnz):
+            j = idxs[i]
+            U_tmp[l][:, i] = U[l][:, j[l]]            
     
     # Run the multiplication function.
     try:
-        S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+        S = getattr(crt, func_name)(U_tmp, array(data), idxs, S, dims_out)
     except:
-        # Change ordering of arrays to be compatible inside a Numba function.
-        for i, u in enumerate(U):
-            U[i] = array(u, order='C')
+        # Change arrays order to be compatible inside a Numba function.
+        for l, u in enumerate(U_tmp):
+            U_tmp[l] = array(u, order='C')
         for i, d in enumerate(data):
             data[i] = array(d, order='A')            
-        S = getattr(crt, func_name)(U, data, idxs, S, dims_out)
+        S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
+        
+    # Free memory.
+    U_tmp = []
 
     return S
 

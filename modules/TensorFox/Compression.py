@@ -266,7 +266,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
     U = []
-    T1 = empty((dims[0], prod(dims, dtype=uint64) // dims[0]), dtype=float64)
+    T1 = empty((dims[0], int(prod(dims, dtype=uint64)) // dims[0]), dtype=float64)
     for l in range(L):
         Tl = cnv.unfold(T, l+1)
         if l == 0:
