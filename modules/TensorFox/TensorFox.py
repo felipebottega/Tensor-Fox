@@ -202,6 +202,10 @@ def cpd(T, R, options=False):
             Number of Tensor Train CPD cycles. Use only for tensor with order higher than 3. Default is epochs=1.
         gpu: bool
             If True, the program uses GPU to compute the MLSVD. Default is False.
+        sort: bool
+            In theory, reordering the dimensions of T in descending order may decrease the computing time of the MLSVSD.
+            The problem is that it is necessary to make a copy of T in the process, which may not compensate in the end.
+            By default sort=False, the user should decide when it is convenient to reorder the dimensions.
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
     its default value automatically. For a tutorial about the options, check the Tensor Fox tutorial at
@@ -247,12 +251,18 @@ def cpd(T, R, options=False):
         
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
-        T_orig = deepcopy(T)
+        if options.sort:
+            T_orig = deepcopy(T)
+        else:
+            T_orig = T
         data_orig, idxs_orig, dims_orig = T_orig
         idxs_orig = array(idxs_orig)
     
     # Change ordering of indexes to improve performance if possible.
-    T, ordering = sort_dims(T)
+    if options.sort:
+        T, ordering = sort_dims(T)
+    else:
+        ordering = arange(0, L)
     if type(T) == list:
         Tsize = norm(T[0])
         dims = T[2]
@@ -438,11 +448,14 @@ def tricpd(T, R, options):
 
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
-        T_orig = deepcopy(T)
+        if options.sort:
+            T_orig = deepcopy(T)
+        else:
+            T_orig = T
         dims_orig = T_orig[2]
     else:
         dims_orig = T.shape
-    L = len(dims_orig) 
+    L = len(dims_orig)
     
     # Set options.
     initialization = options.initialization
@@ -455,7 +468,11 @@ def tricpd(T, R, options):
         tol_mlsvd = tol_mlsvd[0]
         
     # Change ordering of indexes to improve performance if possible.
-    T, ordering = sort_dims(T)
+    if options.sort:
+        T, ordering = sort_dims(T)
+    else:
+        ordering = arange(0, L)
+
     if type(T) == list:
         Tsize = norm(T[0])
         dims = T[2]

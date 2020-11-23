@@ -132,11 +132,11 @@ def sparse_multilin_mult(U, data, idxs, dims):
     for l in range(L):
         for i in range(nnz):
             j = idxs[i]
-            U_tmp[l][:, i] = U[l][:, j[l]]            
+            U_tmp[l][:, i] = U[l][:, j[l]]
     
     # Run the multiplication function.
     try:
-        S = getattr(crt, func_name)(U_tmp, array(data), idxs, S, dims_out)
+        S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
     except:
         # Change arrays order to be compatible inside a Numba function.
         for l, u in enumerate(U_tmp):
@@ -144,7 +144,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
         for i, d in enumerate(data):
             data[i] = array(d, order='A')            
         S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
-        
+
     # Free memory.
     U_tmp = []
 

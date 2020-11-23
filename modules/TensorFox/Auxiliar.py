@@ -95,9 +95,7 @@ def sort_dims(T):
         dims = array(dims)
         ordering = argsort(-dims)
         dims = tuple(dims[ordering])
-        nnz = len(data)
-        for i in range(nnz):
-            idxs[i, :] = idxs[i, ordering]
+        idxs = idxs[:, ordering]
         T_sorted = [data, idxs, dims]
     
     # Dense tensor.
@@ -274,6 +272,7 @@ def make_options(options, L):
             self.display = 0
             self.epochs = 1
             self.gpu = False
+            self.sort = False
 
     temp_options = temp_options()
 
@@ -342,6 +341,8 @@ def make_options(options, L):
         temp_options.epochs = options.epochs
     if 'gpu' in dir(options):
         temp_options.gpu = options.gpu
+    if 'sort' in dir(options):
+        temp_options.sort = options.sort
 
     # If gpu is True, the variable mlsvd_method is set to 'gpu', which is a special strategy aiming to minimize the
     # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the
