@@ -125,6 +125,8 @@ def sparse2dense(data, idxs, dims):
         Dense representation of the tensor.
     """
 
+    data = array(data)
+    idxs = array(idxs)
     T1 = sparse_unfold(data, idxs, dims, 1)
     T1_dense = T1.toarray()
     T_dense = empty(dims, dtype=float64)
