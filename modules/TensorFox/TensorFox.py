@@ -84,10 +84,9 @@ def cpd(T, R, options=False):
     options: class with the following parameters
         method: str
              By default Tensor Fox uses method='dGN', which means the program will use the damped Gauss-Newton method.
-             This is true for third order tensors, but not for higher order tensors, where the Tensor Train CPD method
-             is used by default. It is also possible to set method='ttcpd' for third order tensors, then the program
-             uses the Tensor Train CPD for a thir order tensor. Other possibilitie is method='als' (Alternating Least
-             Squares). By setting method='dGN' explicitly the program will use the dGN method for higher order tensors).
+             For higher order tensors a interesting method to try is the Tensor Train CPD method ('ttcpd'). Is is also 
+             possible to set method='ttcpd' for third order tensors, then the program uses the Tensor Train CPD for a 
+             third order tensor. Other possibilitie is method='als' (Alternating Least Squares). 
         maxiter: int
             Number of maximum iterations allowed for the dGN function. Default is 200.
         tol, tol_step, tol_improv, tol_grad: float

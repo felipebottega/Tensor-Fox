@@ -291,8 +291,6 @@ def make_options(options, L):
         temp_options.tol_jump = options.tol_jump
     if 'method' in dir(options):
         temp_options.method = options.method
-    elif L > 3:
-        temp_options.method = 'ttcpd'
         
     if 'inner_method' in dir(options):
         temp_options.inner_method = options.inner_method
