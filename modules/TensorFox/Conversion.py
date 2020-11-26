@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, prod, int64, uint64, dot, sign, float64
+from numpy import empty, array, zeros, arange, prod, int64, uint64, dot, sign, float64
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit
@@ -206,7 +206,7 @@ def sparse_unfold(data, idxs, dims, mode):
     """
     
     L = len(dims)
-    idx = list(np.arange(L))
+    idx = list(arange(L))
     idx.remove(mode-1)
     K = zeros(L, dtype=int64)
                  
@@ -217,8 +217,8 @@ def sparse_unfold(data, idxs, dims, mode):
         else:
             s = 1
             for ll in range(c):
-                s *= dims[idx[ll]]
-            K[l] = int(s)
+                s *= int(dims[idx[ll]])
+            K[l] = s
             c += 1
     
     rows = idxs[:, mode-1]
