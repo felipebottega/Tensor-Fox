@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import empty, array, zeros, arange, prod, int64, uint64, dot, sign, float64
+from numpy import empty, array, zeros, arange, prod, int64, uint64, dot, sign, float64, nonzero
 from numpy.linalg import norm
 from numpy.random import randn
 from numba import njit
@@ -133,6 +133,39 @@ def sparse2dense(data, idxs, dims):
     T_dense = foldback(T_dense, T1_dense, 1)
 
     return T_dense
+    
+    
+def sparse2dense(T):
+    """
+    Given a dense tensor, this function computes its sparse representation.
+    
+    Inputs
+    -------
+    T_dense: L-D array
+        Dense representation of the tensor.
+
+    Outputs
+    ------
+    data: float 1-D arrays
+        data[i] is the nonzero value of the tensor at index idxs[i, :].
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
+        of shape (nnz, L) such that idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor.
+    """
+    
+    dims = T.shape
+    L = len(dims)
+    nnz = nonzero(T)
+    idxs = []
+    data = []
+
+    for i in range(len(nnz[0])):
+        idxs.append([nnz[l][i] for l in range(L)])
+        data.append(T[tuple(idxs[i])])
+
+    return array(data), array(idxs), dims
 
 
 def unfold(T, mode):
