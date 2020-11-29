@@ -29,8 +29,13 @@ Inside the folder *modules* of this repository you will find another one called 
     sklearn
     matplotlib
     numba
+    sparse_dot_mkl
 
-Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
+    
+    conda create --name myenv numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl jupyter 
+
+Note that *myenv* is the name of your env and can be anything. Also note that *jupyter* is optional, only if you work with jupyter notebooks. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
 ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
 
@@ -92,7 +97,7 @@ In the following we compare the performances of Tensor Fox and other known tenso
   
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png)
 
- Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. For anyone interested in reproducing these tests, it is possible to generate these tensors with the command `tfx.aux.gen_rand_tensor(dims, R)`.
+ Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. For anyone interested in reproducing these tests, it is possible to generate these tensors with the command `tfx.gen_rand_tensor(dims, R)`.
  
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png)
 
@@ -122,6 +127,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 |---|---|
 | cpd2tens| converts the factor matrices to the corresponding tensor in coordinate format. |
 | sparse2dense| given the variables defining a sparse tensor, this function computes its dense representation. |
+| dense2sparse| given a dense tensor, this function generates its sparse representation. |
 | unfold| given a tensor and a mode, this function computes the unfolding of the tensor with respect of that mode. |
 | sparse_unfold| given a sparse tensor and a mode, this function computes the sparse unfolding of the tensor with respect of that mode. |
 | foldback| given a matrix representing a unfolding of some mode and the dimensions of the original tensor, this function retrieves the original tensor from its unfolding. |
