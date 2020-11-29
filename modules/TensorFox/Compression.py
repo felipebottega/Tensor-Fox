@@ -197,7 +197,7 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
                 try:
                     from sparse_dot_mkl import dot_product_mkl
                 except:
-                    print('Sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
+                    print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
                     mkl_dot = False
                 if mkl_dot:
                     TlT = Tl.T

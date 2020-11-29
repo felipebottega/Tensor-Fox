@@ -203,7 +203,7 @@ def cpd(T, R, options=False):
             If True, the program uses GPU to compute the MLSVD. Default is False.
         mkl_dot: bool
             For sparse tensors, this options tells the program to perform matrix-matrix multiplication using specific 
-            multithread MKL routines (if mkl_dot=True). When mkl_dot=False, the program uses the standard scipy dot
+            multithread MKL routines (mkl_sparse_spmm). When mkl_dot=False, the program uses the standard scipy dot
             function, which is single thread but requires much less memory.            
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
