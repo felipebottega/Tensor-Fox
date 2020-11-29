@@ -35,7 +35,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, dot, empty, array, nanargmin, log10, arange, prod, ndarray
+from numpy import inf, dot, empty, array, nanargmin, log10, arange, prod, ndarray, uint64, float32
 from numpy.linalg import norm
 import sys
 import time
@@ -201,6 +201,10 @@ def cpd(T, R, options=False):
             Number of Tensor Train CPD cycles. Use only for tensor with order higher than 3. Default is epochs=1.
         gpu: bool
             If True, the program uses GPU to compute the MLSVD. Default is False.
+        mkl_dot: bool
+            For sparse tensors, this options tells the program to perform matrix-matrix multiplication using specific 
+            multithread MKL routines (if mkl_dot=True). When mkl_dot=False, the program uses the standard scipy dot
+            function, which is single thread but requires much less memory.            
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
     its default value automatically. For a tutorial about the options, check the Tensor Fox tutorial at
@@ -248,13 +252,16 @@ def cpd(T, R, options=False):
     if type(T) == list:
         T_orig = T
         data_orig, idxs_orig, dims_orig = T_orig
-        idxs_orig = array(idxs_orig)
+        data_orig = array(data_orig, dtype=float32)
+        idxs_orig = array(idxs_orig, dtype=uint64)
+        dims_orig = array(dims_orig)
+        if display != 0:
+            print('Sparse tensor detected')
+            print('    nnz =', len(data_orig)) 
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/int(prod(dims_orig, dtype=uint64))), 6), '%')
     
     # Change ordering of indexes to speed-up MLSVD. Only used for dense tensors.
-    if type(T) == list:
-        ordering = arange(0, L)
-    else:
-        T, ordering = sort_dims(T)
+    T, ordering = sort_dims(T) 
     
     if type(T) == list:
         Tsize = norm(T[0])
@@ -284,13 +291,13 @@ def cpd(T, R, options=False):
         if prod(array(S.shape) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', dims) 
+                print('    Working with dimensions', tuple(dims)) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', dims)                         
+                print('    Working with dimensions', tuple(dims))                         
         else:
             print('    Compression detected')
-            print('    Compressing from', dims, 'to', S.shape)
+            print('    Compressing from', tuple(dims), 'to', S.shape)
         if display > 2 or display < -1:
             print('    Compression relative error = {:7e}'.format(best_error))
         print()
@@ -442,7 +449,7 @@ def tricpd(T, R, options):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         T_orig = T
-        dims_orig = T_orig[2]
+        dims_orig = array(T_orig[2])
     else:
         dims_orig = T.shape
     L = len(dims_orig)
@@ -457,11 +464,20 @@ def tricpd(T, R, options):
     if type(tol_mlsvd) == list:
         tol_mlsvd = tol_mlsvd[0]
         
-    # Change ordering of indexes to speed-up MLSVD. Only used for dense tensors.
+    # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
-        ordering = arange(0, L)
-    else:
-        T, ordering = sort_dims(T)      
+        T_orig = T
+        data_orig, idxs_orig, dims_orig = T_orig
+        data_orig = array(data_orig, dtype=float32)
+        idxs_orig = array(idxs_orig, dtype=uint64)
+        dims_orig = array(dims_orig)
+        if display != 0:
+            print('Sparse tensor detected')
+            print('    nnz =', len(data_orig)) 
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/int(prod(dims_orig, dtype=uint64))), 6), '%')
+    
+    # Change ordering of indexes to speed-up MLSVD. Only used for dense tensors.
+    T, ordering = sort_dims(T)     
 
     if type(T) == list:
         Tsize = norm(T[0])
@@ -503,13 +519,13 @@ def tricpd(T, R, options):
         if prod(array(dims_cmpr) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', dims) 
+                print('    Working with dimensions', tuple(dims)) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', dims)                         
+                print('    Working with dimensions', tuple(dims))                         
         else:
             print('    Compression detected')
-            print('    Compressing from', dims, 'to', S.shape)
+            print('    Compressing from', tuple(dims), 'to', S.shape)
         if display > 2:
             print('    Compression relative error = {:7e}'.format(best_error))
             
@@ -821,6 +837,8 @@ def rank(T, options=False, plot=True, trials=3):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
+        data = array(data, dtype=float32)
+        idxs = array(idxs, dtype=uint64)
         dims = array(dims)
     else:
         dims = T.shape
@@ -952,6 +970,9 @@ def stats(T, R, options=False, num_samples=100):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
+        data = array(data, dtype=float32)
+        idxs = array(idxs, dtype=uint64)
+        dims = array(dims)
     else:
         dims = T.shape
     L = len(dims)
@@ -1050,7 +1071,9 @@ def foxit(T, R, options=False, bestof=1):
     best_error = inf
     if type(T) == list:
         data, idxs, dims = T
-        idxs = array(idxs)
+        data = array(data, dtype=float32)
+        idxs = array(idxs, dtype=uint64)
+        dims = array(dims)
     else:
         dims = T.shape
     L = len(dims)

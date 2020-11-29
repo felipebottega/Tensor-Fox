@@ -135,7 +135,7 @@ def sparse2dense(data, idxs, dims):
     return T_dense
     
     
-def sparse2dense(T):
+def dense2sparse(T):
     """
     Given a dense tensor, this function computes its sparse representation.
     

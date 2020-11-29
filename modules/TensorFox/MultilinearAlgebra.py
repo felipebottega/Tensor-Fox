@@ -119,21 +119,15 @@ def sparse_multilin_mult(U, data, idxs, dims):
     """
 
     L = len(dims)
-    # The entries of idxs must be arrays to properly work in the next function call.
-    idxs = [array(idx) for idx in idxs]
     # dims_out are the dimensions of the output tensor S.
     dims_out = [U[l].shape[0] for l in range(L)]
     S = empty(dims_out, dtype=float64)
     func_name = "sparse_multilin_mult_order" + str(L)
     
-    # Generate a different version of U to deal with sparse index access.
-    nnz = len(data)
-    U_tmp = [empty((dims_out[l], nnz), dtype=float64) for l in range(L)]
-    for l in range(L):
-        for i in range(nnz):
-            j = idxs[i]
-            U_tmp[l][:, i] = U[l][:, j[l]]
-    
+    # Generate a different version of U to deal with sparse index accesses.
+    nnz = len(data)    
+    U_tmp = [U[l][:, idxs[:, l]] for l in range(L)]
+        
     # Run the multiplication function.
     try:
         S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
@@ -144,7 +138,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
         for i, d in enumerate(data):
             data[i] = array(d, order='A')            
         S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
-
+    
     # Free memory.
     U_tmp = []
 

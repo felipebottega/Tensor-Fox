@@ -92,7 +92,7 @@ def sort_dims(T):
     # Sparse tensor.
     if type(T) == list:
         data, idxs, dims = T
-        idxs = array(idxs)
+        idxs = array(idxs, dtype=uint64)
         dims = array(dims)
         ordering = argsort(-dims)
         dims = tuple(dims[ordering])
@@ -273,6 +273,7 @@ def make_options(options, L):
             self.display = 0
             self.epochs = 1
             self.gpu = False
+            self.mkl_dot = True
 
     temp_options = temp_options()
 
@@ -339,6 +340,8 @@ def make_options(options, L):
         temp_options.epochs = options.epochs
     if 'gpu' in dir(options):
         temp_options.gpu = options.gpu
+    if 'mkl_dot' in dir(options):
+        temp_options.mkl_dot = options.mkl_dot
 
     # If gpu is True, the variable mlsvd_method is set to 'gpu', which is a special strategy aiming to minimize the
     # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the

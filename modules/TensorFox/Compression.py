@@ -24,7 +24,7 @@
 
 # Python modules
 import numpy as np
-from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot
+from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray
 from numpy.linalg import norm
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy.sparse import coo_matrix
@@ -42,6 +42,7 @@ def mlsvd(T, Tsize, R, options):
     UT is the list of the transposes of U.
     The parameter n_iter of the randomized SVD is set to 2. It is only good to increase this value when the tensor has
     much noise. Still this issue is addressed by the low rank CPD approximation, so n_iter=2 is enough.
+    We remark that if T is given as a sparse tensor, the component 'data' must be a float32.
 
     Inputs
     ------
@@ -73,7 +74,8 @@ def mlsvd(T, Tsize, R, options):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
-        idxs = array(idxs)
+        if type(idxs) != ndarray:
+            idxs = array(idxs, dtype=uint64)
     else:
         dims = T.shape
     L = len(dims) 
@@ -84,6 +86,7 @@ def mlsvd(T, Tsize, R, options):
     display = options.display
     mlsvd_method = options.mlsvd_method
     tol_mlsvd = options.tol_mlsvd
+    mkl_dot = options.mkl_dot
     if type(tol_mlsvd) == list:
         if L > 3:
             tol_mlsvd = tol_mlsvd[0]
@@ -112,8 +115,8 @@ def mlsvd(T, Tsize, R, options):
             if l == 0:
                 T1 = cnv.sparse_unfold(data, idxs, dims, l+1)
             mlsvd_method = 'sparse'
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
-
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
+            
         # Compute (U_1^T,...,U_L^T)*T = S.
         new_dims = [U[l].shape[1] for l in range(L)]
         UT = [U[l].T for l in range(L)]
@@ -127,7 +130,7 @@ def mlsvd(T, Tsize, R, options):
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(S, l+1)
-            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
 
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigmas[-1]).T
@@ -141,7 +144,7 @@ def mlsvd(T, Tsize, R, options):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(T, l+1)
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
         UT = [U[l].T for l in range(L)]
@@ -170,7 +173,11 @@ def mlsvd(T, Tsize, R, options):
     return S, U, T1, sigmas
 
 
-def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l):
+def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l):
+    """
+    Subroutine of the function mlsvd. This function performs the SVD of a given unfolding.
+    """
+    
     low_rank = min(R, dims[l])
 
     if gpu:
@@ -186,10 +193,21 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, L, l):
 
     else:
         if mlsvd_method == 'sparse':
-            try:
-                Tl = Tl.dot(Tl.T)
-            except MemoryError:
-                Tl = sparse_dot(Tl)
+            if mkl_dot:
+                try:
+                    from sparse_dot_mkl import dot_product_mkl
+                except:
+                    print('Sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
+                    mkl_dot = False
+                if mkl_dot:
+                    TlT = Tl.T
+                    Tl = dot_product_mkl(Tl, TlT, copy=False)
+                else:
+                    Tl = Tl.dot(Tl.T)                    
+            else:  
+                Tl = Tl.dot(Tl.T) 
+            # The function rand_svd works better with float64 types. This conversion is only necessary for sparse tensors.
+            Tl = Tl.astype(float64, copy=False)
             Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
             sigma_l = sqrt(sigma_l)
         else:
