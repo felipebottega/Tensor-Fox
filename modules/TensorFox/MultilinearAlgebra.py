@@ -132,7 +132,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
     try:
         S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
     except:
-        # Change arrays order to be compatible inside a Numba function.
+        # Change arrays order to be compatible with Numba function.
         for l, u in enumerate(U_tmp):
             U_tmp[l] = array(u, order='C')
         for i, d in enumerate(data):

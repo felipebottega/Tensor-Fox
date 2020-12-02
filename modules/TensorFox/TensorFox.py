@@ -35,7 +35,7 @@
 
 # Python modules
 import numpy as np
-from numpy import inf, dot, empty, array, nanargmin, log10, arange, prod, ndarray, uint64, float32
+from numpy import inf, dot, empty, array, nanargmin, log10, arange, prod, ndarray, uint64, float64
 from numpy.linalg import norm
 import sys
 import time
@@ -252,7 +252,7 @@ def cpd(T, R, options=False):
     if type(T) == list:
         T_orig = T
         data_orig, idxs_orig, dims_orig = T_orig
-        data_orig = array(data_orig, dtype=float32)
+        data_orig = array(data_orig, dtype=float64)
         idxs_orig = array(idxs_orig, dtype=uint64)
         dims_orig = array(dims_orig)
         if display != 0:
@@ -468,7 +468,7 @@ def tricpd(T, R, options):
     if type(T) == list:
         T_orig = T
         data_orig, idxs_orig, dims_orig = T_orig
-        data_orig = array(data_orig, dtype=float32)
+        data_orig = array(data_orig, dtype=float64)
         idxs_orig = array(idxs_orig, dtype=uint64)
         dims_orig = array(dims_orig)
         if display != 0:
@@ -837,7 +837,7 @@ def rank(T, options=False, plot=True, trials=3):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
-        data = array(data, dtype=float32)
+        data = array(data, dtype=float64)
         idxs = array(idxs, dtype=uint64)
         dims = array(dims)
     else:
@@ -970,7 +970,7 @@ def stats(T, R, options=False, num_samples=100):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
-        data = array(data, dtype=float32)
+        data = array(data, dtype=float64)
         idxs = array(idxs, dtype=uint64)
         dims = array(dims)
     else:
@@ -1071,7 +1071,7 @@ def foxit(T, R, options=False, bestof=1):
     best_error = inf
     if type(T) == list:
         data, idxs, dims = T
-        data = array(data, dtype=float32)
+        data = array(data, dtype=float64)
         idxs = array(idxs, dtype=uint64)
         dims = array(dims)
     else:

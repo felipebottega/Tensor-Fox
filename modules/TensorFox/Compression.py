@@ -23,12 +23,15 @@
 """
 
 # Python modules
-import numpy as np
-from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray
-from numpy.linalg import norm
-from sklearn.utils.extmath import randomized_svd as rand_svd
-from scipy.sparse import coo_matrix
 import sys
+import numpy as np
+from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray, argmax, newaxis, sign
+from numpy.linalg import norm
+#from sklearn.utils.extmath import randomized_svd as rand_svd
+from scipy.sparse import coo_matrix
+from scipy import sparse
+from scipy.linalg import qr, svd
+import time
 
 # Tensor Fox modules
 import TensorFox.Auxiliar as aux
@@ -74,8 +77,9 @@ def mlsvd(T, Tsize, R, options):
     # Verify if T is sparse, in which case it will be given as a list with the data.
     if type(T) == list:
         data, idxs, dims = T
-        if type(idxs) != ndarray:
-            idxs = array(idxs, dtype=uint64)
+        data = array(data, dtype=float64)
+        idxs = array(idxs, dtype=uint64)
+        dims = array(dims)
     else:
         dims = T.shape
     L = len(dims) 
@@ -206,12 +210,10 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
                     Tl = Tl.dot(Tl.T)                    
             else:  
                 Tl = Tl.dot(Tl.T) 
-            # The function rand_svd works better with float64 types. This conversion is only necessary for sparse tensors.
-            Tl = Tl.astype(float64, copy=False)
-            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+            Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
             sigma_l = sqrt(sigma_l)
         else:
-            Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_oversamples=10, n_iter=2, power_iteration_normalizer='none')
+            Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
 
     # Truncate more based on energy.
     Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
@@ -262,9 +264,273 @@ def clean_compression(U, sigma, Vt, tol_mlsvd, L):
     dim = sigma.size
 
     return U, sigma, Vt, dim
+    
+    
+def safe_sparse_dot(a, b, mkl_dot):
+    """
+    Dot product that handle the sparse matrix case correctly
+
+    Parameters
+    ----------
+    a : array or sparse matrix
+    b : array or sparse matrix
+    
+    Returns
+    -------
+    dot_product : array or sparse matrix
+        sparse if a and b are sparse.
+    """
+    
+    if mkl_dot:
+        try:
+            from sparse_dot_mkl import dot_product_mkl
+        except:
+            print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
+            mkl_dot = False
+        if mkl_dot:
+            if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):
+                ret = dot_product_mkl(a, b, copy=False)
+            else:
+                ret = a @ b
+        else:
+            ret = a @ b
+    else:
+        ret = a @ b
+
+    return ret
 
 
-def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_normalizer='none'):
+def randomized_range_finder(A, mkl_dot, size, n_iter, random_state=None):
+    """
+    Computes an orthonormal matrix whose range approximates the range of A.
+
+    Parameters
+    ----------
+    A : 2D array
+        The input data matrix
+
+    size : integer
+        Size of the return array
+
+    n_iter : integer
+        Number of power iterations used to stabilize the result
+
+        .. versionadded:: 0.18
+
+    random_state : int, RandomState instance or None, optional (default=None)
+        The seed of the pseudo random number generator to use when shuffling
+        the data, i.e. getting the random vectors to initialize the algorithm.
+        Pass an int for reproducible results across multiple function calls.
+        See :term:`Glossary <random_state>`.
+
+    Returns
+    -------
+    Q : 2D array
+        A (size x size) projection matrix, the range of which
+        approximates well the range of the input matrix A.
+
+    Notes
+    -----
+
+    Follows Algorithm 4.3 of
+    Finding structure with randomness: Stochastic algorithms for constructing
+    approximate matrix decompositions
+    Halko, et al., 2009 (arXiv:909) https://arxiv.org/pdf/0909.4061.pdf
+
+    An implementation of a randomized algorithm for principal component
+    analysis
+    A. Szlam et al. 2014
+    """
+    
+    random_state = np.random.mtrand._rand
+
+    # Generating normal random vectors with shape: (A.shape[1], size)
+    Q = random_state.normal(size=(A.shape[1], size))
+    if A.dtype.kind == 'f':
+        # Ensure f32 is preserved as f32
+        Q = Q.astype(A.dtype, copy=False)
+    
+    # Perform power iterations with Q to further 'imprint' the top
+    # singular vectors of A in Q
+    for i in range(n_iter):
+        Q = safe_sparse_dot(A, Q, mkl_dot)
+        Q = safe_sparse_dot(A.T, Q, mkl_dot)
+        
+    # Sample the range of A using by linear projection of Q
+    # Extract an orthonormal basis
+    Q, _ = qr(safe_sparse_dot(A, Q, mkl_dot), mode='economic')
+    
+    return Q
+
+
+def randomized_svd(M, n_components, mkl_dot, n_oversamples=10, n_iter='auto', transpose='auto', flip_sign=True, random_state=0):
+    """
+    Computes a truncated randomized SVD
+
+    Parameters
+    ----------
+    M : ndarray or sparse matrix
+        Matrix to decompose
+
+    n_components : int
+        Number of singular values and vectors to extract.
+
+    n_oversamples : int (default is 10)
+        Additional number of random vectors to sample the range of M so as
+        to ensure proper conditioning. The total number of random vectors
+        used to find the range of M is n_components + n_oversamples. Smaller
+        number can improve speed but can negatively impact the quality of
+        approximation of singular vectors and singular values.
+
+    n_iter : int or 'auto' (default is 'auto')
+        Number of power iterations. It can be used to deal with very noisy
+        problems. When 'auto', it is set to 4, unless `n_components` is small
+        (< .1 * min(X.shape)) `n_iter` in which case is set to 7.
+        This improves precision with few components.
+
+        .. versionchanged:: 0.18
+
+    power_iteration_normalizer : 'auto' (default), 'QR', 'none'
+        Whether the power iterations are normalized with step-by-step
+        QR factorization (the slowest but most accurate), 'none'
+        (the fastest but numerically unstable when `n_iter` is large, e.g.
+        typically 5 or larger). The 'auto' mode applies no normalization 
+        if `n_iter` <= 2.
+
+        .. versionadded:: 0.18
+
+    transpose : True, False or 'auto' (default)
+        Whether the algorithm should be applied to M.T instead of M. The
+        result should approximately be the same. The 'auto' mode will
+        trigger the transposition if M.shape[1] > M.shape[0] since this
+        implementation of randomized SVD tend to be a little faster in that
+        case.
+
+        .. versionchanged:: 0.18
+
+    flip_sign : boolean, (True by default)
+        The output of a singular value decomposition is only unique up to a
+        permutation of the signs of the singular vectors. If `flip_sign` is
+        set to `True`, the sign ambiguity is resolved by making the largest
+        loadings for each component in the left singular vectors positive.
+
+    random_state : int, RandomState instance or None, optional (default=None)
+        The seed of the pseudo random number generator to use when shuffling
+        the data, i.e. getting the random vectors to initialize the algorithm.
+        Pass an int for reproducible results across multiple function calls.
+        See :term:`Glossary <random_state>`.
+
+    Notes
+    -----
+    This algorithm finds a (usually very good) approximate truncated
+    singular value decomposition using randomization to speed up the
+    computations. It is particularly fast on large matrices on which
+    you wish to extract only a small number of components. In order to
+    obtain further speed up, `n_iter` can be set <=2 (at the cost of
+    loss of precision).
+
+    References
+    ----------
+    * Finding structure with randomness: Stochastic algorithms for constructing
+      approximate matrix decompositions
+      Halko, et al., 2009 https://arxiv.org/abs/0909.4061
+
+    * A randomized algorithm for the decomposition of matrices
+      Per-Gunnar Martinsson, Vladimir Rokhlin and Mark Tygert
+
+    * An implementation of a randomized algorithm for principal component
+      analysis
+      A. Szlam et al. 2014
+    """
+    
+    random_state = np.random.mtrand._rand
+    n_random = n_components + n_oversamples
+    n_samples, n_features = M.shape
+
+    if n_iter == 'auto':
+        # Checks if the number of iterations is explicitly specified
+        # Adjust n_iter. 7 was found a good compromise for PCA. 
+        n_iter = 7 if n_components < .1 * min(M.shape) else 4
+
+    if transpose == 'auto':
+        transpose = n_samples < n_features
+    if transpose:
+        # this implementation is a bit faster with smaller shape[1]
+        M = M.T
+    
+    Q = randomized_range_finder(M, mkl_dot, size=n_random, n_iter=n_iter, random_state=random_state)
+
+    # project M to the (k + p) dimensional space using the basis vectors
+    B = safe_sparse_dot(Q.T, M, mkl_dot)
+    
+    # compute the SVD on the thin matrix: (k + p) wide
+    Uhat, s, V = svd(B, full_matrices=False)
+    
+    del B
+    U = dot(Q, Uhat)
+
+    if flip_sign:
+        if not transpose:
+            U, V = svd_flip(U, V)
+        else:
+            # In case of transpose u_based_decision=false
+            # to actually flip based on u and not v.
+            U, V = svd_flip(U, V, u_based_decision=False)
+
+    if transpose:
+        # transpose back the results according to the input convention
+        return V[:n_components, :].T, s[:n_components], U[:, :n_components].T
+    else:
+        return U[:, :n_components], s[:n_components], V[:n_components, :]
+
+
+def svd_flip(u, v, u_based_decision=True):
+    """
+    Sign correction to ensure deterministic output from SVD.
+
+    Adjusts the columns of u and the rows of v such that the loadings in the
+    columns in u that are largest in absolute value are always positive.
+
+    Parameters
+    ----------
+    u : ndarray
+        u and v are the output of `linalg.svd` or
+        :func:`~sklearn.utils.extmath.randomized_svd`, with matching inner
+        dimensions so one can compute `np.dot(u * s, v)`.
+
+    v : ndarray
+        u and v are the output of `linalg.svd` or
+        :func:`~sklearn.utils.extmath.randomized_svd`, with matching inner
+        dimensions so one can compute `np.dot(u * s, v)`.
+
+    u_based_decision : boolean, (default=True)
+        If True, use the columns of u as the basis for sign flipping.
+        Otherwise, use the rows of v. The choice of which variable to base the
+        decision on is generally algorithm dependent.
+
+
+    Returns
+    -------
+    u_adjusted, v_adjusted : arrays with the same dimensions as the input.
+
+    """
+    
+    if u_based_decision:
+        # columns of u, rows of v
+        max_abs_cols = argmax(np.abs(u), axis=0)
+        signs = sign(u[max_abs_cols, range(u.shape[1])])
+        u *= signs
+        v *= signs[:, newaxis]
+    else:
+        # rows of v, columns of u
+        max_abs_rows = argmax(np.abs(v), axis=1)
+        signs = sign(v[range(v.shape[0]), max_abs_rows])
+        u *= signs
+        v *= signs[:, newaxis]
+    return u, v
+
+
+def test_truncation(T, trunc_list, mkl_dot=True, display=True, n_iter=2):
     """
     This function test one or several possible truncations for the MLSVD of T, showing the  error of the truncations. It
     is possible to accomplish the same results calling the function mlsvd with display=3 but this is not advisable since
@@ -290,7 +556,7 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
         if l == 0:
             T1 = cnv.unfold_C(T, l+1)
         low_rank = min(dims[l], max_trunc_dims[l])
-        Ul, sigma_l, Vlt = rand_svd(Tl, low_rank, n_iter=n_iter, power_iteration_normalizer=power_iteration_normalizer)
+        Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_iter=n_iter)
         sigmas.append(sigma_l)
         U.append(Ul)
 
@@ -321,49 +587,4 @@ def test_truncation(T, trunc_list, display=True, n_iter=2, power_iteration_norma
             print()
 
     return trunc_error
-
-
-def sparse_dot(Tl):
-    """
-    Given a csr sparse matrix Tl, this function computes the product Tl * Tl.T. The result is also given as a csr sparse
-    matrix. This function is used only when the direct method Tl.dot(Tl.T) fails. This happens when the number of
-    columns of Tl is very large. The dot method is faster but its memory consumption varies with the number of columns,
-    whereas this function is slower but requires less memory usage (it varies with the nonzero entries of Tl).
-    """
-
-    m = Tl.shape[0]
-    B = Tl.tocsr()
-    C = Tl.tocsr().T
-
-    rows, cols, datas = [], [], []
-
-    # Store the sparse arrays in a list to speed-up the computations.
-    bi = [B[i, :] for i in range(B.shape[0])]
-    cjt = [C[:, j].T for j in range(C.shape[1])]
-
-    # Compute lower trinagular (not the diagonal) entries and assign to its transpose entries.
-    for i in range(m):
-        for j in range(i):
-            tmp = bi[i].multiply(cjt[j]).data
-            if len(tmp) > 0:
-                tmpsum = tmp.sum()
-                rows.append(i)
-                cols.append(j)
-                datas.append(tmpsum)
-                rows.append(j)
-                cols.append(i)
-                datas.append(tmpsum)
-     
-    # Compute the diagonal entries.
-    for i in range(m):
-        tmp = bi[i].multiply(cjt[i]).data
-        if len(tmp) > 0:
-            tmpsum = tmp.sum()
-            rows.append(i)
-            cols.append(i)
-            datas.append(tmpsum)
-
-    out = coo_matrix((datas, (rows, cols)), shape=(m, m))
-    out = out.tocsr()
-
-    return out
+    
