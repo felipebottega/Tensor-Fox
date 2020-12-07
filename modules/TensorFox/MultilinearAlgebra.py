@@ -123,14 +123,15 @@ def sparse_multilin_mult(U, data, idxs, dims):
     dims_out = [U[l].shape[0] for l in range(L)]
     S = empty(dims_out, dtype=float64)
     func_name = "sparse_multilin_mult_order" + str(L)
-    
+        
     # Generate a different version of U to deal with sparse index accesses.
     nnz = len(data)    
     U_tmp = [U[l][:, idxs[:, l]] for l in range(L)]
-        
+    data_list = [array(data) for i in range(dims_out[0])]
+            
     # Run the multiplication function.
-    try:
-        S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
+    try: 
+        S = getattr(crt, func_name)(U_tmp, data_list, S, dims_out)
     except:
         # Change arrays order to be compatible with Numba function.
         for l, u in enumerate(U_tmp):

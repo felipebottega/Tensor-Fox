@@ -31,7 +31,6 @@ from numpy.linalg import norm
 from scipy.sparse import coo_matrix
 from scipy import sparse
 from scipy.linalg import qr, svd
-import time
 
 # Tensor Fox modules
 import TensorFox.Auxiliar as aux
@@ -205,7 +204,7 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
                     mkl_dot = False
                 if mkl_dot:
                     TlT = Tl.T
-                    Tl = dot_product_mkl(Tl, TlT, copy=False)
+                    Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
                 else:
                     Tl = Tl.dot(Tl.T)                    
             else:  
@@ -289,7 +288,7 @@ def safe_sparse_dot(a, b, mkl_dot):
             mkl_dot = False
         if mkl_dot:
             if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):
-                ret = dot_product_mkl(a, b, copy=False)
+                ret = dot_product_mkl(a, b, copy=False, dense=True)
             else:
                 ret = a @ b
         else:
