@@ -33,7 +33,7 @@ Inside the folder *modules* of this repository you will find another one called 
 
 Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
     
-    conda create --name myenv --channel defaults numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl jupyter 
+    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
 
 Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/) Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
 
