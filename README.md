@@ -41,7 +41,7 @@ Note that *myenv* is the name of your env and can be anything. The channel must 
 
 ### Creating Tensors and Getting Information 
 
-Let's create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) I use the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined above (the frontal slices of **T** are showed).
+Let's create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) Tensor Fox uses the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined above (the frontal slices of **T** are showed).
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
 
