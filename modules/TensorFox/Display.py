@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import mean, var, array, sort, ceil, floor, zeros, uint8, uint64, prod
+from numpy import mean, var, array, sort, ceil, floor, zeros, uint8, uint64, prod, argsort
 from numpy.linalg import norm
 import time
 import warnings
@@ -463,4 +463,36 @@ def show_options(output):
     for m in range(L):
         print(members_names[m], ':', members[m])
 
+    return
+    
+    
+def memory_cost(dims, R):
+    """
+    Given the dimensions of a sparse tensor, this function prints the highest intermediate memory costs for
+    both approachs: mkl_dot = true and mkl_dot = False. R is the desired rank, it has influence over the memory cost.
+    The function changes the ordering of the dimensions to match the ordering actually used in the CPD computations.
+    """
+
+    # All measurements are given in bytes.
+    float_size = 8 
+    one_gigabyte = 2**30
+    
+    # Change the ordering.
+    ordering = argsort(-dims)
+    dims = dims[ordering]
+
+    for l in range(len(dims)):
+        memory_cost = (int(dims[l])**2) * float_size / one_gigabyte
+        print(f'Sparse dot MKL - mode {l+1}: {memory_cost :.2f} GB')
+        memory_cost = (int(dims[l]) * int(min(dims[l], R)) + int(dims[l]) + 2*int(dims[l])**2) * float_size / one_gigabyte
+        print(f'SVD - mode {l+1}: {memory_cost :.2f} GB')
+
+    print()
+
+    for l in range(len(dims)):
+        memory_cost = (int(np.prod(dims, dtype=np.uint64))//dims[l]) * float_size / one_gigabyte
+        print(f'Scipy dot - mode {l+1}: {memory_cost :.2f} GB')
+        memory_cost = (int(dims[l]) * int(min(dims[l], R)) + int(dims[l]) + 2*int(dims[l])**2 ) * float_size / one_gigabyte
+        print(f'SVD - mode {l+1}: {memory_cost :.2f} GB')
+    
     return

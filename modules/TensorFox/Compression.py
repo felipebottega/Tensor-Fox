@@ -114,6 +114,7 @@ def mlsvd(T, Tsize, R, options):
     # T is sparse.        
     elif type(T) == list:
         for l in range(L):
+            print('    Compressing unfolding mode', l+1)
             Tl = cnv.sparse_unfold(data, idxs, dims, l+1)
             if l == 0:
                 T1 = cnv.sparse_unfold(data, idxs, dims, l+1)
@@ -130,6 +131,7 @@ def mlsvd(T, Tsize, R, options):
         S_dims = copy(dims)
         S = T
         for l in range(L):
+            print('    Compressing unfolding mode', l+1)
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(S, l+1)
@@ -144,6 +146,7 @@ def mlsvd(T, Tsize, R, options):
     # Compute MLSVD based on classic method.
     elif mlsvd_method == 'classic':
         for l in range(L):
+            print('    Compressing unfolding mode', l+1)
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(T, l+1)
@@ -198,17 +201,34 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
         if mlsvd_method == 'sparse':
             if mkl_dot:
                 try:
+                    # Set MKL interface layer to int64 before importing the package. This handles bigger tensors.
+                    import os
+                    os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
                     from sparse_dot_mkl import dot_product_mkl
                 except:
                     print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
                     mkl_dot = False
                 if mkl_dot:
-                    TlT = Tl.T
-                    Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
+                    try:
+                        TlT = Tl.T
+                        Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
+                    except Exception as e:
+                        print(e)
+                        print('En error was found in the computations with sparse_dot_mkl. Using standard scipy dot function.')
+                        try:
+                            Tl = Tl.dot(Tl.T)
+                        except Exception as e:
+                            sys.exit(e)  
                 else:
-                    Tl = Tl.dot(Tl.T)                    
+                    try:
+                        Tl = Tl.dot(Tl.T)
+                    except Exception as e:
+                        sys.exit(e)    
             else:  
-                Tl = Tl.dot(Tl.T) 
+                try:
+                    Tl = Tl.dot(Tl.T)
+                except Exception as e:
+                    sys.exit(e)                            
             Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
             sigma_l = sqrt(sigma_l)
         else:

@@ -204,7 +204,7 @@ def cpd(T, R, options=False):
         mkl_dot: bool
             For sparse tensors, this options tells the program to perform matrix-matrix multiplication using specific 
             multithread MKL routines (mkl_sparse_spmm). When mkl_dot=False, the program uses the standard scipy dot
-            function, which is single thread but requires much less memory.            
+            function, which is single thread but requires much less memory. Default is True.         
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
     its default value automatically. For a tutorial about the options, check the Tensor Fox tutorial at
@@ -417,7 +417,8 @@ def highcpd(T, R, options):
 def tricpd(T, R, options):
     """
     Given a tensor T and a rank R, this function computes an approximated CPD of T with rank R. This function is called
-    when the user sets method = 'dGN'.
+    when the user sets method = 'dGN' or 'als'. The name 'tricpd' is just a remnant of older versions of Tensor Fox 
+    which were limited to third order tensors. This function is able to handle high order tensors. 
 
     Inputs
     ------
