@@ -35,13 +35,25 @@ Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a
     
     conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
 
-Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/) Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! Let's start importing Tensor Fox and other necessary modules for now.
+Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/) Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! 
 
-![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
+**PS:** You may have *sparse_dot_mkl* breaking the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
+
+    int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
+    
+to
+   
+    int_max = np.iinfo(np.int64).max
+    
+in *sparse_dot_mkl._mkl_interface._check_scipy_index_typing*.
 
 ### Creating Tensors and Getting Information 
 
-Let's create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) Tensor Fox uses the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined above (the frontal slices of **T** are showed).
+Let's start importing Tensor Fox and other necessary modules.
+
+![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
+
+We will create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) Tensor Fox uses the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined above (the frontal slices of **T** are showed).
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
 
