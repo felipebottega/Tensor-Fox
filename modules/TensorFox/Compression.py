@@ -114,7 +114,8 @@ def mlsvd(T, Tsize, R, options):
     # T is sparse.        
     elif type(T) == list:
         for l in range(L):
-            print('    Compressing unfolding mode', l+1)
+            if display != 0:
+                print('    Compressing unfolding mode', l+1)
             Tl = cnv.sparse_unfold(data, idxs, dims, l+1)
             if l == 0:
                 T1 = cnv.sparse_unfold(data, idxs, dims, l+1)
@@ -131,7 +132,8 @@ def mlsvd(T, Tsize, R, options):
         S_dims = copy(dims)
         S = T
         for l in range(L):
-            print('    Compressing unfolding mode', l+1)
+            if display != 0:
+                print('    Compressing unfolding mode', l+1)
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(S, l+1)
@@ -146,7 +148,8 @@ def mlsvd(T, Tsize, R, options):
     # Compute MLSVD based on classic method.
     elif mlsvd_method == 'classic':
         for l in range(L):
-            print('    Compressing unfolding mode', l+1)
+            if display != 0:
+                print('    Compressing unfolding mode', l+1)
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(T, l+1)
