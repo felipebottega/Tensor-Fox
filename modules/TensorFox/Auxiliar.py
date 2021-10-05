@@ -202,7 +202,7 @@ def output_info(T1, Tsize, T1_approx,
                 print('5 - Limit of iterations was reached.')
             if self.stop[1] == 6:
                 print('6 - dGN diverged.')
-            if self.stop[0] == 7:
+            if self.stop[1] == 7:
                 print('7 - Average improvement is too small compared to the average error.')
             if self.stop[1] == 8:
                 print('8 - No refinement was performed.')

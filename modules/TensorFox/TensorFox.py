@@ -267,8 +267,9 @@ def cpd(T, R, options=False):
         Tsize = norm(T[0])
         dims = T[2]
         # If T is sparse, we must use the classic method, and tol_mlsvd is set to the default 1e-16 in the case the
-        # user requested -1 or 0.
+        # user requested -1.
         if tol_mlsvd < 0:
+            print('Using class MLSVD with tol_mlsvd = 1e-16.')
             options.tol_mlsvd = 1e-16
             tol_mlsvd = 1e-16
     else:
@@ -484,8 +485,9 @@ def tricpd(T, R, options):
         Tsize = norm(T[0])
         dims = T[2]
         # If T is sparse, we must use the classic method, and tol_mlsvd is set to the default 1e-16 in the case the
-        # user requested -1 or 0.
+        # user requested -1.
         if tol_mlsvd < 0:
+            print('Using class MLSVD with tol_mlsvd = 1e-16.')
             tol_mlsvd = 1e-16
             if type(tol_mlsvd) == list:
                 options.tol_mlsvd[0] = 1e-16
@@ -569,6 +571,7 @@ def tricpd(T, R, options):
 
     # If T is sparse, no refinement is made.
     if type(T) == list:
+        options.refine = False
         refine = False
     
     if refine:   
