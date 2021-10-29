@@ -96,7 +96,7 @@ def infotens(T):
     class options:
         display = 3
 
-    options = aux.make_options(options, L)
+    options = aux.make_options(options)
     print('Computing multilinear rank...')
     print('------------------------------------')
     S, U, UT, sigmas, rel_error = cmpr.mlsvd(T, Tsize, R_gen, options)

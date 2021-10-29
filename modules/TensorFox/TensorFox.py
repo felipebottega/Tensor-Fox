@@ -230,7 +230,7 @@ def cpd(T, R, options=False):
     L = len(dims_orig)
     
     # Set options.
-    options = make_options(options, L)
+    options = make_options(options)
     method = options.method
     display = options.display
     tol_mlsvd = options.tol_mlsvd
@@ -849,7 +849,7 @@ def rank(T, options=False, plot=True, trials=3):
     L = len(dims)
     
     # Set options
-    options = make_options(options, L)
+    options = make_options(options)
 
     # START THE PROCESS OF FINDING THE RANK
     
@@ -982,7 +982,7 @@ def stats(T, R, options=False, num_samples=100):
     L = len(dims)
 
     # Set options
-    options = make_options(options, L)
+    options = make_options(options)
 
     # INITIALIZE RELEVANT ARRAYS
     
@@ -1081,7 +1081,7 @@ def foxit(T, R, options=False, bestof=1):
     else:
         dims = T.shape
     L = len(dims)
-    options = make_options(options, L)
+    options = make_options(options)
 
     for i in range(bestof):
         factors, outputs = cpd(T, R, options)

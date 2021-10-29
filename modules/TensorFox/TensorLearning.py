@@ -197,12 +197,12 @@ def norm_pca(X_new, U, mu, sigma):
 def init_W(m, L, n, R):
     """
     Generate initial weights to start iterating. We have that W[k] = [W1,...,WL] is a multidimensional array of shape
-    m x L x n x R. For each tensor Tk of the model we have that
+    L x n x R. For each tensor Tk of the model we have that
 
                 Tk = sum_{r=1}^R W[k, 0, :, r] ⊗ W[k, 1, :, r] ⊗ ... ⊗ W[k, L-1, :, r].
 
-    Note that each W[k, l, :, :] is a n x R factor matrix of the CPD of Tk. In particular, each tensor Tk has shape
-    n x n x ... x n (L times) and has rank <= R.
+    Note that each W[k, l, :, :] is a n x R factor matrix of the CPD of Tk, in other words, W[k] is the set of the
+    factor matrices of Tk. Each tensor Tk has shape n x n x ... x n (L times) and has rank <= R.
 
     Inputs
     ------
@@ -214,7 +214,7 @@ def init_W(m, L, n, R):
         Dimension of the input space.
     R: int
         Rank of the tensors.
-        
+
     Outputs
     -------
     W: 4D array
@@ -229,7 +229,7 @@ def init_W(m, L, n, R):
     return W
 
 
-def dot_products(x, W):
+def dot_products(x, W, dropout):
     """
     Function to compute all the dot products between an input x and the weights.
 
@@ -239,7 +239,9 @@ def dot_products(x, W):
         A single input sample.
     W: L-D array
         Coordinates of all tensors Tk of the model (see function init_W for more details).
-        
+    dropout:
+        Probability to use or not dropout (see function cpd_train for more details).
+
     Outputs
     -------
     dot_prods: 3D array
@@ -247,13 +249,30 @@ def dot_products(x, W):
         column of the l-th factor matrix of the k-th tensor.
     """
 
-    m, L, n, R = W.shape
     # Initialize array to receive all dot products
+    m, L, n, R = W.shape
     dot_prods = np.ones((m, L, R))
 
+    # Compute all the dot products.
+    lst = [W[k, :, :, r] for k in range(m) for r in range(R)]
+    W_tmp = np.concatenate(lst)
+    Wx = np.dot(W_tmp, x)
+    Wx = Wx.reshape(m, R, L)
     for k in range(m):
-        for r in range(R):
-            dot_prods[k, :, r] = np.dot(W[k, :, :, r], x)
+        dot_prods[k, :, :] = Wx[k, :, :].T
+
+    # The above is an optimized form of the calculations commented below.
+    #for k in range(m):
+    #    for r in range(R):
+    #        dot_prods[k, :, r] = np.dot(W[k, :, :, r], x)
+
+    # Apply dropout.
+    if dropout < 1:
+        dropout_decision = np.random.uniform(0, 1, size=(m, R))
+        dropout_decision = dropout_decision <= dropout
+        for k in range(m):
+            for r in np.arange(R)[~dropout_decision[k, :]]:
+                dot_prods[k, :, r] *= 0
 
     return dot_prods
 
@@ -274,7 +293,7 @@ def h(W, dot_prods):
         Coordinates of all tensors Tk of the model (see function init_W for more details).
     dot_prods: 3D array.
         Dot products between the weights and x (see function dot_products for more details).
-        
+
     Outputs
     -------
     hx: 1D array
@@ -311,7 +330,7 @@ def f(z):
     Inputs
     ------
     z: 1D array
-    
+
     Outputs
     -------
     fz: 1D array
@@ -329,7 +348,7 @@ def df(z):
     Inputs
     ------
     z: 1D array
-    
+
     Outputs
     -------
     dfz: 1D array
@@ -354,7 +373,7 @@ def grad(x, y, W, dot_prods, Lambda):
     dot_prods: 3D array
     Lambda: float
         Regularization parameter for the cost function. We must have Lambda >= 0.
-        
+
     Outputs
     -------
     grad_J: 4D array
@@ -394,8 +413,7 @@ def compute_grad(x, y, W, dot_prods, hx, dhx, Lambda, L, k, l, i, r):
     return term1 + term2*term3*term4
 
 
-@njit(nogil=True, parallel=True)
-def update(alpha, W, grad_J):
+def update(alpha, W, grad_J, constraint):
     """
     Compute the update stage W = W - alpha*grad_J for the weights in the gradient descent algorithm.
 
@@ -406,20 +424,20 @@ def update(alpha, W, grad_J):
     W: 4D array
     grad_J: 4D array
         See the description of grad_J in the function grad.
-    
+    constraint: float
+        This paramater limits the size of the weights with the update formula W = constraint * W/max(abs(W)). This way
+        the largest magnitude of W is always equal to this parameter.
+
     Outputs
     -------
     W: 4D array
         Update of W.
     """
 
-    m, L, n, R = W.shape
+    W = W - alpha * grad_J
 
-    for k in prange(m):
-        for l in range(L):
-            for i in range(n):
-                for r in range(R):
-                    W[k, l, i, r] = W[k, l, i, r] - alpha * grad_J[k, l, i, r]
+    if constraint != np.inf:
+        W = constraint * W / np.max(np.abs(W))
 
     return W
 
@@ -434,21 +452,21 @@ def find_class(x, W):
         New input for which the program will try to predict its class.
     W:
         Set of weights after the learning stage.
-        
+
     Outputs
     -------
     x_class: int
         At the moment the program is limited to classification problems. So each prediction is a number (of a class).
     """
 
-    dot_prods = dot_products(x, W)
+    dot_prods = dot_products(x, W, 1)
     hx, dhx = h(W, dot_prods)
     x_class = np.argmax(hx)
 
     return x_class
 
 
-def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=1, display=True):
+def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, epochs=10, batch=1, constraint=np.inf, dropout=1, display=True):
     """
     Function to start the training stage.
 
@@ -468,8 +486,8 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
         Step parameter of the gradient descent algorithm. We must have alpha > 0.
     alpha_decay: float
         The more the program is closer to the optimum, the more it is necessary to take smaller steps. In this case it
-        is interesting to decrease alpha a little. At each epoch we update date alpha with alpha = alpha_decay * alpha.
-        Default is alpha_decay = 1.
+        is interesting to decrease alpha gradually. At each epoch we update alpha with alpha = alpha_decay * alpha.
+        Default is alpha_decay = 0.5.
     Lambda: float
         Regularization parameter for the cost function. We must have Lambda >= 0. Default is Lambda = 0.1.
     epochs: int
@@ -477,9 +495,17 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     batch: int
         Size of the batch in the learning algorithm. After passing through batch inputs and accumulating their costs,
         the corresponding gradient is used to make the next step. Default is 1 batch.
+    constraint: float
+        Large weights size can be a sign of an unstable network. Ona may force the magnitude of all weights to be below
+        a specified value, given by this parameter. At each iteration the program applies the update formula
+        W = constraint * W/max(abs(W)). This way the largest magnitude of W is always equal to this parameter. Default
+        is constraint = np.inf, which means to not use constraints.
+    dropout: float
+        This value should be between 1 (no dropout is used) and 0 (drop is used for all nodes). At each iteration the
+        program decides, for each node, if it will be used or not, based on this probability. Default is dropout = 1.
     display: bool
         If set to True (default), the program displays some relevant results and plots about the training stage.
-        
+
     Outputs
     -------
     W: 4D array
@@ -491,6 +517,12 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     success: int
         Total number of successes after the training.
     """
+
+    # Verify if the parameter dropout is consistent.
+    if dropout < 0 or dropout > 1:
+        sys.exit('The parameter dropout has to be between 0 ans 1.')
+    elif dropout == 0:
+        sys.exit('The parameter dropout has to be bigger than 0.')
 
     # Number of samples.
     num_samples, n = X.shape
@@ -507,25 +539,24 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
     cost_function = []
 
     for ep in range(epochs):
-        alpha = alpha_decay * alpha
         count = 0
         success = 0
         cum_cost = 0
         cum_grad = np.zeros(W.shape)
-        
+
         for j in range(num_samples):
             x = X[j, :]
             y = Y_hot_encoded[j, :]
-            dot_prods = dot_products(x, W)
+            dot_prods = dot_products(x, W, dropout)
             grad_J = grad(x, y, W, dot_prods, Lambda)
             cum_grad += grad_J
 
             # Update weights after seeing batch inputs.
             if (j % batch == 0) and (j >= batch):
-                W = update(alpha, W, cum_grad/batch)
+                W = update(alpha, W, cum_grad/batch, constraint)
                 cum_grad = 0*cum_grad
             elif j == num_samples-1:
-                W = update(alpha, W, cum_grad/batch)
+                W = update(alpha, W, cum_grad/batch, constraint)
 
             # Predict class of current input.
             x_class = find_class(x, W)
@@ -552,6 +583,9 @@ def cpd_train(X, Y, X_val, Y_val, W, alpha=0.01, alpha_decay=0.5, Lambda=0.1, ep
         acc = 100 * success/num_samples
         accuracy.append(100 * success/num_samples)
         cost_function.append(cum_cost/num_samples)
+
+        # Update alpha.
+        alpha = alpha_decay * alpha
 
         # The X_val dataset is supposed to be already normalized.
         if np.sum(np.isnan(X_val)) == 0:
@@ -684,14 +718,13 @@ def cpd_predictions(X_test, W, U, mu=0, sigma=1):
     X_test_new = norm_pca(X_test, U, mu, sigma)
     num_samples, n = X_test_new.shape
 
-    # Create array of predictions, which are integers from 0 to m-1.
-    predictions = np.zeros(num_samples, dtype=np.int64)
-
     # Add bias
     aux = np.ones((num_samples, n + 1))
-    for i in range(num_samples):
-        aux[i, 1:] = X_test_new[i, :]
+    aux[:, 1:] = X_test_new
     X_bias = aux
+
+    # Create array of predictions, which are integers from 0 to m-1.
+    predictions = np.zeros(num_samples, dtype=np.int64)
 
     for j in range(num_samples):
         x = X_bias[j, :]
@@ -928,7 +961,7 @@ def mlsvd_train(T, r, options=False):
     print('Original shape:', T.shape)
 
     # Set options
-    options = tfx.aux.make_options(options, 3)
+    options = tfx.aux.make_options(options)
 
     Tsize = np.linalg.norm(T)
     if options.display == 3:

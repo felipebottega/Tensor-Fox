@@ -28,7 +28,6 @@ import numpy as np
 from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
 #from sklearn.utils.extmath import randomized_svd as rand_svd
-from scipy.sparse import coo_matrix
 from scipy import sparse
 from scipy.linalg import qr, svd
 
@@ -84,7 +83,7 @@ def mlsvd(T, Tsize, R, options):
     L = len(dims) 
 
     # Set options.
-    options = aux.make_options(options, L)
+    options = aux.make_options(options)
     trunc_dims = options.trunc_dims
     display = options.display
     mlsvd_method = options.mlsvd_method
@@ -203,37 +202,13 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
     else:
         if mlsvd_method == 'sparse':
             if mkl_dot:
-                try:
-                    # Set MKL interface layer to int64 before importing the package. This handles bigger tensors.
-                    import os
-                    os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
-                    from sparse_dot_mkl import dot_product_mkl
-                except:
-                    print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
-                    mkl_dot = False
-                if mkl_dot:
-                    try:
-                        TlT = Tl.T
-                        Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
-                    except Exception as e:
-                        print(e)
-                        print('En error was found in the computations with sparse_dot_mkl. Using standard scipy dot function.')
-                        try:
-                            Tl = Tl.dot(Tl.T)
-                        except Exception as e:
-                            sys.exit(e)  
-                else:
-                    try:
-                        Tl = Tl.dot(Tl.T)
-                    except Exception as e:
-                        sys.exit(e)    
+                Tl = sparse_dot_mkl_call(Tl, mkl_dot)
             else:  
-                try:
-                    Tl = Tl.dot(Tl.T)
-                except Exception as e:
-                    sys.exit(e)                            
+                Tl = sparse_dot_calls(Tl)
+
             Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
             sigma_l = sqrt(sigma_l)
+
         else:
             Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
 
@@ -243,6 +218,55 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
     U.append(Ul)
 
     return U, sigmas, Vlt, dim
+    
+    
+def sparse_dot_mkl_call(Tl, mkl_dot):
+    """
+    This function tries to compute the product dot(Tl, Tl.T) with the method from the package sparse_dot_mkl. If this
+    method fails, the program calls the function sparse_dot_calls. Only the function compute_svd calls this function.
+    """
+    
+    # Defines environment variable and make import.
+    try:
+        # Set MKL interface layer to int64 before importing the package. This handles bigger tensors.
+        import os
+        os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
+        from sparse_dot_mkl import dot_product_mkl
+    except:
+        print('        Module sparse_dot_mkl could not be imported. Using standard scipy dot.')
+        mkl_dot = False
+        
+    if mkl_dot:
+        try:
+            TlT = Tl.T
+            Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
+        except Exception as e:
+            print('        ' + str(e) + '. Using standard scipy dot.')
+            Tl = sparse_dot_calls(Tl)
+    else:
+        print('        Matrix is too large for sparse_dot_mkl. Using standard scipy dot.')
+        Tl = sparse_dot_calls(Tl)
+        
+    return Tl
+    
+    
+def sparse_dot_calls(Tl):
+    """
+    This function tries to compute the product dot(Tl, Tl.T) with 2 methods: standard Scipy dot and a naive method 
+    written in this project, called slow_sparse_dot. The former is faster but consumes a lot of memory, whereas the
+    latter is slower but consumes less memory. Only the function compute_svd calls this function.
+    """
+
+    try:
+        Tl = Tl.dot(Tl.T)
+    except Exception as e:
+        try:
+            print('        ' + str(e) + '. Using slow sparse dot.')
+            Tl = mlinalg.slow_sparse_dot(Tl)
+        except Exception as e:
+            sys.exit('        ' + str(e))
+            
+    return Tl
 
 
 def clean_compression(U, sigma, Vt, tol_mlsvd, L):

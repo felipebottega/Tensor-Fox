@@ -165,7 +165,7 @@ def dense2sparse(T):
         idxs.append([nnz[l][i] for l in range(L)])
         data.append(T[tuple(idxs[i])])
 
-    return array(data), array(idxs), dims
+    return [array(data), array(idxs), list(dims)]
 
 
 def unfold(T, mode):
@@ -241,8 +241,8 @@ def sparse_unfold(data, idxs, dims, mode):
     L = len(dims)
     idx = list(arange(L))
     idx.remove(mode-1)
-    K = zeros(L, dtype=int64)
-                 
+    K = [0 for l in range(L)]
+
     c = 0
     for l in range(L):
         if l == mode-1:
@@ -255,11 +255,10 @@ def sparse_unfold(data, idxs, dims, mode):
             c += 1
     
     rows = idxs[:, mode-1]
-    cols = np.sum(K * idxs, axis=1)
-    
+    cols = np.sum(K * idxs, axis=1, dtype=uint64)
     Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]))
     Tl = Tl.tocsr()
-        
+
     return Tl
 
 

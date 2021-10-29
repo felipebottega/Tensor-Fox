@@ -134,11 +134,9 @@ def sparse_multilin_mult(U, data, idxs, dims):
         S = getattr(crt, func_name)(U_tmp, data_list, S, dims_out)
     except:
         # Change arrays order to be compatible with Numba function.
-        for l, u in enumerate(U_tmp):
-            U_tmp[l] = array(u, order='C')
-        for i, d in enumerate(data):
-            data[i] = array(d, order='A')            
-        S = getattr(crt, func_name)(U_tmp, array(data), S, dims_out)
+        U_tmp = [array(U[l][:, idxs[:, l]], order='C') for l in range(L)]
+        data_list = [array(data, order='A') for i in range(dims_out[0])]        
+        S = getattr(crt, func_name)(U_tmp, data_list, S, dims_out)
     
     # Free memory.
     U_tmp = []
@@ -170,7 +168,7 @@ def multirank_approx(T, multi_rank, options):
     Tsize = norm(T)
     
     # Compute truncated MLSVD of T.
-    options = aux.make_options(options, L)
+    options = aux.make_options(options)
     options.display = 0
     options.trunc_dims = multi_rank
     R_gen = int(ceil( int(prod(sorted_dims, dtype=uint64))/(np.sum(sorted_dims) - L + 1) ))
@@ -476,3 +474,22 @@ def search_forward_error(orig_rank1, approx_rank1, R):
     best_error = sqrt(best_error)
 
     return best_error, best_s
+
+
+def slow_sparse_dot(A):
+    """
+    This function computes dot(A, A.T), where A is a sparse csr matrix. The function compute_svd calls this product when
+    the sparse_dot_mkl and scipy dot fails to perform the product, usually due to memory limitations. They tend to
+    explode the memory for too large column sizes, whereas this functions perform well for large column sizes but it
+    will explode for large row sizes.
+    """
+
+    n = A.shape[0]
+    out_arr = np.zeros((n, n), dtype=A.dtype)
+
+    for i in range(n):
+        for j in range(n):
+            idxs = set(A[i, :].indices).intersection(A[j, :].indices)
+            out_arr[i, j] = sum([A[i, k] * A[j, k] for k in idxs])
+
+    return out_arr

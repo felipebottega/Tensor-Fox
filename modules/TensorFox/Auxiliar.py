@@ -43,7 +43,7 @@ def consistency(R, dims, options):
         
     # Check if rank is well defined in the third order case.
     if L == 3:
-        m, n, p = dims[0], dims[1], dims[2]
+        m, n, p = int(dims[0]), int(dims[1]), int(dims[2])
         if R > min(m*n, m*p, n*p):
             msg = 'Rank must satisfy 1 <= rank <= min(m*n, m*p, n*p) = ' + str(min(m*n, m*p, n*p)) + '.'
             sys.exit(msg)
@@ -233,7 +233,7 @@ def make_final_outputs(num_steps, rel_error, accuracy, outputs, options):
     return final_outputs
 
 
-def make_options(options, L):
+def make_options(options):
     """
     This function constructs the whole class of options based on the options the user requested. 
     This is the format read by the program.
@@ -347,7 +347,7 @@ def make_options(options, L):
     # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the
     # user wants to use a specific MLSVD method, then the variable mlsvd_method should be passed to the function cpd.
     # This is only valid for dense tensors. Sparse tensors has its own strategy which isn't affect by mlsvd_method.
-    if (temp_options.gpu) and ('mlsvd_method' not in dir(options)):
+    if temp_options.gpu and 'mlsvd_method' not in dir(options):
         temp_options.mlsvd_method = 'gpu'
     
     return temp_options
