@@ -37,16 +37,6 @@ Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a
 
 Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/) Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! 
 
-**PS:** You may have *sparse_dot_mkl* breaking the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
-
-    int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
-    
-to
-   
-    int_max = np.iinfo(np.int64).max
-    
-in *sparse_dot_mkl._mkl_interface._check_scipy_index_typing*.
-
 ### Creating Tensors and Getting Information 
 
 Let's start importing Tensor Fox and other necessary modules.
@@ -210,3 +200,13 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
  13) Tensorly - https://github.com/tensorly/
  14) TensorBox - https://github.com/phananhhuy/TensorBox
+
+**Optional:** You may want to use the package *sparse_dot_mkl* for sparse tensors, otherwise set the option *mkl_dot* to *False*. It is possible to experience fail in the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
+
+    int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
+    
+to
+   
+    int_max = np.iinfo(np.int64).max
+    
+in *sparse_dot_mkl._mkl_interface._check_scipy_index_typing*. If this is too complicated, set *mkl_dot* to *False* as mentioned above. Or even better, don't install this package. Tensor Fox will detect this and use Scipy routines.
