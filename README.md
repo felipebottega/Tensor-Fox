@@ -21,6 +21,14 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Getting Started
 
+### Installing with [pip](https://pypi.org/project/TensorFox/1.0/)
+
+The only pre-requisite is to have **Python 3** installed. After this you just need to run the command within your env:
+
+    pip install TensorFox==1.0
+    
+### About the dependencies 
+
 Inside the folder *modules* of this repository you will find another one called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
     numpy
@@ -31,11 +39,11 @@ Inside the folder *modules* of this repository you will find another one called 
     numba
     sparse_dot_mkl
 
-Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, other posibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
+Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
     
     conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
 
-Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/) Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! 
+Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/). Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! 
 
 ### Creating Tensors and Getting Information 
 
