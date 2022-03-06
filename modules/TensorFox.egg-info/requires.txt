@@ -1,0 +1,7 @@
+numpy
+pandas
+scipy
+sklearn
+matplotlib
+numba
+sparse_dot_mkl
