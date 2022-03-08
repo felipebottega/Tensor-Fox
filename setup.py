@@ -19,13 +19,13 @@ setup(
     url='https://github.com/felipebottega/Tensor-Fox',
     keywords='Tensor Fox Canonical Polyadic Decomposition CPD PARAFAC CANDECOMP Multilinear Learning',
     install_requires=[
-          'numpy==1.19.2',
+          'numpy==1.21.0',
           'pandas==1.2.3',
           'scipy==1.6.2',
           'sklearn==0.24.1',
           'matplotlib==3.3.4',
           'numba==0.53.1',
-          'IPython==7.22.0',
+          'IPython==7.31.1',
           'sparse_dot_mkl==0.7',
       ],
 
