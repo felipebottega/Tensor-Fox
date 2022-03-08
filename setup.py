@@ -18,7 +18,7 @@ setup(
     packages=find_packages('modules'),
     package_dir={'': 'modules'},
     url='https://github.com/felipebottega/Tensor-Fox',
-    keywords='Tensor Fox, CPD, PARAFAC, CANDECOMP',
+    keywords='Tensor Fox CPD PARAFAC CANDECOMP',
     install_requires=[
           'numpy',
           'pandas',
