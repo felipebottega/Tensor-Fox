@@ -10,8 +10,8 @@ setup(
     name='TensorFox',
     version='1.0.1',
     description='Python3 package for Multilinear Algebra and Tensor routines.',
-    long_description=long_description
-    long_description_content_type='text/markdown'
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     license='GNU',
     author="Felipe Bottega Diniz",
     author_email='felipebottega@gmail.com',
