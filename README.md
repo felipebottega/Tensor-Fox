@@ -55,8 +55,6 @@ We will create a little tensor **T** just to see how Tensor Fox works at its bas
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
 
-Since Numpy's convention is different from ours with regard to third order tensors. This convention may be irrelevant when using the routines of Tensor Fox, but since I build all the modules thinking this way, it is fair that this point is made explicitly. The function **showtens** prints a third order tensor with this particular convention and print tensors of higher order just as Numpy would print. Below we show both conventions for this third order tensor. 
-
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
 
 ### Computing the CPD
