@@ -27,7 +27,7 @@ The only pre-requisite is to have **Python 3** installed. After this you just ne
 
     pip install TensorFox
     
-We recommend that you make this in a conda environment which already has at least `Numpy` and `Scipy` installed. The reason is that MKL is distributed with the full version of conda. Using the MKL routines is not mandatory, the program will just use Scipy routines for sparse matrices, but in my experience MKL routines are faster in general. 
+We recommend that you make this in a conda environment which already has at least `Numpy` and `Scipy` installed. The reason is that MKL is distributed with the full version of conda. Using the MKL routines is not mandatory, the program will just use Scipy routines for sparse matrices instead, but in my experience MKL routines are faster in general. 
 
 ### Creating tensors and getting information 
 
