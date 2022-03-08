@@ -27,6 +27,7 @@ import sys
 import numpy as np
 from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
+import warnings
 #from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy import sparse
 from scipy.linalg import qr, svd
@@ -331,7 +332,7 @@ def safe_sparse_dot(a, b, mkl_dot):
         try:
             from sparse_dot_mkl import dot_product_mkl
         except:
-            warnings.warn('\nModule sparse_dot_mkl could not be imported. Using standard scipy dot function instead.', category=Warning, stacklevel=3)
+            warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.', category=Warning, stacklevel=3)
             mkl_dot = False
         if mkl_dot:
             if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):
