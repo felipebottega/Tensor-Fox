@@ -234,7 +234,7 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
         os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
         from sparse_dot_mkl import dot_product_mkl
     except:
-        warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot.', category=Warning, stacklevel=3)
+        warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', category=Warning, stacklevel=3)
         mkl_dot = False
         
     if mkl_dot:
@@ -332,7 +332,7 @@ def safe_sparse_dot(a, b, mkl_dot):
         try:
             from sparse_dot_mkl import dot_product_mkl
         except:
-            warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.', category=Warning, stacklevel=3)
+            warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', category=Warning, stacklevel=3)
             mkl_dot = False
         if mkl_dot:
             if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):
