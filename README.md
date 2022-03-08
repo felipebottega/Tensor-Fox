@@ -31,13 +31,14 @@ The only pre-requisite is to have **Python 3** installed. After this you just ne
 
 Inside the folder *modules* of this repository you will find another one called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
 
-    numpy
-    pandas
-    scipy
-    sklearn
-    matplotlib
-    numba
-    sparse_dot_mkl
+    numpy==1.19.2
+    pandas==1.2.3
+    scipy==1.6.2
+    sklearn==0.24.1
+    matplotlib==3.3.4
+    numba==0.53.1
+    IPython==7.22.0
+    sparse_dot_mkl==0.7
 
 Make sure Numba and Numpy are up to date. Additionaly, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
     
