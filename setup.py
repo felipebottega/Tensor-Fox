@@ -25,7 +25,7 @@ setup(
           'sklearn==0.24.1',
           'matplotlib==3.3.4',
           'numba==0.53.1',
-          'IPython==7.22.0',
+          'IPython==7.31.1',
           'sparse_dot_mkl==0.7',
       ],
 
