@@ -233,7 +233,7 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
         os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
         from sparse_dot_mkl import dot_product_mkl
     except:
-        print('        Module sparse_dot_mkl could not be imported. Using standard scipy dot.')
+        print('\tModule sparse_dot_mkl could not be imported. Using standard scipy dot.', file=sys.sdterr)
         mkl_dot = False
         
     if mkl_dot:
@@ -241,10 +241,10 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
             TlT = Tl.T
             Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
         except Exception as e:
-            print('        ' + str(e) + '. Using standard scipy dot.')
+            print('\t' + str(e) + '. Using standard scipy dot.', file=sys.stderr)
             Tl = sparse_dot_calls(Tl)
     else:
-        print('        Matrix is too large for sparse_dot_mkl. Using standard scipy dot.')
+        print('\tMatrix is too large for sparse_dot_mkl. Using standard scipy dot.', file=sys.stderr)
         Tl = sparse_dot_calls(Tl)
         
     return Tl
@@ -331,7 +331,7 @@ def safe_sparse_dot(a, b, mkl_dot):
         try:
             from sparse_dot_mkl import dot_product_mkl
         except:
-            print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.')
+            print('Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.', file=sys.stderr)
             mkl_dot = False
         if mkl_dot:
             if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):
