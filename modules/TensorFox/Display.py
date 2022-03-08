@@ -238,7 +238,7 @@ def test_tensors(tensors_list, options_list, trials, display):
     """
     Each element in the list 'tensors_list' is a tuple (name, T, R, thr) or (name, T, T_noise, R, thr). We have that
         - 'name' is any name for the tensor  
-        ' T is the tensor itself 
+        - ' T is the tensor itself 
         - R is the rank
         - thr is a threshold for the relative error to be considered a success if smaller than thr.
     In the case we are working with noise, then T_noise is the noisy tensor. The CPD will be computed for T_noise but 

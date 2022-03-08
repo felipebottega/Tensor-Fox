@@ -1,24 +1,32 @@
 from setuptools import setup, find_packages
+import pathlib
 
+
+here = pathlib.Path(__file__).parent.resolve()
+long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='TensorFox',
-    version='1.0',
+    version='1.0.1',
+    description='Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP.',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     license='GNU',
     author="Felipe Bottega Diniz",
     author_email='felipebottega@gmail.com',
     packages=find_packages('modules'),
     package_dir={'': 'modules'},
     url='https://github.com/felipebottega/Tensor-Fox',
-    keywords='Tensor Fox',
+    keywords='Tensor Fox Canonical Polyadic Decomposition CPD PARAFAC CANDECOMP Multilinear Learning',
     install_requires=[
-          'numpy',
-          'pandas',
-          'scipy',
-          'sklearn',
-          'matplotlib',
-          'numba',
-          'sparse_dot_mkl',
+          'numpy==1.19.2',
+          'pandas==1.2.3',
+          'scipy==1.6.2',
+          'sklearn==0.24.1',
+          'matplotlib==3.3.4',
+          'numba==0.53.1',
+          'IPython==7.22.0',
+          'sparse_dot_mkl==0.7',
       ],
 
 )
