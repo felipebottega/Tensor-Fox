@@ -177,7 +177,7 @@ This is not the most elegant way to include Tensor Fox in your env but you can d
     IPython>=7.31.1
     sparse_dot_mkl>=0.7
 
-Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version (MKL is preferred one), will be installed properly and up to date. This is the recommended way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the following:
+Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version (MKL is preferred one), will be installed properly and up to date. This is the recommended way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
     
     conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
 
@@ -197,7 +197,7 @@ to
    
     int_max = np.iinfo(np.int64).max
     
-in `sparse_dot_mkl._mkl_interface._check_scipy_index_typing`. If this is too complicated, set *mkl_dot* to *False* as mentioned above. In this case Tensor Fox will detect this and use only Scipy routines for sparse matrices.
+in `sparse_dot_mkl._mkl_interface._check_scipy_index_typing`. If this is too complicated, set *mkl_dot* to *False* (see [this tutorial](https://github.com/felipebottega/Tensor-Fox/blob/master/tutorial/11-sparse_tensors.ipynb) for more about this option). In this case Tensor Fox will detect this and use only Scipy routines for sparse matrices.
 
 
 ## :fox_face: Author
