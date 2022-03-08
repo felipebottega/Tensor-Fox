@@ -21,7 +21,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
 ## :fox_face: Getting started
 
-### Installing with [pip](https://pypi.org/project/TensorFox/1.0/)
+### Installing with [pip](https://pypi.org/project/TensorFox/)
 
 The only pre-requisite is to have **Python 3** installed. After this you just need to run the following command within your env:
 
