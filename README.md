@@ -19,34 +19,17 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 
  Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of a tensor is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm plus the Tensor Train Decomposition in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
 
-## :fox_face: Getting Started
+## :fox_face: Getting started
 
 ### Installing with [pip](https://pypi.org/project/TensorFox/1.0/)
 
 The only pre-requisite is to have **Python 3** installed. After this you just need to run the following command within your env:
 
-    pip install TensorFox==1.0
+    pip install TensorFox
     
-### About the dependencies 
+We recommend that you make this in a conda environment which already has at least `Numpy` and `Scipy` installed. The reason is that MKL is distributed with the full version of conda. Using the MKL routines is not mandatory, the program will just use Scipy routines for sparse matrices, but in my experience MKL routines are faster in general. 
 
-Inside the folder *modules* of this repository you will find another one called *TensorFox*. This folder is the package we will be using here. Just put it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
-
-    numpy>=1.21.0
-    pandas>=1.2.3
-    scipy>=1.6.2
-    sklearn>=0.24.1
-    matplotlib>=3.3.4
-    numba>=0.53.1
-    IPython>=7.31.1
-    sparse_dot_mkl>=0.7
-
-Make sure Numba and Numpy are up to date. Additionally, make sure you are using a nice version of BLAS (MKL if possible). Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version, will be installed properly and up to date. This is the preferred way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the required packages:
-    
-    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
-
-Note that *myenv* is the name of your env and can be anything. The channel must be *defaults*, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/). Also note that *jupyter* is optional, only if you want to work with jupyter notebooks. That is all! Now Tensor Fox is read to go! 
-
-### Creating Tensors and Getting Information 
+### Creating tensors and getting information 
 
 Let's start importing Tensor Fox and other necessary modules.
 
@@ -179,6 +162,44 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | rank1_terms_list| computes each rank 1 term, as a multidimensional array, of the CPD. |
 | forward_error| let T = T_1 + T_2 + ... + T_R be the decomposition of **T** as sum of rank-1 terms and let T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely without changing the tensor. While |cpd2tens(T) - cpd2tens(T_approx)| is the backward error of the CPD computation problem, we have that min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s is an element of the permutation group S_R. |
 
+## :fox_face: About the dependencies  
+
+### Manual installation
+
+This is not the most elegant way to include Tensor Fox in your env but you can do this manually if necessary. Inside the folder `modules` of this repository you will find another one called `TensorFox`. This folder is the package we will be using here. You may just copy it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
+
+    numpy>=1.21.0
+    pandas>=1.2.3
+    scipy>=1.6.2
+    sklearn>=0.24.1
+    matplotlib>=3.3.4
+    numba>=0.53.1
+    IPython>=7.31.1
+    sparse_dot_mkl>=0.7
+
+Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version (MKL is preferred one), will be installed properly and up to date. This is the recommended way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create a env with the following:
+    
+    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
+
+Note that `myenv` is the name of your env and can be anything. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/). Also note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
+
+### Sparse Dot MKL requirements
+
+This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl_rt.dylib` for OSX, or `mkl_rt.dll` for WIN). If the MKL library cannot be loaded an `ImportError` will be raised when the package is first imported. MKL is distributed with the full version of conda, and can be installed into Miniconda with `conda install -c intel mkl`. Alternatively, you may add need to add the path to MKL shared objects to `LD_LIBRARY_PATH` (e.g. `export LD_LIBRARY_PATH=/opt/intel/mkl/lib/intel64:$LD_LIBRARY_PATH`). There are some known bugs in MKL v2019 which may cause intermittent segfaults. Updating to MKL v2020 is highly recommended if you encounter any problems.
+
+### Sparse Dot MKL environment variable
+
+It is possible to experience fail in the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
+
+    int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
+    
+to
+   
+    int_max = np.iinfo(np.int64).max
+    
+in `sparse_dot_mkl._mkl_interface._check_scipy_index_typing`. If this is too complicated, set *mkl_dot* to *False* as mentioned above. In this case Tensor Fox will detect this and use only Scipy routines for sparse matrices.
+
+
 ## :fox_face: Author
 
 * Felipe B. Diniz: https://github.com/felipebottega
@@ -207,13 +228,3 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
  13) Tensorly - https://github.com/tensorly/
  14) TensorBox - https://github.com/phananhhuy/TensorBox
-
-**Optional:** You may want to use the package *sparse_dot_mkl* for sparse tensors, otherwise set the option *mkl_dot* to *False*. It is possible to experience fail in the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
-
-    int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
-    
-to
-   
-    int_max = np.iinfo(np.int64).max
-    
-in *sparse_dot_mkl._mkl_interface._check_scipy_index_typing*. If this is too complicated, set *mkl_dot* to *False* as mentioned above. Or even better, don't install this package. Tensor Fox will detect this and use Scipy routines.
