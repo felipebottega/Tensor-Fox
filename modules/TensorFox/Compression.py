@@ -27,7 +27,6 @@ import sys
 import numpy as np
 from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
-import warnings
 #from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy import sparse
 from scipy.linalg import qr, svd
@@ -36,6 +35,13 @@ from scipy.linalg import qr, svd
 import TensorFox.Auxiliar as aux
 import TensorFox.Conversion as cnv
 import TensorFox.MultilinearAlgebra as mlinalg
+
+
+# try to import dot_product_mkl. It will be used in intermediate computations.
+try:
+    from sparse_dot_mkl import dot_product_mkl
+except:
+    print('Module sparse_dot_mkl could not be imported. Standard scipy dot will be used for sparse matrix multiplications.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', file=sys.stderr)
 
 
 def mlsvd(T, Tsize, R, options):
@@ -66,7 +72,7 @@ def mlsvd(T, Tsize, R, options):
         First unfolding of T.
     sigmas: list of float 1-D arrays
         List with truncated arrays of the original sigmas.
-    """
+    """   
 
     # INITIALIZE RELEVANT VARIABLES.
 
@@ -234,7 +240,6 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
         os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
         from sparse_dot_mkl import dot_product_mkl
     except:
-        warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', category=Warning, stacklevel=3)
         mkl_dot = False
         
     if mkl_dot:
@@ -242,10 +247,10 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
             TlT = Tl.T
             Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
         except Exception as e:
-            warnings.warn('\n        ' + str(e) + '. Using standard scipy dot.', category=Warning, stacklevel=3)
+            print('        ' + str(e) + '. Using standard scipy dot.', file=sys.stderr)
             Tl = sparse_dot_calls(Tl)
     else:
-        warnings.warn('\n        Matrix is too large for sparse_dot_mkl. Using standard scipy dot.', category=Warning, stacklevel=3)
+        print('        Matrix is too large for sparse_dot_mkl or the package could not be imported. Using standard scipy dot.', file=sys.stderr)
         Tl = sparse_dot_calls(Tl)
         
     return Tl
@@ -332,7 +337,6 @@ def safe_sparse_dot(a, b, mkl_dot):
         try:
             from sparse_dot_mkl import dot_product_mkl
         except:
-            warnings.warn('\n        Module sparse_dot_mkl could not be imported. Using standard scipy dot function instead.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', category=Warning, stacklevel=3)
             mkl_dot = False
         if mkl_dot:
             if (sparse.issparse(a) and a.getformat() == 'csr') or (sparse.issparse(b) and b.getformat() == 'csr'):

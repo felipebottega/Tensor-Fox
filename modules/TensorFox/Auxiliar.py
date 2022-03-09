@@ -10,7 +10,6 @@ from numpy import diag, dot, argsort, array, size, inf, moveaxis, arange, ndarra
 from numpy.linalg import norm, pinv
 from numpy.random import randn, randint
 import sys
-import warnings
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from itertools import product
@@ -53,11 +52,10 @@ def consistency(R, dims, options):
         sys.exit(msg)
 
     if L > 3 and R > min(dims) and options.method == 'ttcpd':
-        warnings.warn("\nThe CPD should not be computed with the Tensor Train method when the order is higher than 3\n"
-                      "and the rank is greater than any dimension of the tensor.\n"
-                      "The computations can be slower and the program may not converge to a good solution.\n"
-                      "We recommend to use the parameter method='dGN' (within the class of options, see the cpd doctring).", 
-                      category=Warning, stacklevel=3)
+        print("        The CPD should not be computed with the Tensor Train method when the order is higher than 3 and the rank is greater than any dimension of the tensor.\n"
+              "        The computations can be slower and the program may not converge to a good solution.\n"
+              "        We recommend to use the parameter method='dGN' (within the class of options, see the cpd docstring).", 
+              file=sys.stderr)
 
     if options.symm:
         for i in range(L):

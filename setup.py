@@ -7,7 +7,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='TensorFox',
-    version='1.0.3',
+    version='1.0.4',
     description='Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP.',
     long_description=long_description,
     long_description_content_type='text/markdown',
