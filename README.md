@@ -172,7 +172,7 @@ This is not the most elegant way to include Tensor Fox in your env but you can d
     numpy>=1.21.0
     pandas>=1.2.3
     scipy>=1.6.2
-    sklearn>=0.24.1
+    scikit-learn>=0.24.1
     matplotlib>=3.3.4
     numba>=0.53.1
     IPython>=7.31.1
