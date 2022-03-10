@@ -180,7 +180,7 @@ This is not the most elegant way to include Tensor Fox in your env but you can d
 
 Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version (MKL is preferred one), will be installed properly and up to date. This is the recommended way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
     
-    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba sparse_dot_mkl 
+    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba IPython sparse_dot_mkl 
 
 Note that `myenv` is the name of your env and can be anything. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/). Also note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
 
