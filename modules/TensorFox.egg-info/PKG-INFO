@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: TensorFox
-Version: 1.0.4
+Version: 1.0.5
 Summary: Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP.
 Home-page: https://github.com/felipebottega/Tensor-Fox
 Author: Felipe Bottega Diniz
