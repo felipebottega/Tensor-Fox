@@ -30,6 +30,8 @@ from numpy.linalg import norm
 #from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy import sparse
 from scipy.linalg import qr, svd
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Tensor Fox modules
 import TensorFox.Auxiliar as aux
@@ -250,7 +252,6 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
             print('        ' + str(e) + '. Using standard scipy dot.', file=sys.stderr)
             Tl = sparse_dot_calls(Tl)
     else:
-        print('        Matrix is too large for sparse_dot_mkl or the package could not be imported. Using standard scipy dot.', file=sys.stderr)
         Tl = sparse_dot_calls(Tl)
         
     return Tl
