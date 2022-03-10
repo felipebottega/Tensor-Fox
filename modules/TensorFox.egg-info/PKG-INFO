@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: TensorFox
-Version: 1.0.3
+Version: 1.0.4
 Summary: Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP.
 Home-page: https://github.com/felipebottega/Tensor-Fox
 Author: Felipe Bottega Diniz
@@ -15,7 +15,7 @@ Description: # Tensor Fox
         - [:fox_face: Getting Started](#started)
         - [:fox_face: Performance](#performance)
         - [:fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
-         -[:fox_face: About the dependencies](#dependencies)
+        - [:fox_face: About the dependencies](#dependencies)
         - [:fox_face: Author](#author)
         - [:fox_face: License](#license)
         - [:fox_face: References](#references)
@@ -24,7 +24,7 @@ Description: # Tensor Fox
         
          Multidimensional data structures are common these days, and extracting useful information from them is crucial for several applications. For bidimensional data structures (i.e., matrices), one can rely on decompositions such as the [Singular Value Decomposition](https://en.wikipedia.org/wiki/Singular_value_decomposition) (SVD) for instance. There are two  possible generalizations of the SVD for multidimensional arrays of higher order: the *multilinear singular value decomposition* (MLSVD) and the *canonical polyadic decomposition* (CPD). The former can be seen as a [PCA](https://en.wikipedia.org/wiki/Principal_component_analysis) of higher order and is useful for dimensionality reduction, whereas the latter is useful to detect latent variables. Computing the MLSVD is just a matter of computing several SVD's, but the CPD is a challenging problem.
         
-        ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png)
+        ![tensor-intuition](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/tensor-intuition.png?raw=True)
         
          Determinating the [rank](https://en.wikipedia.org/wiki/Tensor_rank_decomposition#Tensor_rank) of a tensor is a NP-hard problem, so the best option is to rely on heuristics, guessing and estimate. Although the value of the rank is a hard task, once we have its value or a reasonable estimate, computing an approximated CPD is a polynomial task. There are several implementations of algorithms to compute a CPD, but most of them relies on the *alternating least squares* (ALS) algorithm, which is cheap to compute but has severe convergence issues. Algorithms like the *damped Gauss-Newton* (dGN) are more robust but in general are much more costly. Tensor Fox is a CPD solver for Python (with Numpy and Numba as backend) which manages to use the dGN algorithm plus the Tensor Train Decomposition in a cheap way, being robust while also being competitive with ALS in terms of speed. Furthermore, Tensor Fox offers several additional multilinear algebra routines. 
         
@@ -42,19 +42,19 @@ Description: # Tensor Fox
         
         Let's start importing Tensor Fox and other necessary modules.
         
-        ![alt text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png)
+        ![ipynb1](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png?raw=True)
         
         We will create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) Tensor Fox uses the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined below (the frontal slices of **T** are shown).
         
-        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png)
+        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png?raw=True)
         
-        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png)
+        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb2.png?raw=True)
         
         ### Computing the CPD
         
         Now let's turn to the most important tool of Tensor Fox, the computation of the CPD. We can compute the corresponding CPD simply calling the function **cpd** with the tensor and the rank as arguments. This is just the tip of the iceberg of Tensor Fox, to know more check out the [tutorial](https://github.com/felipebottega/Tensor-Fox/tree/master/tutorial) and the [examples of applications](https://github.com/felipebottega/Tensor-Fox/tree/master/examples). 
         
-        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png)
+        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb3.png?raw=True)
         
         ## :fox_face: Performance
         
@@ -90,17 +90,17 @@ Description: # Tensor Fox
          
          The first round of our benchmarks is showed below.
          
-         ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png)
+         ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks1.png?raw=True)
           
           Now we consider another round of tests, but instead of fixed tensors we use a family of tensors. More precisely, we consider random tensors of shape *n* x *n* x ... x *n* and rank R = 5, where the entries of each factor matrix are drawn from the normal distribution (mean 0 and variance 1). First we consider fourth order tensors with shape *n* x *n* x *n* x *n*, for *n* = 10, 20, 30, 40, 50, 60, 70, 80. Since the Tensorlab's NLS performed very well in the previous tests, we use only this one for Tensorlab and start with this algorithm, making 20 computations for each dimension *n* and averaging the errors and time. After that we run the other algorithms adjusting their tolerance in order to match the NLS results. 
           
          In all tests we tried to choose the options in order to speed up the algorithms without losing accuracy. For example, we noticed that it was unnecessary to use compression, detection of structure and refinement for the NLS algorithm. These routines are very expensive and didn't bring much extra precision, so they were disabled in order to make the NLS computations faster. Similarly we used the initialization 'svd' for Tensorly because it proved to be faster than 'random', and we used the algorithm 'lbfgs' for Tensor Toolbox OPT. Finally, for Tensor Fox we just decreased its tolerance in order to match the precision given by the NLS algorithm. The results are showed below. 
           
-        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png)
+        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks2.png?raw=True)
         
          Next, we make the same procudure but this time we fixed *n* to *n* = 10 and increased the order, from order 3 to 8. These last tests shows an important aspect of Tensor Fox: it avoids the [curse of dimensionality](https://en.wikipedia.org/wiki/Curse_of_dimensionality), whereas the other algorithms still suffers from that. We consider random rank-5 tensors of shape 10 x 10 x 10, them 10 x 10 x 10 x 10, up to tensors of order 8, i.e., with shape 10 x 10 x 10 x 10 x 10 x 10 x 10 x 10, with the same distribution as before. For anyone interested in reproducing these tests, it is possible to generate these tensors with the command `tfx.gen_rand_tensor(dims, R)`.
          
-        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png)
+        ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/benchmarks3.png?raw=True)
         
         ## :fox_face: Structure of Tensor Fox
         
