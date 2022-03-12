@@ -27,8 +27,8 @@ def my_function():
 
     Compute the error.
     >>> rel_error = np.linalg.norm(T_dense - T_approx)/np.linalg.norm(T_dense)
-    >>> print('|T - T_approx|/|T| < 1e-14', rel_error < 1e-14)
-    |T - T_approx|/|T| < 1e-14 True
+    >>> print('|T - T_approx|/|T| < 1e-4', rel_error < 1e-4)
+    |T - T_approx|/|T| < 1e-4 True
     """
 
     return 

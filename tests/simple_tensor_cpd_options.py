@@ -32,15 +32,15 @@ def my_function():
     >>> Z = np.ones((m, R))
     >>> options.initialization = [X,Y,Z]
     >>> factors, output = tfx.cpd(T, R, options)
-    >>> print('|T - T_approx|/|T| =', round(output.rel_error, 14))
-    |T - T_approx|/|T| = 0.13079807124883
+    >>> print('|T - T_approx|/|T| < 0.14', output.rel_error < 0.14)
+    |T - T_approx|/|T| < 0.14 True
     
     Compute the CPD of T with refinement.
     >>> options.display = 0
     >>> options.refine = True
     >>> factors, output = tfx.cpd(T, R, options)
-    >>> print('|T - T_approx|/|T| =', round(output.rel_error, 14))
-    |T - T_approx|/|T| = 0.13079807124883
+    >>> print('|T - T_approx|/|T| < 0.14', output.rel_error < 0.14)
+    |T - T_approx|/|T| < 0.14 True
     
     Compute the CPD with cg_static as the inner algorithm, with 3 iterations max and tolerance of 1e-7.
     >>> options.inner_method = 'cg_static'
@@ -48,8 +48,8 @@ def my_function():
     >>> options.cg_tol = 1e-7
     >>> options.refine = False
     >>> factors, output = tfx.cpd(T, R, options)
-    >>> print('|T - T_approx|/|T| =', round(output.rel_error, 14))
-    |T - T_approx|/|T| = 0.13079807124883
+    >>> print('|T - T_approx|/|T| < 0.14', output.rel_error < 0.14)
+    |T - T_approx|/|T| < 0.14 True
     """
 
     return 
