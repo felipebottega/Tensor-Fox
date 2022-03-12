@@ -1,3 +1,7 @@
 *.pyo
 *.pyc
 /**/__pycache/
+eggs/
+sdist/
+*.egg-info/
+*.egg
