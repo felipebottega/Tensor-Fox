@@ -7,7 +7,7 @@ Tensor Fox is a high performance package of multilinear algebra and tensor routi
 - [:fox_face: Getting Started](#started)
 - [:fox_face: Performance](#performance)
 - [:fox_face: Structure of Tensor Fox](#structure-of-tensor-fox)
-- [:fox_face: About the dependencies](#dependencies)
+- [:fox_face: About Sparse Dot MKL](#sparse-dot-mkl)
 - [:fox_face: Author](#author)
 - [:fox_face: License](#license)
 - [:fox_face: References](#references)
