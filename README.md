@@ -28,7 +28,11 @@ The only pre-requisite is to have **Python 3** installed. After this you just ne
 
     pip install TensorFox
     
-We recommend that you make this in a conda environment which already has at least `Numpy` and `Scipy` installed. The reason is that MKL is distributed with the full version of conda. Using the MKL routines is not mandatory, the program will just use Scipy routines for sparse matrices instead, but in my experience MKL routines are faster in general. 
+The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more detail at the end of this text). This package is responsible for accelerating a few matrix multiplications. Tensor Fox still works without this package but it will use Scipy dot instead. I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
+    
+    conda create --name tfx_env --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba IPython sparse_dot_mkl  
+    
+After this you may install TensorFox and everything will be fine. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/), which is necessary to work with `sparse_dot_mkl`. Finally, note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
 
 ### Creating tensors and getting information 
 
@@ -163,26 +167,9 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | rank1_terms_list| computes each rank 1 term, as a multidimensional array, of the CPD. |
 | forward_error| let T = T_1 + T_2 + ... + T_R be the decomposition of **T** as sum of rank-1 terms and let T_approx = T_approx_1 + T_approx_2 + ... + T_approx_R be the decomposition of T_approx as sum of R terms. Supposedly T_approx were obtained after the cpd function. The ordering of the rank-1 terms of T_approx can be permuted freely without changing the tensor. While |cpd2tens(T) - cpd2tens(T_approx)| is the backward error of the CPD computation problem, we have that min_s sqrt( |T_1 - T_approx_s(1)|^2 + ... + |T_R - T_approx_s(R)|^2 ) is the forward error of the problem, where s is an element of the permutation group S_R. |
 
-## :fox_face: About the dependencies  
+## :fox_face: About Sparse Dot MKL  
 
-### Manual installation
-
-This is not the most elegant way to include Tensor Fox in your env but you can do this manually if necessary. Inside the folder `modules` of this repository you will find another one called `TensorFox`. This folder is the package we will be using here. You may just copy it together with the other packages of your Python environment. To be able to use Tensor Fox properly you will need the following packages installed on your computer:
-
-    numpy>=1.21.0
-    pandas>=1.2.3
-    scipy>=1.6.2
-    scikit-learn>=0.24.1
-    matplotlib>=3.3.4
-    numba>=0.53.1
-    IPython>=7.31.1
-    sparse_dot_mkl>=0.7
-
-Instead of installing all these modules manually, a possibility is to just install [Anaconda](https://www.anaconda.com/distribution/), then everything, including the BLAS version (MKL is preferred one), will be installed properly and up to date. This is the recommended way. If you want to install only the necessary packages, I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
-    
-    conda create --name myenv --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba IPython sparse_dot_mkl 
-
-Note that `myenv` is the name of your env and can be anything. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/). Also note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
+[Sparse Dot MKL](https://github.com/flatironinstitute/sparse_dot) is a wrapper for the sparse matrix multiplication in the intel MKL library. This package is used by Tensor Fox when computing the SVD of large sparse matrices. In the case this package is not installed properly, Scipy routines will be used instead.
 
 ### Sparse Dot MKL requirements
 
@@ -190,7 +177,7 @@ This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl
 
 ### Sparse Dot MKL environment variable
 
-It is possible to experience fail in the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
+It is possible to experience failure in the computations due to the environment variable MKL_INTERFACE_LAYER being differente than ILP64. In some machines this warning can be triggered even when this variable is correct (check this with *os.getenv("MKL_INTERFACE_LAYER")*). If this happens, a workaround is to change the line 
 
     int_max = np.iinfo(MKL.MKL_INT_NUMPY).max
     
