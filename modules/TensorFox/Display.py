@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import mean, var, array, sort, ceil, floor, zeros, uint8, uint64, prod, argsort
+from numpy import mean, var, array, sort, ceil, floor, zeros, uint8
 from numpy.linalg import norm
 import time
 import warnings
@@ -83,12 +83,12 @@ def infotens(T):
     
     # Bounds on rank.
     sorted_dims = sort(array(dims))
-    R = int(prod(sorted_dims[1:], dtype=uint64))
+    R = mlinalg.multiply_dims(sorted_dims[1:])
     print(1, '<= rank(T) <=', R)
     print()
 
     # Show generic rank.
-    R_gen = int(ceil( int(prod(sorted_dims, dtype=uint64))/(np.sum(sorted_dims) - L + 1) ))
+    R_gen = int(ceil( mlinalg.multiply_dims(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
     print('Generic rank of the tensor space of T =', R_gen)
     print()
     

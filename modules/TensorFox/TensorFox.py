@@ -258,10 +258,10 @@ def cpd(T, R, options=False):
         if display != 0:
             print('Sparse tensor detected')
             print('    nnz =', len(data_orig)) 
-            print('    Sparsity level =', round(100*(1 - len(data_orig)/int(prod(dims_orig, dtype=uint64))), 6), '%')
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 6), '%')
     
-    # Change ordering of indexes to speed-up MLSVD. Only used for dense tensors.
-    T, ordering = sort_dims(T) 
+    # Change ordering of indexes to speed-up MLSVD.
+    T, ordering = sort_dims(T)
     
     if type(T) == list:
         Tsize = norm(T[0])
@@ -476,9 +476,9 @@ def tricpd(T, R, options):
         if display != 0:
             print('Sparse tensor detected')
             print('    nnz =', len(data_orig)) 
-            print('    Sparsity level =', round(100*(1 - len(data_orig)/int(prod(dims_orig, dtype=uint64))), 6), '%')
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 6), '%')
     
-    # Change ordering of indexes to speed-up MLSVD. Only used for dense tensors.
+    # Change ordering of indexes to speed-up MLSVD.
     T, ordering = sort_dims(T)     
 
     if type(T) == list:
@@ -857,7 +857,7 @@ def rank(T, options=False, plot=True, trials=3):
         if options.method == 'dGN':
             Rmin = 1
             sorted_dims = sort(array(dims))
-            Rmax = int(prod(sorted_dims[1:], dtype=uint64))
+            Rmax = multiply_dims(sorted_dims[1:])
         else:
             Rmin, Rmax = 2, np.min(dims)
     else:

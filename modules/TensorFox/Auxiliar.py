@@ -16,6 +16,7 @@ from itertools import product
 
 # Tensor Fox modules
 import TensorFox.Critical as crt
+import TensorFox.MultilinearAlgebra as mlinalg
 import TensorFox.TensorFox as tfx
 
 
@@ -356,7 +357,7 @@ def tt_core(V, dims, r1, r2, l):
     Computation of one core of the CPD Tensor Train function (cpdtt).
     """
 
-    V = V.reshape(r1*dims[l], int(prod(dims[l+1:], dtype=uint64)), order='F')
+    V = V.reshape(r1*dims[l], mlinalg.multiply_dims(dims[l+1:]), order='F')
     low_rank = min(V.shape[0], V.shape[1])
     U, S, V = rand_svd(V, low_rank, n_iter=0)
     U = U[:, :r2]

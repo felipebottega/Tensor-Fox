@@ -185,7 +185,7 @@ def unfold(T, mode):
  
     dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]), order='F')
+    Tl = empty((dims[mode-1], mlinalg.multiply_dims(dims)//dims[mode-1]), order='F')
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
@@ -209,7 +209,7 @@ def unfold_C(T, mode):
  
     dims = T.shape
     L = len(dims)
-    Tl = empty((dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]))
+    Tl = empty((dims[mode-1], mlinalg.multiply_dims(dims)//dims[mode-1]))
     func_name = "unfold" + str(mode) + "_order" + str(L)
     Tl = getattr(crt, func_name)(T, Tl, tuple(dims))
 
@@ -256,7 +256,7 @@ def sparse_unfold(data, idxs, dims, mode):
     
     rows = idxs[:, mode-1]
     cols = np.sum(K * idxs, axis=1, dtype=uint64)
-    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], int(prod(dims, dtype=uint64))//dims[mode-1]))
+    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], mlinalg.multiply_dims(dims)//dims[mode-1]))
     Tl = Tl.tocsr()
 
     return Tl

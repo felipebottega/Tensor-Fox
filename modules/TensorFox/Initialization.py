@@ -6,7 +6,7 @@
 
 # Python modules
 import numpy as np
-from numpy import dot, empty, zeros, ones, int64, uint64, arange, sqrt, inf, argmax, array, unravel_index, prod
+from numpy import dot, empty, zeros, ones, int64, arange, sqrt, inf, argmax, array, unravel_index
 from numpy.linalg import norm
 from numpy.random import randn, randint
 import sys
@@ -68,7 +68,7 @@ def starting_point(T, Tsize, S, U, R, ordering, options):
         init_factors = smart(S, dims, R)
 
     else:
-        sys.exit('Error with init parameter.')
+        sys.exit('Error with init parameter initialization.')
 
     if type(initialization) != list:
 
@@ -116,7 +116,7 @@ def smart_random(S, dims, R):
 
     # Initialize auxiliary values and arrays.
     dims = array(dims)
-    samples = 1 + int(sqrt(int(prod(dims, dtype=uint64))))
+    samples = 1 + int(sqrt(mlinalg.multiply_dims(dims)))
     best_error = inf
     S1 = cnv.unfold(S, 1)
     Ssize = norm(S)

@@ -16,8 +16,9 @@
 """
 
 # Python modules
+import sys
 import numpy as np
-from numpy import dot, zeros, empty, prod, uint64, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
 import numpy.matlib
 import scipy as scp
@@ -171,7 +172,7 @@ def multirank_approx(T, multi_rank, options):
     options = aux.make_options(options)
     options.display = 0
     options.trunc_dims = multi_rank
-    R_gen = int(ceil( int(prod(sorted_dims, dtype=uint64))/(np.sum(sorted_dims) - L + 1) ))
+    R_gen = int(ceil( multiply_dims(sorted_dims)/(np.sum(sorted_dims) - L + 1) ))
     S, U, UT, sigmas = cmpr.mlsvd(T, Tsize, R_gen, options)
 
     # Construct the corresponding tensor T_approx.
@@ -259,7 +260,7 @@ def cond(factors):
         dims = array([A[i].shape[0] for i in range(L)])
         N = 1 + np.sum(dims - 1)
         r = A[0].shape[1]
-        Pi = int(prod(dims, dtype=uint64))
+        Pi = multiply_dims(dims)
         Sigma = 1 + np.sum(dims - 1)
 
         idxSet = zeros((L - 1, r))
@@ -299,7 +300,7 @@ def cond(factors):
     R = factors[0].shape[1]
 
     # Verify if current rank is bigger than the generic rank of the space.
-    P = int(prod(dims, dtype=uint64))
+    P = multiply_dims(dims)
     S = R * (1 + np.sum(dims - 1))
     if P < S:
         J = []
@@ -480,12 +481,16 @@ def slow_sparse_dot(A):
     """
     This function computes dot(A, A.T), where A is a sparse csr matrix. The function compute_svd calls this product when
     the sparse_dot_mkl and scipy dot fails to perform the product, usually due to memory limitations. They tend to
-    explode the memory for too large column sizes, whereas this functions perform well for large column sizes but it
-    will explode for large row sizes.
+    explode the memory for too large column sizes, whereas this functions performs well for large column sizes but it
+    will explode for large row sizes of A.
     """
 
     n = A.shape[0]
-    out_arr = np.zeros((n, n), dtype=A.dtype)
+    try:
+        out_arr = np.zeros((n, n), dtype=A.dtype)
+    except MemoryError as e:
+        print('        ' + str(e) + '. Program finished.', file=sys.stderr)
+        sys.exit('        ' + str(e) + '. Program finished.')
 
     for i in range(n):
         for j in range(n):
@@ -493,3 +498,15 @@ def slow_sparse_dot(A):
             out_arr[i, j] = sum([A[i, k] * A[j, k] for k in idxs])
 
     return out_arr
+
+
+def multiply_dims(dims):
+    """
+    This function returns the product of the dimensions of a tensor.
+    """
+
+    x = 1
+    for dim in dims:
+        x *= int(dim)
+
+    return x

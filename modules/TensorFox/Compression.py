@@ -25,7 +25,7 @@
 # Python modules
 import sys
 import numpy as np
-from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, prod, dot, ndarray, argmax, newaxis, sign
+from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
 #from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy import sparse
@@ -267,11 +267,8 @@ def sparse_dot_calls(Tl):
     try:
         Tl = Tl.dot(Tl.T)
     except Exception as e:
-        try:
-            print('        ' + str(e) + '. Using slow sparse dot.')
-            Tl = mlinalg.slow_sparse_dot(Tl)
-        except Exception as e:
-            sys.exit('        ' + str(e))
+        print('        ' + str(e) + '. Using slow sparse dot.')
+        Tl = mlinalg.slow_sparse_dot(Tl)
             
     return Tl
 
@@ -602,7 +599,7 @@ def test_truncation(T, trunc_list, mkl_dot=True, display=True, n_iter=2):
     # Compute truncated SVD of all unfoldings of T.
     sigmas = []
     U = []
-    T1 = empty((dims[0], int(prod(dims, dtype=uint64)) // dims[0]), dtype=float64)
+    T1 = empty((dims[0], mlinalg.multiply_dims(dims) // dims[0]), dtype=float64)
     for l in range(L):
         Tl = cnv.unfold(T, l+1)
         if l == 0:
