@@ -267,7 +267,7 @@ def sparse_dot_calls(Tl):
     try:
         Tl = Tl.dot(Tl.T)
     except Exception as e:
-        print('        ' + str(e) + '. Using slow sparse dot.')
+        print('        ' + str(e) + '. Using slow sparse dot.', file=sys.stderr)
         Tl = mlinalg.slow_sparse_dot(Tl)
             
     return Tl
