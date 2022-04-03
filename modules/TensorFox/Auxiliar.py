@@ -53,9 +53,9 @@ def consistency(R, dims, options):
         sys.exit(msg)
 
     if L > 3 and R > min(dims) and options.method == 'ttcpd':
-        print("        The CPD should not be computed with the Tensor Train method when the order is higher than 3 and the rank is greater than any dimension of the tensor.\n"
-              "        The computations can be slower and the program may not converge to a good solution.\n"
-              "        We recommend to use the parameter method='dGN' (within the class of options, see the cpd docstring).", 
+        print("-> The CPD should not be computed with the Tensor Train method when the order is higher than 3 and the rank is greater than any dimension of the tensor.\n"
+              "The computations can be slower and the program may not converge to a good solution.\n"
+              "We recommend to use the parameter method='dGN' (within the class of options, see the cpd docstring).", 
               file=sys.stderr)
 
     if options.symm:

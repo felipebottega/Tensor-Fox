@@ -485,6 +485,11 @@ def slow_sparse_dot(A):
     explode the memory for too large column sizes, whereas this functions performs well for large column sizes but it
     will explode for large row sizes of A.
     """
+    
+    print("-> If we got here it means the program will take a LOT of time to finish, so we take just a few random columns to work with.\n"
+          "This will decrease the precision of the solution but it is a necessary sacrifice because the computational cost would be huge otherwise.\n"
+          "Any user unsatisfied with this may just change the np.random... part for range(n) in the function slow_sparse_dot and get the whole thing.", 
+          file=sys.stderr)
 
     n = A.shape[0]
     out_arr = []
@@ -492,10 +497,7 @@ def slow_sparse_dot(A):
     idxs_tmp = []
 
     for i in range(n):
-        # If we got here it means the program will take a LOT of time to finish, so we take just a few random columns to work with.
-        # This will decrease the precision of the solution but it is a necessary sacrifice because the computational would be huge otherwise.
-        # Any user unsatisfied with this may just change this np.random... part for range(n) and get the whole thing.
-        for j in np.random.randint(n, size=20):
+        for j in np.random.randint(n, size=100):
             idx = set(A[i, :].indices).intersection(A[j, :].indices)
             val = sum([A[i, k] * A[j, k] for k in idx])
             if val != 0:
@@ -505,12 +507,19 @@ def slow_sparse_dot(A):
         x = 100*i//n
         s = "[" + x*"=" + (100-x)*" " + "]" + " " + str( np.round(100*i/n, 2) ) + "%"
         sys.stdout.write('\r'+s)
+    x = 100
+    s = "[" + x*"=" + (100-x)*" " + "]" + " " + str(100.00) + "%"
+    sys.stdout.write('\r'+s)
+    print()
             
+    if len(data_tmp) == 0:
+        data_tmp = [0]
+        idxs_tmp = [[0, 0]]
     data_tmp = array(data_tmp, dtype=float64)
     idxs_tmp = array(idxs_tmp, dtype=uint64)
     rows = idxs_tmp[:, 0]
     cols = idxs_tmp[:, 1]
-    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(n, n))
+    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(n, len(data_tmp)))
     out_arr = out_arr.tocsr()
 
     return out_arr

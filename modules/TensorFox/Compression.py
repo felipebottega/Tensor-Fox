@@ -24,6 +24,7 @@
 
 # Python modules
 import sys
+import time
 import numpy as np
 from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
@@ -43,7 +44,7 @@ import TensorFox.MultilinearAlgebra as mlinalg
 try:
     from sparse_dot_mkl import dot_product_mkl
 except:
-    print('Module sparse_dot_mkl could not be imported. Standard scipy dot will be used for sparse matrix multiplications.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', file=sys.stderr)
+    print('-> Module sparse_dot_mkl could not be imported. Standard scipy dot will be used for sparse matrix multiplications.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', file=sys.stderr)
 
 
 def mlsvd(T, Tsize, R, options):
@@ -249,7 +250,7 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
             TlT = Tl.T
             Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
         except Exception as e:
-            print('        ' + str(e) + '. Using standard scipy dot.', file=sys.stderr)
+            print('-> ', str(e) + '. Using standard scipy dot.', file=sys.stderr)
             Tl = sparse_dot_calls(Tl)
     else:
         Tl = sparse_dot_calls(Tl)
@@ -267,7 +268,8 @@ def sparse_dot_calls(Tl):
     try:
         Tl = Tl.dot(Tl.T)
     except Exception as e:
-        print('        ' + str(e) + '. Using slow sparse dot.', file=sys.stderr)
+        print('-> ', str(e) + '. Using slow sparse dot.', file=sys.stderr)
+        time.sleep(1)
         Tl = mlinalg.slow_sparse_dot(Tl)
             
     return Tl
