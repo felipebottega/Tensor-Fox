@@ -22,6 +22,7 @@ from numpy import dot, zeros, empty, float64, array, sort, ceil, identity, argma
 from numpy.linalg import norm, svd
 import numpy.matlib
 import scipy as scp
+from scipy.sparse import coo_matrix
 from numba import njit, prange
 
 # Tensor Fox modules
@@ -486,16 +487,31 @@ def slow_sparse_dot(A):
     """
 
     n = A.shape[0]
-    try:
-        out_arr = np.zeros((n, n), dtype=A.dtype)
-    except MemoryError as e:
-        print('        ' + str(e) + '. Program finished.', file=sys.stderr)
-        sys.exit('        ' + str(e) + '. Program finished.')
+    out_arr = []
+    data_tmp = []
+    idxs_tmp = []
 
     for i in range(n):
-        for j in range(n):
-            idxs = set(A[i, :].indices).intersection(A[j, :].indices)
-            out_arr[i, j] = sum([A[i, k] * A[j, k] for k in idxs])
+        # If we got here it means the program will take a LOT of time to finish, so we take just a few random columns to work with.
+        # This will decrease the precision of the solution but it is a necessary sacrifice because the computational would be huge otherwise.
+        # Any user unsatisfied with this may just change this np.random... part for range(n) and get the whole thing.
+        for j in np.random.randint(n, size=20):
+            idx = set(A[i, :].indices).intersection(A[j, :].indices)
+            val = sum([A[i, k] * A[j, k] for k in idx])
+            if val != 0:
+                data_tmp.append(val)
+                idxs_tmp.append([i, j])
+        # Display progress bar. It will be helpful since this routine will take some time.
+        x = 100*i//n
+        s = "[" + x*"=" + (100-x)*" " + "]" + " " + str( np.round(100*i/n, 2) ) + "%"
+        sys.stdout.write('\r'+s)
+            
+    data_tmp = array(data_tmp, dtype=float64)
+    idxs_tmp = array(idxs_tmp, dtype=uint64)
+    rows = idxs_tmp[:, 0]
+    cols = idxs_tmp[:, 1]
+    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(n, n))
+    out_arr = out_arr.tocsr()
 
     return out_arr
 
