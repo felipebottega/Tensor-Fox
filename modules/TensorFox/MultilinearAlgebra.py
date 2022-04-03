@@ -18,7 +18,7 @@
 # Python modules
 import sys
 import numpy as np
-from numpy import dot, zeros, empty, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, uint64, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
 from numpy.linalg import norm, svd
 import numpy.matlib
 import scipy as scp
