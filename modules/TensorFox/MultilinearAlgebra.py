@@ -519,7 +519,7 @@ def slow_sparse_dot(A):
     idxs_tmp = array(idxs_tmp, dtype=uint64)
     rows = idxs_tmp[:, 0]
     cols = idxs_tmp[:, 1]
-    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(n, len(data_tmp)))
+    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(n, n))
     out_arr = out_arr.tocsr()
 
     return out_arr
