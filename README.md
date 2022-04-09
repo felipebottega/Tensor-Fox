@@ -34,13 +34,13 @@ The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more 
     
 After this you may install TensorFox and everything will be fine. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/), which is necessary to work with `sparse_dot_mkl`. Finally, note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
 
-### Creating tensors and getting information 
+### Creating a tensor 
 
 Let's start importing Tensor Fox and other necessary modules.
 
 ![ipynb1](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/ipynb1.png?raw=True)
 
-We will create a little tensor **T** just to see how Tensor Fox works at its basics. For third order tensors (3D arrays) Tensor Fox uses the convention that **T**[ijk] refers to the *i*-th row, *j*-column and *k*-slice (frontal slice) of **T**. For instance, consider the tensor defined below (the frontal slices of **T** are shown).
+We will create a little tensor **T** just to see how Tensor Fox works at its basics. Consider the tensor defined below (the frontal slices of **T** are shown).
 
 ![alt_text](https://github.com/felipebottega/Tensor-Fox/blob/master/readme_files/formula1.png?raw=True)
 
