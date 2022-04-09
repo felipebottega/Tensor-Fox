@@ -123,6 +123,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 | **Conversion**|  |
 |---|---|
 | cpd2tens| converts the factor matrices to the corresponding tensor in coordinate format. |
+| cpd2sparsetens| same as cpd2tens but for sparse tensors. |
 | sparse2dense| given the variables defining a sparse tensor, this function computes its dense representation. |
 | dense2sparse| given a dense tensor, this function generates its sparse representation. |
 | unfold| given a tensor and a mode, this function computes the unfolding of the tensor with respect of that mode. |
