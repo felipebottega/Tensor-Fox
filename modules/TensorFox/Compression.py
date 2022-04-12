@@ -583,8 +583,8 @@ def svd_flip(u, v, u_based_decision=True):
 
 def test_truncation(T, trunc_list, mkl_dot=True, display=True, n_iter=2):
     """
-    This function test one or several possible truncations for the MLSVD of T, showing the  error of the truncations. It
-    is possible to accomplish the same results calling the function mlsvd with display=3 but this is not advisable since
+    This function test one or several possible truncations for the MLSVD of T, showing the error of each one. It is
+    possible to accomplish the same results calling the function mlsvd with display=3 but this is not advisable since
     each call recomputes the same unfolding SVD's.
     The variable trunc_list must be a list of truncations. Even if it is only one truncation, it must be a list with one
     truncation only.

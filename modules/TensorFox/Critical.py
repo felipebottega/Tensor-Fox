@@ -33,8 +33,8 @@ def sparse_fastnorm(data, idxs, dims, factors):
 
     data_approx_cols = zeros((nnz, R))
     data_approx_cols = sparse_fastnorm_computations(data_approx_cols, idxs, factors, R, L, nnz)
-    data_approx_cols = np.sum(data_approx_cols, axis=1)
-    s = norm(data - data_approx_cols)
+    data_approx = np.sum(data_approx_cols, axis=1)
+    s = norm(data - data_approx)
 
     return s
 

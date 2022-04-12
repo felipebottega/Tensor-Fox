@@ -76,6 +76,23 @@ def cpd2tens(factors):
     T_approx = foldback(T_approx, T1_approx, 1)
 
     return T_approx
+    
+    
+def cpd2sparsetens(factors, idxs, dims):
+    R = factors[0].shape[1]
+    L = len(dims)
+    nnz = len(idxs)
+    
+    if nnz == 0:
+        return [], idxs, dims
+        
+    data_approx_cols = zeros((nnz, R))
+    data_approx_cols = crt.sparse_fastnorm_computations(data_approx_cols, idxs, factors, R, L, nnz)
+    data_approx = np.sum(data_approx_cols, axis=1)
+    
+    T_approx = [data_approx, idxs, dims]
+
+    return T_approx
 
 
 def cpd2unfold1(T1_approx, factors):

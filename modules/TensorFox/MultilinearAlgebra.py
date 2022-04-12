@@ -22,6 +22,9 @@ from numpy import dot, zeros, empty, uint64, float64, array, sort, ceil, identit
 from numpy.linalg import norm, svd
 import numpy.matlib
 import scipy as scp
+import multiprocessing
+import multiprocessing.pool
+from functools import partial
 from scipy.sparse import coo_matrix
 from numba import njit, prange
 
@@ -101,15 +104,15 @@ def multilin_mult(U, T1, dims):
 def sparse_multilin_mult(U, data, idxs, dims):
     """
     Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where U[i]^T is the transpose of U[i], 
-    dims = T.shape and T is sparse. The first unfolding T1 of T is given as a csr matrix.
+    dims = T.shape and T is sparse. 
 
     Inputs
     ------
     U: list of 2-D arrays
     data: float 1-D arrays
-        data[i] is the nonzero value of the tensor at index idxs[i, :].
+        data[i] is the nonzero value of the tensor T at index idxs[i, :].
     idxs: int 2-D array
-        Let nnz be the number of nonzero entries of the tensor. Then idxs is an array of shape (nnz, L) such that
+        Let nnz be the number of nonzero entries of the tensor T. Then idxs is an array of shape (nnz, L) such that
         idxs[i, :] is the index of the i-th nonzero entry.
     dims: list or tuple
         The dimensions (shape) of the tensor T.
@@ -486,49 +489,35 @@ def slow_sparse_dot(A):
     will explode for large row sizes of A.
     """
     
-    print("-> If we got here it means the program will take a LOT of time to finish.", file=sys.stderr)
+    print("-> If we got here it means the program may take more time than usual to finish. For best performance more memory RAM is needed.", file=sys.stderr)
+    print("-> To see the % progress you need to be running the program in some terminal.", file=sys.stderr)
 
     n = A.shape[0]
-    data_tmp = []
-    idxs_tmp = []
+    
+    # Create the list of slices of indices on which each process will work with.
+    num_procs = multiprocessing.cpu_count()
+    #pieces =  array([int((-n/num_procs**2) * x**2 + 2*n/num_procs * x) for x in range(1, num_procs+1)])
+    pieces =  array([int(n*sqrt(i)/sqrt(num_procs)) for i in range(1, num_procs+1)])
+    pieces[-1] = n    
+    pieces = [[pieces[i], pieces[i+1], i] for i in range(len(pieces)-1)]
+    
+    # Define matrix variables.
     A_row_idxs = [set(A[i, :].indices) for i in range(n)]
     B = A.tocoo()
     A_dct = {(B.row[i], B.col[i]): B.data[i] for i in range(len(B.data))}
-
-    # Computes half of the matrix values (this is sufficient since the matrix is symmetric).
-    for i in range(n):
-        for j in range(i):
-            idx = A_row_idxs[i].intersection(A_row_idxs[j])
-            val = sum([A_dct[(i, k)] * A_dct[(j, k)] for k in idx])
-            if val != 0:
-                data_tmp.append(val)
-                idxs_tmp.append([i, j])
-        # Display progress bar. It will be helpful since this routine will take some time.
-        x = 100*i//n
-        s = "[" + x*"=" + (100-x)*" " + "]" + " " + str( np.round(100*i/n, 2) ) + "%"
-        sys.stdout.write('\r'+s)
-    x = 100
-    s = "[" + x*"=" + (100-x)*" " + "]" + " " + str(100.00) + "%"
-    sys.stdout.write('\r'+s)
-    print()
-
-    # Computes the other half of the matrix.
-    k = 0
-    for i in range(n):
-        for j in range(i):
-            data_tmp.append(data_tmp[k])
-            idxs_tmp.append([j, i])
-            k += 1
-        # Display progress bar.
-        x = 100 * i // n
-        s = "[" + x * "=" + (100 - x) * " " + "]" + " " + str(np.round(100 * i / n, 2)) + "%"
-        sys.stdout.write('\r' + s)
-    x = 100
-    s = "[" + x * "=" + (100 - x) * " " + "]" + " " + str(100.00) + "%"
-    sys.stdout.write('\r' + s)
-    print()
-
-    # Computes the diagonal.
+    B = []
+    
+    # Compute the matrix values.
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        partial_inputs = partial(slow_sparse_dot_inner, A_row_idxs=A_row_idxs, A_dct=A_dct)
+        results = pool.map(partial_inputs, pieces)
+    data_tmp = []
+    idxs_tmp = []
+    for r in results:
+        data_tmp += r[0]
+        idxs_tmp += r[1]    
+        
+    # Computes the diagonal of the matrix.
     for i in range(n):
         idx = A_row_idxs[i].intersection(A_row_idxs[i])
         val = sum([A_dct[(i, k)] * A_dct[(i, k)] for k in idx])
@@ -536,10 +525,13 @@ def slow_sparse_dot(A):
             data_tmp.append(val)
             idxs_tmp.append([i, i])
 
-    # Join the results.
+    # Corner case.
     if len(data_tmp) == 0:
+        print('The result is a null matrix.')
         data_tmp = [0]
-        idxs_tmp = [[0, 0]]
+        idxs_tmp = [[0, 0]]    
+
+    # Join the results.    
     data_tmp = array(data_tmp, dtype=float64)
     idxs_tmp = array(idxs_tmp, dtype=uint64)
     rows = idxs_tmp[:, 0]
@@ -548,6 +540,36 @@ def slow_sparse_dot(A):
     out_arr = out_arr.tocsr()
 
     return out_arr
+    
+    
+def slow_sparse_dot_inner(piece, A_row_idxs, A_dct):
+    """
+    Subroutine of the function slow_sparse_dot. Here is where the actual computations are made.
+    """
+    
+    data_tmp = []
+    idxs_tmp = []
+    a, b, proc_id = piece
+    pct = np.array([int(x) for x in np.linspace(a, b, 101)])   
+    
+    for i in range(a, b):
+        for j in range(i):
+            idx = A_row_idxs[i].intersection(A_row_idxs[j])
+            val = sum([A_dct[(i, k)] * A_dct[(j, k)] for k in idx])
+            if val != 0:
+                data_tmp.append(val)
+                idxs_tmp.append([i, j])
+                # Put the value on the other half of the matrix since it is symmetric.
+                data_tmp.append(val)
+                idxs_tmp.append([j, i])    
+        # Display % progress on the screen. Only works when the user is running the program in some terminal.        
+        idx_pct = np.where(pct==i)
+        if len(idx_pct) > 0:
+            if len(idx_pct[0]) > 0:
+                print('Process', proc_id, ': ', idx_pct[0][0], ' %')
+    print('Process', proc_id, ': ', '100 %')
+        
+    return data_tmp, idxs_tmp
 
 
 def multiply_dims(dims):
