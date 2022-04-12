@@ -486,20 +486,20 @@ def slow_sparse_dot(A):
     will explode for large row sizes of A.
     """
     
-    print("-> If we got here it means the program will take a LOT of time to finish, so we take just a few random columns to work with.\n"
-          "This will decrease the precision of the solution but it is a necessary sacrifice because the computational cost would be huge otherwise.\n"
-          "Any user unsatisfied with this may just change the np.random... part for range(n) in the function slow_sparse_dot and get the whole thing.", 
-          file=sys.stderr)
+    print("-> If we got here it means the program will take a LOT of time to finish.", file=sys.stderr)
 
     n = A.shape[0]
-    out_arr = []
     data_tmp = []
     idxs_tmp = []
+    A_row_idxs = [set(A[i, :].indices) for i in range(n)]
+    B = A.tocoo()
+    A_dct = {(B.row[i], B.col[i]): B.data[i] for i in range(len(B.data))}
 
+    # Computes half of the matrix values (this is sufficient since the matrix is symmetric).
     for i in range(n):
-        for j in np.random.randint(n, size=100):
-            idx = set(A[i, :].indices).intersection(A[j, :].indices)
-            val = sum([A[i, k] * A[j, k] for k in idx])
+        for j in range(i):
+            idx = A_row_idxs[i].intersection(A_row_idxs[j])
+            val = sum([A_dct[(i, k)] * A_dct[(j, k)] for k in idx])
             if val != 0:
                 data_tmp.append(val)
                 idxs_tmp.append([i, j])
@@ -511,7 +511,32 @@ def slow_sparse_dot(A):
     s = "[" + x*"=" + (100-x)*" " + "]" + " " + str(100.00) + "%"
     sys.stdout.write('\r'+s)
     print()
-            
+
+    # Computes the other half of the matrix.
+    k = 0
+    for i in range(n):
+        for j in range(i):
+            data_tmp.append(data_tmp[k])
+            idxs_tmp.append([j, i])
+            k += 1
+        # Display progress bar.
+        x = 100 * i // n
+        s = "[" + x * "=" + (100 - x) * " " + "]" + " " + str(np.round(100 * i / n, 2)) + "%"
+        sys.stdout.write('\r' + s)
+    x = 100
+    s = "[" + x * "=" + (100 - x) * " " + "]" + " " + str(100.00) + "%"
+    sys.stdout.write('\r' + s)
+    print()
+
+    # Computes the diagonal.
+    for i in range(n):
+        idx = A_row_idxs[i].intersection(A_row_idxs[i])
+        val = sum([A_dct[(i, k)] * A_dct[(i, k)] for k in idx])
+        if val != 0:
+            data_tmp.append(val)
+            idxs_tmp.append([i, i])
+
+    # Join the results.
     if len(data_tmp) == 0:
         data_tmp = [0]
         idxs_tmp = [[0, 0]]
