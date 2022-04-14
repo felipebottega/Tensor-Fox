@@ -565,10 +565,10 @@ def gen_rand_tensor(dims, R, noise=0):
 def gen_rand_sparse_tensor(dims, R, nnz):
     """
     This function generates a sparse random rank-R tensor T of shape (dims[0], dims[1], ..., dims[L-1]), where L is the
-    order of T. Each factor matrix of T is a sparse matrix of shape (dims[l], R) with its entries drawn from the
-    standard Gaussian distribution (mean zero and variance one). The sparse representation is given by a dictionary
-    where the keys are the coordinates associated to nonzero values of the matrix. T is given in the sparse format
-    [data, idxs, dims] as described in the cpd function.
+    order of T. Each factor matrix of T is a sparse matrix of shape (dims[l], R) such that its entries are drawn from 
+    the standard Gaussian distribution (mean zero and variance one). The sparse representation of the factors matrices
+    (orig_factors) is given by a dictionary where the keys are the coordinates associated to the nonzero values of the 
+    matrix. T is given in the sparse format [data, idxs, dims] as described in the cpd function.
 
     Input
     -----

@@ -79,6 +79,24 @@ def cpd2tens(factors):
     
     
 def cpd2sparsetens(factors, idxs, dims):
+    """
+    Converts the factor matrices to tensor in sparse coordinate format.
+
+    Inputs
+    ------
+    factors: list of 2-D arrays
+        The factor matrices.
+    idxs: 2-D array
+        For each row idxs[i, :], the program will return the value of T[idxs[i, :]].
+    dims: 1-D array
+        The dimensions of T.        
+
+    Outputs
+    ------
+    T_approx: list of float 1-D arrays
+        The tensor in sparse coordinate format.
+    """
+    
     R = factors[0].shape[1]
     L = len(dims)
     nnz = len(idxs)

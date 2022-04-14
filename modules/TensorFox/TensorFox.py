@@ -261,7 +261,7 @@ def cpd(T, R, options=False):
         if display != 0:
             print('Sparse tensor detected')
             print('    nnz =', len(data_orig)) 
-            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 6), '%')
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 12), '%')
     
     # Change ordering of indexes to speed-up MLSVD.
     T, ordering = sort_dims(T)
@@ -479,7 +479,7 @@ def tricpd(T, R, options):
         if display != 0:
             print('Sparse tensor detected')
             print('    nnz =', len(data_orig)) 
-            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 6), '%')
+            print('    Sparsity level =', round(100*(1 - len(data_orig)/multiply_dims(dims_orig)), 12), '%')
     
     # Change ordering of indexes to speed-up MLSVD.
     T, ordering = sort_dims(T)     

@@ -496,8 +496,7 @@ def slow_sparse_dot(A):
     
     # Create the list of slices of indices on which each process will work with.
     num_procs = multiprocessing.cpu_count()
-    #pieces =  array([int((-n/num_procs**2) * x**2 + 2*n/num_procs * x) for x in range(1, num_procs+1)])
-    pieces =  array([int(n*sqrt(i)/sqrt(num_procs)) for i in range(1, num_procs+1)])
+    pieces = array([int(n*sqrt(i)/sqrt(num_procs)) for i in range(1, num_procs+1)])
     pieces[-1] = n    
     pieces = [[pieces[i], pieces[i+1], i] for i in range(len(pieces)-1)]
     

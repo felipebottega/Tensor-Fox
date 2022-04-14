@@ -2638,13 +2638,16 @@ def sparse_multilin_mult_order3(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 s = 0
                 for k in range(nnz):
-                    s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * data[i0][k])
+                    s += u2[k]
                 S[i0, i1, i2] = s
 
     return S
@@ -2656,15 +2659,19 @@ def sparse_multilin_mult_order4(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     s = 0
                     for k in range(nnz):
-                        s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * data[i0][k])
+                        s += u3[k]
                     S[i0, i1, i2, i3] = s
 
     return S
@@ -2676,17 +2683,22 @@ def sparse_multilin_mult_order5(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         s = 0
                         for k in range(nnz):
-                            s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * data[i0][k])
+                            s += u4[k]
                         S[i0, i1, i2, i3, i4] = s
 
     return S
@@ -2698,19 +2710,25 @@ def sparse_multilin_mult_order6(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             s = 0
                             for k in range(nnz):
-                                s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * data[i0][k])
+                                s += u5[k]
                             S[i0, i1, i2, i3, i4, i5] = s
 
     return S
@@ -2722,21 +2740,28 @@ def sparse_multilin_mult_order7(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 s = 0
                                 for k in range(nnz):
-                                    s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * data[i0][k])
+                                    s += u6[k]
                                 S[i0, i1, i2, i3, i4, i5, i6] = s
 
     return S
@@ -2748,23 +2773,31 @@ def sparse_multilin_mult_order8(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 for i7 in range(h):
                                     i7 = (i7 + i0) % h
+                                    u7 = u6 * U[7][i7,:]
                                     s = 0
                                     for k in range(nnz):
-                                        s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * U[7][i7,k] * data[i0][k])
+                                        s += u7[k]
                                     S[i0, i1, i2, i3, i4, i5, i6, i7] = s
 
     return S
@@ -2776,25 +2809,34 @@ def sparse_multilin_mult_order9(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 for i7 in range(h):
                                     i7 = (i7 + i0) % h
+                                    u7 = u6 * U[7][i7,:]
                                     for i8 in range(i):
                                         i8 = (i8 + i0) % i
+                                        u8 = u7 * U[8][i8,:]
                                         s = 0
                                         for k in range(nnz):
-                                            s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * U[7][i7,k] * U[8][i8,k] * data[i0][k])
+                                            s += u8[k]
                                         S[i0, i1, i2, i3, i4, i5, i6, i7, i8] = s
 
     return S
@@ -2806,27 +2848,37 @@ def sparse_multilin_mult_order10(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 for i7 in range(h):
                                     i7 = (i7 + i0) % h
+                                    u7 = u6 * U[7][i7,:]
                                     for i8 in range(i):
                                         i8 = (i8 + i0) % i
+                                        u8 = u7 * U[8][i8,:]
                                         for i9 in range(j):
                                             i9 = (i9 + i0) % j
+                                            u9 = u8 * U[9][i9,:]
                                             s = 0
                                             for k in range(nnz):
-                                                s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * U[7][i7,k] * U[8][i8,k] * U[9][i9,k] * data[i0][k])
+                                                s += u9[k]
                                             S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9] = s
 
     return S
@@ -2838,29 +2890,40 @@ def sparse_multilin_mult_order11(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 for i7 in range(h):
                                     i7 = (i7 + i0) % h
+                                    u7 = u6 * U[7][i7,:]
                                     for i8 in range(i):
                                         i8 = (i8 + i0) % i
+                                        u8 = u7 * U[8][i8,:]
                                         for i9 in range(j):
                                             i9 = (i9 + i0) % j
+                                            u9 = u8 * U[9][i9,:]
                                             for i10 in range(m):
                                                 i10 = (i10 + i0) % m
+                                                u10 = u9 * U[10][i10,:]
                                                 s = 0
                                                 for k in range(nnz):
-                                                    s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * U[7][i7,k] * U[8][i8,k] * U[9][i9,k] * U[10][i10,k] * data[i0][k])
+                                                    s += u10[k]
                                                 S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10] = s
 
     return S
@@ -2872,31 +2935,43 @@ def sparse_multilin_mult_order12(U, data, S, dims):
     nnz = len(data[0])
 
     for i0 in prange(a):
+        u0 = U[0][i0,:] * data[i0]
         for i1 in range(b):
             i1 = (i1 + i0) % b
+            u1 = u0 * U[1][i1,:]
             for i2 in range(c):
                 i2 = (i2 + i0) % c
+                u2 = u1 * U[2][i2,:]
                 for i3 in range(d):
                     i3 = (i3 + i0) % d
+                    u3 = u2 * U[3][i3,:]
                     for i4 in range(e):
                         i4 = (i4 + i0) % e
+                        u4 = u3 * U[4][i4,:]
                         for i5 in range(f):
                             i5 = (i5 + i0) % f
+                            u5 = u4 * U[5][i5,:]
                             for i6 in range(g):
                                 i6 = (i6 + i0) % g
+                                u6 = u5 * U[6][i6,:]
                                 for i7 in range(h):
                                     i7 = (i7 + i0) % h
+                                    u7 = u6 * U[7][i7,:]
                                     for i8 in range(i):
                                         i8 = (i8 + i0) % i
+                                        u8 = u7 * U[8][i8,:]
                                         for i9 in range(j):
                                             i9 = (i9 + i0) % j
+                                            u9 = u8 * U[9][i9,:]
                                             for i10 in range(m):
                                                 i10 = (i10 + i0) % m
+                                                u10 = u9 * U[10][i10,:]
                                                 for i11 in range(n):
                                                     i11 = (i11 + i0) % n
+                                                    u11 = u10 * U[11][i11,:]
                                                     s = 0
                                                     for k in range(nnz):
-                                                        s += (U[0][i0,k] * U[1][i1,k] * U[2][i2,k] * U[3][i3,k] * U[4][i4,k] * U[5][i5,k] * U[6][i6,k] * U[7][i7,k] * U[8][i8,k] * U[9][i9,k] * U[10][i10,k] * U[11][i11,k] * data[i0][k])
+                                                        s += u11[k]
                                                     S[i0, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, i11] = s
 
     return S
