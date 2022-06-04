@@ -29,6 +29,24 @@ def my_function():
     >>> rel_error = np.linalg.norm(T_dense - T_approx)/np.linalg.norm(T_dense)
     >>> print('|T - T_approx|/|T| < 1e-4', rel_error < 1e-4)
     |T - T_approx|/|T| < 1e-4 True
+    
+    Check consistency of standard routines for all orders.
+    >>> R = 5
+    >>> error_list = []
+    >>> for L in range(3, 13):
+    ...     n = 3
+    ...     nnz = 3
+    ...     dims = L * [n]
+    ...     best_error = 1
+    ...     for t in range(5):
+    ...         data, idxs, dims, factors = tfx.gen_rand_sparse_tensor(dims, R, nnz)
+    ...         T_sparse = [data, idxs, dims]
+    ...         factors_tfx, output = tfx.cpd(T_sparse, R)
+    ...         if output.rel_error < best_error:
+    ...             best_error = output.rel_error
+    ...     error_list.append(best_error)
+    >>> print([x < 1e-3 for x in error_list])
+    [True, True, True, True, True, True, True, True, True, True, True, True]
     """
 
     return 
