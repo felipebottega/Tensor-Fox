@@ -209,8 +209,8 @@ def cpd(T, R, options=False):
         svd_n_components: int
             Number of singular values and vectors to extract when computing the randomized SVD. The default is set to
             None, which means the program will use min(R, dims[l]) for dense tensors and L * min(R, dims[l]) for sparse
-            tensors, where L is the number of dimensions (modes), R is the rank and dims[l] is the l-th dimensions of 
-            the tensors. The number of components for each dimensions is an upper bound for the dimension of the 
+            tensors, where L is the number of dimensions (modes), R is the rank and dims[l] is the l-th dimension of 
+            the tensors. The number of components for each dimension is an upper bound for the dimension of the 
             compressed tensor. Higher values may lead to better approximations with a cost on computational cost. 
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
