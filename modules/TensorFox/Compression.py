@@ -28,7 +28,6 @@ import time
 import numpy as np
 from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, dot, ndarray, argmax, newaxis, sign
 from numpy.linalg import norm
-#from sklearn.utils.extmath import randomized_svd as rand_svd
 from scipy import sparse
 from scipy.linalg import qr, svd
 import warnings
@@ -39,12 +38,11 @@ import TensorFox.Auxiliar as aux
 import TensorFox.Conversion as cnv
 import TensorFox.MultilinearAlgebra as mlinalg
 
-
 # try to import dot_product_mkl. It will be used in intermediate computations.
 try:
     from sparse_dot_mkl import dot_product_mkl
 except:
-    print('-> Module sparse_dot_mkl could not be imported. Standard scipy dot will be used for sparse matrix multiplications.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', file=sys.stderr)
+    print('-> Module sparse_dot_mkl could not be imported. Tensor Fox routine will be used for sparse matrix multiplications.\nFor more information see https://github.com/felipebottega/Tensor-Fox/blob/master/README.md#sparse-dot-mkl-requirements.', file=sys.stderr)
 
 
 def mlsvd(T, Tsize, R, options):
@@ -99,6 +97,7 @@ def mlsvd(T, Tsize, R, options):
     mlsvd_method = options.mlsvd_method
     tol_mlsvd = options.tol_mlsvd
     mkl_dot = options.mkl_dot
+    svd_n_components = options.svd_n_components
     if type(tol_mlsvd) == list:
         if L > 3:
             tol_mlsvd = tol_mlsvd[0]
@@ -129,12 +128,14 @@ def mlsvd(T, Tsize, R, options):
             if l == 0:
                 T1 = cnv.sparse_unfold(data, idxs, dims, l+1)
             mlsvd_method = 'sparse'
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l, svd_n_components, display)
             
         # Compute (U_1^T,...,U_L^T)*T = S.
-        new_dims = [U[l].shape[1] for l in range(L)]
         UT = [U[l].T for l in range(L)]
-        S = mlinalg.sparse_multilin_mult(UT, data, idxs, new_dims)
+        if display != 0:
+            print('    Computing sparse multilinear multiplication')
+        S = mlinalg.sparse_multilin_mult(UT, data, idxs, dims)
+            
 
     # Compute MLSVD base on sequentially truncated method.
     elif mlsvd_method == 'seq':
@@ -146,7 +147,7 @@ def mlsvd(T, Tsize, R, options):
             Sl = cnv.unfold(S, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(S, l+1)
-            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Sl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l, svd_n_components, display)
 
             # Compute l-th unfolding of S truncated at the l-th mode.
             Sl = (Vlt.T * sigmas[-1]).T
@@ -162,7 +163,7 @@ def mlsvd(T, Tsize, R, options):
             Tl = cnv.unfold(T, l+1)
             if l == 0:
                 T1 = cnv.unfold_C(T, l+1)
-            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l)
+            U, sigmas, Vlt, dim = compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l, svd_n_components, display)
 
         # Compute (U_1^T,...,U_L^T)*T = S.
         UT = [U[l].T for l in range(L)]
@@ -191,7 +192,7 @@ def mlsvd(T, Tsize, R, options):
     return S, U, T1, sigmas
 
 
-def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l):
+def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L, l, svd_n_components, display):
     """
     Subroutine of the function mlsvd. This function performs the SVD of a given unfolding.
     """
@@ -212,15 +213,24 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
     else:
         if mlsvd_method == 'sparse':
             if mkl_dot:
-                Tl = sparse_dot_mkl_call(Tl, mkl_dot)
+                Tl = sparse_dot_mkl_call(Tl, display)
             else:  
-                Tl = sparse_dot_calls(Tl)
-
-            Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
+                Tl = mlinalg.sparse_dot(Tl, display)
+            # Number of singular values and vectors to extract.
+            if svd_n_components is None:
+                n_components = L * low_rank
+            else:
+                n_components = svd_n_components
+            Ul, sigma_l, Vlt = randomized_svd(Tl, n_components, mkl_dot, n_oversamples=10, n_iter=2)
             sigma_l = sqrt(sigma_l)
 
         else:
-            Ul, sigma_l, Vlt = randomized_svd(Tl, low_rank, mkl_dot, n_oversamples=10, n_iter=2)
+            # Number of singular values and vectors to extract.
+            if svd_n_components is None:
+                n_components = low_rank
+            else:
+                n_components = svd_n_components
+            Ul, sigma_l, Vlt = randomized_svd(Tl, n_components, mkl_dot, n_oversamples=10, n_iter=2)
 
     # Truncate more based on energy.
     Ul, sigma_l, Vlt, dim = clean_compression(Ul, sigma_l, Vlt, tol_mlsvd, L)
@@ -230,10 +240,10 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
     return U, sigmas, Vlt, dim
     
     
-def sparse_dot_mkl_call(Tl, mkl_dot):
+def sparse_dot_mkl_call(Tl, display):
     """
     This function tries to compute the product dot(Tl, Tl.T) with the method from the package sparse_dot_mkl. If this
-    method fails, the program calls the function sparse_dot_calls. Only the function compute_svd calls this function.
+    method fails, the program calls the function sparse_dot. 
     """
     
     # Defines environment variable and make import.
@@ -242,36 +252,12 @@ def sparse_dot_mkl_call(Tl, mkl_dot):
         import os
         os.environ["MKL_INTERFACE_LAYER"] = "ILP64"
         from sparse_dot_mkl import dot_product_mkl
-    except:
-        mkl_dot = False
-        
-    if mkl_dot:
-        try:
-            TlT = Tl.T
-            Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
-        except Exception as e:
-            print('-> ', str(e) + '. Using standard scipy dot.', file=sys.stderr)
-            Tl = sparse_dot_calls(Tl)
-    else:
-        Tl = sparse_dot_calls(Tl)
-        
-    return Tl
-    
-    
-def sparse_dot_calls(Tl):
-    """
-    This function tries to compute the product dot(Tl, Tl.T) with 2 methods: standard Scipy dot and a naive method 
-    written in this project, called slow_sparse_dot. The former is faster but consumes a lot of memory, whereas the
-    latter is slower but consumes less memory. Only the function compute_svd calls this function.
-    """
-
-    try:
-        Tl = Tl.dot(Tl.T)
+        TlT = Tl.T
+        Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
     except Exception as e:
-        print('-> ', str(e) + '. Using slow sparse dot.', file=sys.stderr)
-        time.sleep(1)
-        Tl = mlinalg.slow_sparse_dot(Tl)
-            
+        print('-> ', str(e) + '.\nUsing sparse-sparse dot from Tensor Fox.', file=sys.stderr)
+        Tl = mlinalg.sparse_dot(Tl, display)
+        
     return Tl
 
 

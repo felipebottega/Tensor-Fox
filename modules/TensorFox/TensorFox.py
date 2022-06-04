@@ -206,6 +206,12 @@ def cpd(T, R, options=False):
             For sparse tensors, this options tells the program to perform matrix-matrix multiplication using specific 
             multithread MKL routines (mkl_sparse_spmm). When mkl_dot=False, the program uses the standard scipy dot
             function, which is single thread but requires much less memory. Default is True.         
+        svd_n_components: int
+            Number of singular values and vectors to extract when computing the randomized SVD. The default is set to
+            None, which means the program will use min(R, dims[l]) for dense tensors and L * min(R, dims[l]) for sparse
+            tensors, where L is the number of dimensions (modes), R is the rank and dims[l] is the l-th dimensions of 
+            the tensors. The number of components for each dimensions is an upper bound for the dimension of the 
+            compressed tensor. Higher values may lead to better approximations with a cost on computational cost. 
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
     its default value automatically. For a tutorial about the options, check the Tensor Fox tutorial at

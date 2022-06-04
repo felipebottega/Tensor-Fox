@@ -13,12 +13,16 @@
    Problem, SIAM J. Optim., 28(3), 2435-2465.
 
  - P. Breiding and N. Vannieuwenhoven, The Condition Number of Join Decompositions, arXiv:1611.08117v3 (2018).
+ 
+ - Felipe B. D., Tensor Decompositions and Algorithms, with Applications to Tensor Learning, PdG Thesis, arXiv:2110.05997 (2019).
+
 """
 
 # Python modules
 import sys
+import time
 import numpy as np
-from numpy import dot, zeros, empty, uint64, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange
+from numpy import dot, zeros, empty, uint64, float64, array, sort, ceil, identity, argmax, inf, sqrt, arange, linspace
 from numpy.linalg import norm, svd
 import numpy.matlib
 import scipy as scp
@@ -65,14 +69,15 @@ def multilin_mult_cpd(U, W, dims):
     return S
 
 
-def multilin_mult(U, T1, dims):
+def multilin_mult(UT, T1, dims):
     """    
     Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where U[i]^T is the transpose of U[i], 
-    dims = T.shape. We need the first unfolding T1 of T to start the computations.
+    dims = T.shape. We need the first unfolding T1 of T to start the computations. To understand better why
+    the method to obtain S works you can read example 2.1.13 in the PhD Thesis mentioned above. 
 
     Inputs
     ------
-    U: list of 2-D arrays
+    UT: list of 2-D arrays
     T1: 2-D array
         First unfolding of T.
     dims: list of ints
@@ -85,23 +90,54 @@ def multilin_mult(U, T1, dims):
     """
 
     L = len(dims)
-    # dims_out are the dimensions of the output tensor.
-    dims_out = list(dims)
+    S_dims = list(dims)
     
     unfolding1 = T1    
     for l in range(L):
-        unfolding2 = dot(U[l], unfolding1)
-        # Update the current dimension of dims_out.
-        dims_out[l] = U[l].shape[0]
-        S = empty(dims_out)
+        unfolding2 = dot(UT[l], unfolding1)
+        # Update the current dimension of S_dims.
+        S_dims[l] = UT[l].shape[0]
+        S = empty(S_dims)
         S = cnv.foldback(S, unfolding2, l+1)
         if l < L-1:            
             unfolding1 = cnv.unfold(S, l+2)
         else:
             return S
+            
+            
+def sparse_multilin_mult_direct(S, U, idxs, dims):
+    """
+    Performs the multilinear multiplication (U[0],...,U[L-1])*S, where idxs are the indexes of T and S is dense. 
 
+    Inputs
+    ------
+    S: float array
+        S is the resulting compression of T, given by T = (U[0],...,U[L-1])*S.
+    U: list of 2-D arrays
+    idxs: int 2-D array
+        Let nnz be the number of nonzero entries of the tensor T. Then idxs is an array of shape (nnz, L) such that
+        idxs[i, :] is the index of the i-th nonzero entry.
+    dims: list or tuple
+        The dimensions (shape) of the tensor T.
 
-def sparse_multilin_mult(U, data, idxs, dims):
+    Outputs
+    -------
+    T: sparse tensor
+        T is given in the format T = [data_approx, idxs, dims]. The arrays idxs and dims are know in advance, only 
+        data_approx is computed here.
+    """
+
+    L = len(dims)
+    func_name = "sparse_multilin_mult_order" + str(L) + "_direct"
+    
+    # Run the multiplication function.
+    data_approx = getattr(crt, func_name)(S, U, idxs)
+    T_approx = [data_approx, idxs, dims]
+
+    return T_approx
+
+            
+def sparse_multilin_mult(UT, data, idxs, dims):
     """
     Performs the multilinear multiplication (U[0]^T,...,U[L-1]^T)*T, where U[i]^T is the transpose of U[i], 
     dims = T.shape and T is sparse. 
@@ -125,13 +161,13 @@ def sparse_multilin_mult(U, data, idxs, dims):
 
     L = len(dims)
     # dims_out are the dimensions of the output tensor S.
-    dims_out = [U[l].shape[0] for l in range(L)]
+    dims_out = [UT[l].shape[0] for l in range(L)]
     S = empty(dims_out, dtype=float64)
     func_name = "sparse_multilin_mult_order" + str(L)
         
     # Generate a different version of U to deal with sparse index accesses.
     nnz = len(data)    
-    U_tmp = [U[l][:, idxs[:, l]] for l in range(L)]
+    U_tmp = [array(UT[l][:, idxs[:, l]], order='C') for l in range(L)]
     data_list = [array(data) for i in range(dims_out[0])]
             
     # Run the multiplication function.
@@ -139,7 +175,7 @@ def sparse_multilin_mult(U, data, idxs, dims):
         S = getattr(crt, func_name)(U_tmp, data_list, S, dims_out)
     except:
         # Change arrays order to be compatible with Numba function.
-        U_tmp = [array(U[l][:, idxs[:, l]], order='C') for l in range(L)]
+        U_tmp = [array(UT[l][:, idxs[:, l]], order='C') for l in range(L)]
         data_list = [array(data, order='A') for i in range(dims_out[0])]        
         S = getattr(crt, func_name)(U_tmp, data_list, S, dims_out)
     
@@ -343,11 +379,10 @@ def compute_error(T, Tsize, S1, U, dims):
     # T is sparse.
     if type(T) == list:
         S = S1
-        L = len(U)
-        UT = [U[l].T for l in range(L)]
         data, idxs, Tdims = T
-        T_compress = sparse_multilin_mult(UT, data, idxs, Tdims)
-        error = norm(T_compress - S) / Tsize
+        T_approx = sparse_multilin_mult_direct(S, U, idxs, Tdims)
+        data_approx = T_approx[0]
+        error = norm(data - data_approx)/Tsize
     # T is dense.
     else:
         T_compress = multilin_mult(U, S1, dims)
@@ -481,42 +516,40 @@ def search_forward_error(orig_rank1, approx_rank1, R):
     return best_error, best_s
 
 
-def slow_sparse_dot(A):
+def sparse_dot(A, display):
     """
     This function computes dot(A, A.T), where A is a sparse csr matrix. The function compute_svd calls this product when
-    the sparse_dot_mkl and scipy dot fails to perform the product, usually due to memory limitations. They tend to
-    explode the memory for too large column sizes, whereas this functions performs well for large column sizes but it
-    will explode for large row sizes of A.
+    the sparse_dot_mkl fails to perform the product, usually due to memory limitations. 
     """
     
-    print("-> If we got here it means the program may take more time than usual to finish. For best performance more memory RAM is needed.", file=sys.stderr)
-    print("-> To see the % progress you need to be running the program in some terminal.", file=sys.stderr)
+    if display > 1:
+        time.sleep(1)
+        print("    -> The % progress can be visualized in the terminal.")
 
     n = A.shape[0]
     
-    # Create the list of slices of indices on which each process will work with.
+    # Create the list of slices of rows on which each process will work with.
     num_procs = multiprocessing.cpu_count()
-    pieces = array([int(n*sqrt(i)/sqrt(num_procs)) for i in range(1, num_procs+1)])
+    pieces = array([int(n*sqrt(i)/sqrt(num_procs)) for i in range(num_procs)])
     pieces[-1] = n    
     pieces = [[pieces[i], pieces[i+1], i] for i in range(len(pieces)-1)]
     
-    # Define matrix variables.
-    A_row_idxs = [set(A[i, :].indices) for i in range(n)]
-    B = A.tocoo()
-    A_dct = {(B.row[i], B.col[i]): B.data[i] for i in range(len(B.data))}
-    B = []
-    
     # Compute the matrix values.
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        partial_inputs = partial(slow_sparse_dot_inner, A_row_idxs=A_row_idxs, A_dct=A_dct)
-        results = pool.map(partial_inputs, pieces)
     data_tmp = []
     idxs_tmp = []
+    results = []
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        partial_inputs = partial(crt.sparse_dot_inner, A=A, display=display)
+        results = pool.map(partial_inputs, pieces)    
     for r in results:
         data_tmp += r[0]
         idxs_tmp += r[1]    
         
     # Computes the diagonal of the matrix.
+    A_row_idxs = [set(A[i, :].indices) for i in range(n)]
+    B = A.tocoo()
+    A_dct = {(B.row[i], B.col[i]): B.data[i] for i in range(len(B.data))}
+    B = []
     for i in range(n):
         idx = A_row_idxs[i].intersection(A_row_idxs[i])
         val = sum([A_dct[(i, k)] * A_dct[(i, k)] for k in idx])
@@ -526,7 +559,7 @@ def slow_sparse_dot(A):
 
     # Corner case.
     if len(data_tmp) == 0:
-        print('The result is a null matrix.')
+        print('    sparse_dot: The result is a null matrix.', file=sys.stderr)
         data_tmp = [0]
         idxs_tmp = [[0, 0]]    
 
@@ -541,35 +574,53 @@ def slow_sparse_dot(A):
     return out_arr
     
     
-def slow_sparse_dot_inner(piece, A_row_idxs, A_dct):
+def dense_sparse_dot(A, B, display):
     """
-    Subroutine of the function slow_sparse_dot. Here is where the actual computations are made.
+    This function computes dot(A, B), where A is dense and B is a sparse csr matrix. Although this function is slow, 
+    it is able to handle huge sparse matrices. No other function in Tensor Fox call this function.
     """
     
+    if display > 1:
+        time.sleep(1)
+        print("    -> The % progress can be visualized in the terminal.")
+        
+    m = A.shape[0]
+    n = B.shape[1]
+    
+    # Create the list of slices of columns on which each process will work with.
+    num_procs = multiprocessing.cpu_count()
+    pieces = array([int(x) for x in linspace(0, n, num_procs)])
+    pieces[-1] = n    
+    pieces = [[pieces[i], pieces[i+1], i] for i in range(len(pieces)-1)]
+    
+    # Compute the matrix values.
     data_tmp = []
     idxs_tmp = []
-    a, b, proc_id = piece
-    pct = np.array([int(x) for x in np.linspace(a, b, 101)])   
-    
-    for i in range(a, b):
-        for j in range(i):
-            idx = A_row_idxs[i].intersection(A_row_idxs[j])
-            val = sum([A_dct[(i, k)] * A_dct[(j, k)] for k in idx])
-            if val != 0:
-                data_tmp.append(val)
-                idxs_tmp.append([i, j])
-                # Put the value on the other half of the matrix since it is symmetric.
-                data_tmp.append(val)
-                idxs_tmp.append([j, i])    
-        # Display % progress on the screen. Only works when the user is running the program in some terminal.        
-        idx_pct = np.where(pct==i)
-        if len(idx_pct) > 0:
-            if len(idx_pct[0]) > 0:
-                print('Process', proc_id, ': ', idx_pct[0][0], ' %')
-    print('Process', proc_id, ': ', '100 %')
-        
-    return data_tmp, idxs_tmp
+    results = []    
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        partial_inputs = partial(crt.dense_sparse_dot_inner, A=A, B=B, display=display)
+        results = pool.map(partial_inputs, pieces)    
 
+    for r in results:
+        data_tmp += r[0]
+        idxs_tmp += r[1]
+
+    # Corner case.
+    if len(data_tmp) == 0:
+        print('    dense_sparse_dot: The result is a null matrix.', file=sys.stderr)
+        data_tmp = [0]
+        idxs_tmp = [[0, 0]]    
+
+    # Join the results.    
+    data_tmp = array(data_tmp, dtype=float64)
+    idxs_tmp = array(idxs_tmp, dtype=uint64)
+    rows = idxs_tmp[:, 0]
+    cols = idxs_tmp[:, 1]
+    out_arr = coo_matrix((data_tmp, (rows, cols)), shape=(m, n))
+    out_arr = out_arr.tocsr()
+    
+    return out_arr
+    
 
 def multiply_dims(dims):
     """

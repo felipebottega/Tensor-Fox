@@ -5,6 +5,7 @@
 """
 
 # Python modules
+import sys
 import numpy as np
 from numpy import empty, array, zeros, arange, prod, int64, uint64, dot, sign, float64, nonzero
 from numpy.linalg import norm
@@ -290,8 +291,11 @@ def sparse_unfold(data, idxs, dims, mode):
             c += 1
     
     rows = idxs[:, mode-1]
-    cols = np.sum(K * idxs, axis=1, dtype=uint64)
-    Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], mlinalg.multiply_dims(dims)//dims[mode-1]))
+    cols = np.sum(array(K, dtype=uint64) * array(idxs, dtype=uint64), axis=1, dtype=uint64)
+    try:
+        Tl = coo_matrix((data, (rows, cols)), shape=(dims[mode-1], mlinalg.multiply_dims(dims)//dims[mode-1]))
+    except ValueError:
+        sys.exit('Got too big index when tried to generate the unfold of sparse tensor.')
     Tl = Tl.tocsr()
 
     return Tl

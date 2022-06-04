@@ -69,12 +69,16 @@ def consistency(R, dims, options):
         msg = "Wrong method name. Must be 'dGN', 'als' or 'ttcpd'."
         sys.exit(msg)
         
+    if options.display > 2:
+        print('-> With display > 2 Tensor Fox will compute the error of the MLSVD. For large tensors this routine is very clostly.', file=sys.stderr)
+        
     return
 
 
 def tens2matlab(T, filename):
     """ 
-    This function creates a matlab file containing the tensor T. The parameter filename should be a string.
+    This function creates a matlab file containing the tensor T. The parameter filename should be a string. 
+    Note that it is not necessary to include the extension of the file.
     """
     
     # Save the tensor in matlab format.
@@ -273,6 +277,7 @@ def make_options(options):
             self.epochs = 1
             self.gpu = False
             self.mkl_dot = True
+            self.svd_n_components = None
 
     temp_options = temp_options()
 
@@ -341,6 +346,8 @@ def make_options(options):
         temp_options.gpu = options.gpu
     if 'mkl_dot' in dir(options):
         temp_options.mkl_dot = options.mkl_dot
+    if 'svd_n_components' in dir(options):
+        temp_options.svd_n_components = options.svd_n_components
 
     # If gpu is True, the variable mlsvd_method is set to 'gpu', which is a special strategy aiming to minimize the
     # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the
@@ -622,7 +629,7 @@ def gen_rand_sparse_tensor(dims, R, nnz):
             idxs[l].append(idx[0])
 
     idxs = list(set(product(*(idx for idx in idxs))))
-
+    
     data = []
     for j in idxs:
         tmp = 0
