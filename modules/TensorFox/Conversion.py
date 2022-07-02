@@ -278,6 +278,7 @@ def sparse_unfold(data, idxs, dims, mode):
     idx = list(arange(L))
     idx.remove(mode-1)
     K = [0 for l in range(L)]
+    dims = [int(dim) for dim in dims]
 
     c = 0
     for l in range(L):

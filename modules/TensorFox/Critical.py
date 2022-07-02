@@ -53,7 +53,7 @@ def sparse_fastnorm_computations(data_approx_cols, idxs, factors, R, L, nnz):
     return data_approx_cols
     
 
-def sparse_dot_inner(piece, A, display):
+def sparse_dot_inner(piece, A):
     """
     Subroutine of the function sparse_dot (module MultilinearAlgebra). Here is where the actual computations are made.
     """
@@ -61,7 +61,6 @@ def sparse_dot_inner(piece, A, display):
     data_tmp = []
     idxs_tmp = []
     a, b, proc_id = piece
-    pct = array([int(x) for x in linspace(a, b, 101)])   
     
     # Define matrix variables.
     n = A.shape[0]
@@ -81,14 +80,6 @@ def sparse_dot_inner(piece, A, display):
                 # Put the value on the other half of the matrix since it is symmetric.
                 data_tmp.append(val)
                 idxs_tmp.append([j, i])    
-        # Display % progress on the screen. Only works when the user is running the program in the terminal.        
-        idx_pct = where(pct==i)
-        if display > 1 and len(idx_pct) > 0:
-            if len(idx_pct[0]) > 0:
-                print('sparse_dot - Process', proc_id, ': ', idx_pct[0][0], ' %')
-                
-    if display > 1:
-        print('sparse_dot - Process', proc_id, ': ', '100 %')
         
     return data_tmp, idxs_tmp
     

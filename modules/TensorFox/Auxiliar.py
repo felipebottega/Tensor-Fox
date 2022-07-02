@@ -6,10 +6,11 @@
 """ 
 
 # Python modules
+import sys
+import time
 from numpy import diag, dot, argsort, array, size, inf, moveaxis, arange, ndarray, unique, prod, uint64
 from numpy.linalg import norm, pinv
 from numpy.random import randn, randint
-import sys
 import scipy.io
 from sklearn.utils.extmath import randomized_svd as rand_svd
 from itertools import product
@@ -71,6 +72,8 @@ def consistency(R, dims, options):
         
     if options.display > 2:
         print('-> With display > 2 Tensor Fox will compute the error of the MLSVD. For large tensors this routine is very clostly.', file=sys.stderr)
+        
+    time.sleep(1)
         
     return
 

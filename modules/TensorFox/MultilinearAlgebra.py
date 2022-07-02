@@ -131,7 +131,12 @@ def sparse_multilin_mult_direct(S, U, idxs, dims):
     func_name = "sparse_multilin_mult_order" + str(L) + "_direct"
     
     # Run the multiplication function.
-    data_approx = getattr(crt, func_name)(S, U, idxs)
+    try:
+        data_approx = getattr(crt, func_name)(S, U, idxs)
+    # Change arrays order to be compatible with Numba function.
+    except:
+        U_tmp = [array(u, order='C') for u in U]
+        data_approx = getattr(crt, func_name)(S, U_tmp, idxs)
     T_approx = [data_approx, idxs, dims]
 
     return T_approx
@@ -516,16 +521,12 @@ def search_forward_error(orig_rank1, approx_rank1, R):
     return best_error, best_s
 
 
-def sparse_dot(A, display):
+def sparse_dot(A):
     """
     This function computes dot(A, A.T), where A is a sparse csr matrix. The function compute_svd calls this product when
     the sparse_dot_mkl fails to perform the product, usually due to memory limitations. 
     """
     
-    if display > 1:
-        time.sleep(1)
-        print("    -> The % progress can be visualized in the terminal.")
-
     n = A.shape[0]
     
     # Create the list of slices of rows on which each process will work with.
@@ -539,7 +540,7 @@ def sparse_dot(A, display):
     idxs_tmp = []
     results = []
     with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-        partial_inputs = partial(crt.sparse_dot_inner, A=A, display=display)
+        partial_inputs = partial(crt.sparse_dot_inner, A=A)
         results = pool.map(partial_inputs, pieces)    
     for r in results:
         data_tmp += r[0]

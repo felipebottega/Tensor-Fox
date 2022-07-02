@@ -26,7 +26,7 @@
 import sys
 import time
 import numpy as np
-from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, dot, ndarray, argmax, newaxis, sign
+from numpy import identity, ones, empty, array, uint64, float32, float64, copy, sqrt, dot, ndarray, argmax, newaxis, sign, log10
 from numpy.linalg import norm
 from scipy import sparse
 from scipy.linalg import qr, svd
@@ -215,10 +215,10 @@ def compute_svd(Tl, U, sigmas, dims, R, mlsvd_method, tol_mlsvd, gpu, mkl_dot, L
             if mkl_dot:
                 Tl = sparse_dot_mkl_call(Tl, display)
             else:  
-                Tl = mlinalg.sparse_dot(Tl, display)
+                Tl = mlinalg.sparse_dot(Tl)
             # Number of singular values and vectors to extract.
             if svd_n_components is None:
-                n_components = L * low_rank
+                n_components = int(max(L, log10(dims[l]*dims[l]*L)) * low_rank)
             else:
                 n_components = svd_n_components
             Ul, sigma_l, Vlt = randomized_svd(Tl, n_components, mkl_dot, n_oversamples=10, n_iter=2)
@@ -255,8 +255,8 @@ def sparse_dot_mkl_call(Tl, display):
         TlT = Tl.T
         Tl = dot_product_mkl(Tl, TlT, copy=False, dense=True)
     except Exception as e:
-        print('-> ', str(e) + '.\nUsing sparse-sparse dot from Tensor Fox.', file=sys.stderr)
-        Tl = mlinalg.sparse_dot(Tl, display)
+        print('-> ', str(e) + '.\n-> Using sparse-sparse dot from Tensor Fox.', file=sys.stderr)
+        Tl = mlinalg.sparse_dot(Tl)
         
     return Tl
 
