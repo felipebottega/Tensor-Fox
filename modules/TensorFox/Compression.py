@@ -174,10 +174,7 @@ def mlsvd(T, Tsize, R, options):
         slices = []
         for l in range(L):
             slices.append(slice(0, trunc_dims[l]))
-            if trunc_dims[l] > U[l].shape[1]:
-                print('trunc_dims[', l, '] =', trunc_dims[l], 'and U[', l, '].shape =', U[l].shape)
-                sys.exit('Must have trunc_dims[l] <= min(dims[l], R) for all mode l=1...' + str(L))
-            U[l] = U[l][:, :trunc_dims[l]]
+            U[l] = U[l][:, :min(trunc_dims[l], U[l].shape[1])]    # trunc_dims[l] can't be higher than U[l].shape[1]
         S = S[tuple(slices)]
 
     # Compute error of compressed tensor.
