@@ -11,7 +11,7 @@ import TensorFox.TensorFox as tfx
 
 def normalization(X, method='mean_normalization'):
     """
-    Normalize data by shifting all data by a certain constant, and dividing all data by a other certain constant. The
+    Normalize data by shifting all data by a certain constant, and dividing all data by other certain constant. The
     program returns the normalized data X = (X - mu)/sigma. In the case the user want to return to the original format,
     set X = sigma*X + mu.
 

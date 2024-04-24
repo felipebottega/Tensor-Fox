@@ -645,3 +645,29 @@ def gen_rand_sparse_tensor(dims, R, nnz):
         data.append(tmp)
 
     return array(data), array(idxs), array(dims), orig_factors
+    
+    
+def sparse2txt(idxs, data, filename, start=1):
+    """
+    Converts a sparse tensor in text format and saves it. The format is such that
+    each row contains a sequence of the index values and the tensor value.
+    
+    Input
+    -----
+    idxs, data: float 1-D arrays
+        The same arrays of the sparse tensor used in Tensor Fox.
+    filename: str
+        The name of the text file where the tensor wil be saved.
+    start: int
+        In Tensor Fox the indexes starts at zero, but the same may not be true for
+        other applications where the text file will be used. This parameter is a
+        value to be added on the indexes.
+    """
+    
+    with open(filename, 'w') as f:
+        for i, d in zip(idxs, data):
+            i = i + start
+            line = ''.join([f'{x} ' for x in (i + 1)]) + str(d) + '\n'
+            f.write(line)
+            
+    return

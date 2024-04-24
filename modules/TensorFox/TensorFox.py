@@ -43,7 +43,6 @@ from copy import deepcopy
 from decimal import Decimal
 import matplotlib.pyplot as plt
 import numba
-import multiprocessing
 import warnings
 
 # Tensor Fox modules
@@ -232,10 +231,8 @@ def cpd(T, R, options=False):
     # Extract the dimensions and order to generate options, test consistency and check if T is a third order tensor.
     if type(T) == list:
         _, _, dims_orig = T
-        numba.set_num_threads(int(0.8 * multiprocessing.cpu_count()))    # if T is sparse, the recommended is to use 80% of the threads
     else:
         dims_orig = T.shape
-        numba.set_num_threads(multiprocessing.cpu_count())    # if T is dense, we can use all of the threads
     L = len(dims_orig)
     
     # Set options.
