@@ -28,11 +28,18 @@ The only pre-requisite is to have **Python 3** installed. After this you just ne
 
     pip install TensorFox
     
-The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more detail at the end of this text). This package is responsible for accelerating a few matrix multiplications. Tensor Fox still works without this package but it will use Scipy dot instead. I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
+The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more detail at the end of this text). This package is responsible for accelerating sparse matrix multiplications. Tensor Fox still works without this package but it will use Scipy dot instead. I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
     
     conda create --name tfx_env --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba IPython sparse_dot_mkl  
+    conda install -c conda-forge sparse_dot_mkl
     
 After this you may install TensorFox and everything will be fine. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/), which is necessary to work with `sparse_dot_mkl`. Finally, note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
+
+### Tensor Fox Standalone Environment
+
+If you prefer not to install Tensor Fox via pip, [this release](https://github.com/felipebottega/Tensor-Fox/releases) provides a portable standalone environment with Python and all required dependencies already included. Simply extract the archive and follow the instructions in this release to start using Tensor Fox.
+
+The standalone environment is intended to simplify setup and provide a reproducible execution environment. It contains the exact dependency versions used during development, helping ensure consistent behavior across compatible Windows systems.
 
 ### Creating a tensor 
 
@@ -174,7 +181,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 
 ### Sparse Dot MKL requirements
 
-This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl_rt.dylib` for OSX, or `mkl_rt.dll` for WIN). If the MKL library cannot be loaded an `ImportError` will be raised when the package is first imported. MKL is distributed with the full version of conda, and can be installed into Miniconda with `conda install -c intel mkl`. Alternatively, you may add need to add the path to MKL shared objects to `LD_LIBRARY_PATH` (e.g. `export LD_LIBRARY_PATH=/opt/intel/mkl/lib/intel64:$LD_LIBRARY_PATH`). There are some known bugs in MKL v2019 which may cause intermittent segfaults. Updating to MKL v2020 is highly recommended if you encounter any problems.
+This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl_rt.dylib` for OSX, or `mkl_rt.dll` for WIN). If the MKL library cannot be loaded an `ImportError` will be raised when the package is first imported. MKL is distributed with the full version of conda, and can be installed into Miniconda with `conda install -c intel mkl`. Alternatively, you may need to add the path to MKL shared objects to `LD_LIBRARY_PATH` (e.g. `export LD_LIBRARY_PATH=/opt/intel/mkl/lib/intel64:$LD_LIBRARY_PATH`). There are some known bugs in MKL v2019 which may cause intermittent segfaults. Updating to MKL v2020 is highly recommended if you encounter any problems.
 
 ### Sparse Dot MKL environment variable
 
