@@ -35,9 +35,9 @@ The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more 
     
 After this you may install TensorFox and everything will be fine. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/), which is necessary to work with `sparse_dot_mkl`. Finally, note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
 
-### Tensor Fox Standalone Environment
+### Tensor Fox Standalone Environment (only for Windows)
 
-If you prefer not to install Tensor Fox via pip, [this release](https://github.com/felipebottega/Tensor-Fox/releases) provides a portable standalone environment with Python and all required dependencies already included. Simply extract the archive and follow the instructions in this release to start using Tensor Fox.
+If you prefer not to install Tensor Fox via pip, [this release](https://github.com/felipebottega/Tensor-Fox/releases/) provides a portable standalone environment with Python and all required dependencies already included. Simply extract the archive and follow the instructions in this release to start using Tensor Fox.
 
 The standalone environment is intended to simplify setup and provide a reproducible execution environment. It contains the exact dependency versions used during development, helping ensure consistent behavior across compatible Windows systems.
 
