@@ -43,6 +43,7 @@ from copy import deepcopy
 from decimal import Decimal
 import matplotlib.pyplot as plt
 import numba
+import multiprocessing
 import warnings
 
 # Tensor Fox modules
@@ -211,6 +212,9 @@ def cpd(T, R, options=False):
             tensors, where L is the number of dimensions (modes), R is the rank and dims[l] is the l-th dimension of 
             the tensors. The number of components for each dimension is an upper bound for the dimension of the 
             compressed tensor. Higher values may lead to better approximations with a cost on computational cost. 
+        conditioning: list
+            Save condition numbers of intermediate matrices in the CG method. Only for display = 4 and it is not applied
+            to the refine stage, since these are heavy computations.
 
     It is not necessary to create 'options' with all parameters described above. Any missing parameter is assigned to
     its default value automatically. For a tutorial about the options, check the Tensor Fox tutorial at
@@ -231,8 +235,10 @@ def cpd(T, R, options=False):
     # Extract the dimensions and order to generate options, test consistency and check if T is a third order tensor.
     if type(T) == list:
         _, _, dims_orig = T
+        numba.set_num_threads(int(0.8 * multiprocessing.cpu_count()))    # if T is sparse, the recommended is to use 80% of the threads
     else:
         dims_orig = T.shape
+        numba.set_num_threads(multiprocessing.cpu_count())    # if T is dense, we can use all of the threads
     L = len(dims_orig)
     
     # Set options.
@@ -298,13 +304,13 @@ def cpd(T, R, options=False):
         if prod(array(S.shape) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', tuple(dims)) 
+                print('    Working with dimensions', tuple(map(int, dims))) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', tuple(dims))                         
+                print('    Working with dimensions', tuple(map(int, dims)))                         
         else:
             print('    Compression detected')
-            print('    Compressing from', tuple(dims), 'to', S.shape)
+            print('    Compressing from', tuple(map(int, dims)), 'to', S.shape)
         if display > 2 or display < -1:
             print('    Compression relative error = {:7e}'.format(best_error))
         print()
@@ -528,13 +534,13 @@ def tricpd(T, R, options):
         if prod(array(dims_cmpr) == array(dims)):
             if tol_mlsvd == -1:
                 print('    No compression and no truncation requested by user')
-                print('    Working with dimensions', tuple(dims)) 
+                print('    Working with dimensions', tuple(map(int, dims))) 
             else:
                 print('    No compression detected')
-                print('    Working with dimensions', tuple(dims))                         
+                print('    Working with dimensions', tuple(map(int, dims)))                         
         else:
             print('    Compression detected')
-            print('    Compressing from', tuple(dims), 'to', S.shape)
+            print('    Compressing from', tuple(map(int, dims)), 'to', S.shape)
         if display > 2:
             print('    Compression relative error = {:7e}'.format(best_error))
             

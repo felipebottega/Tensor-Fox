@@ -168,6 +168,7 @@ def output_info(T1, Tsize, T1_approx,
             self.improv = [improv_main, improv_refine]
             self.gradients = [gradients_main, gradients_refine]
             self.stop = [stop_main, stop_refine]
+            self.conditioning = options.conditioning
             self.options = options
 
         def stop_msg(self):
@@ -281,6 +282,7 @@ def make_options(options):
             self.gpu = False
             self.mkl_dot = True
             self.svd_n_components = None
+            self.conditioning = []
 
     temp_options = temp_options()
 
@@ -351,6 +353,8 @@ def make_options(options):
         temp_options.mkl_dot = options.mkl_dot
     if 'svd_n_components' in dir(options):
         temp_options.svd_n_components = options.svd_n_components
+    if 'conditioning' in dir(options):
+        temp_options.conditioning = options.conditioning
 
     # If gpu is True, the variable mlsvd_method is set to 'gpu', which is a special strategy aiming to minimize the
     # memory size of the data passed to the GPU. This strategy is based on the classic MLSVD method. In the case the
@@ -591,7 +595,7 @@ def gen_rand_sparse_tensor(dims, R, nnz):
 
     Output
     ------
-    data: float 1-D arrays
+    data: float 1-D array
         data[i] is the nonzero value of the tensor at index idxs[i, :].
     idxs: int 2-D array
         Let nnz be the number of nonzero entries of the tensor. Then idxs is an array
@@ -641,8 +645,17 @@ def gen_rand_sparse_tensor(dims, R, nnz):
             for l in range(L):
                 if (j[l], r) in orig_factors[l].keys():
                     p *= orig_factors[l][j[l], r]
+                else:
+                    p = 0
+                    break
             tmp += p
         data.append(tmp)
+        
+    # Examine the values to remove possible remaining zeros.
+    for i in reversed(range(len(data))):
+        if data[i] == 0:
+            del data[i]
+            del idxs[i]    
 
     return array(data), array(idxs), array(dims), orig_factors
     

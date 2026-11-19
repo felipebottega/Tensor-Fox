@@ -288,6 +288,20 @@ def hadamard(A, B, M):
             M[r, rr] = A[r, rr]*B[r, rr]
 
     return M
+    
+@njit(nogil=True)
+def hadamard_rect(A, B, M):
+    """
+    Hadamard for rectangular matrices.
+    """
+    
+    nrows, ncols = A.shape
+
+    for i in range(nrows):
+        for j in range(ncols):
+            M[i, j] = A[i, j] * B[i, j]
+
+    return M
 
 
 def cond(factors):

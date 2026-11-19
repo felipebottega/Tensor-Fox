@@ -115,6 +115,7 @@ def dGN(T, factors, R, options):
     
     # The program is encouraged to make more iterations for small problems. 
     if R * sum(dims) <= 100: 
+        print("-> Small problem detected (R * sum(dims) <= 100). All the convergence tolerances (tol, tol_step, tol_improv, tol_grad) have been set to zero.", file=sys.stderr)
         tol = 0
         tol_step = 0
         tol_improv = 0
@@ -157,7 +158,7 @@ def dGN(T, factors, R, options):
                   '| {:^10}'.format('Predicted error'),
                   '| {:^10}'.format('# Inner iterations'))
 
-            # START GAUSS-NEWTON ITERATIONS
+    # START GAUSS-NEWTON ITERATIONS
 
     for it in range(maxiter):
         # Keep the previous value of x and error to compare with the new ones in the next iteration.
@@ -165,10 +166,10 @@ def dGN(T, factors, R, options):
         old_error = error
 
         # Computation of the Gauss-Newton iteration formula to obtain the new point x + y, where x is the 
-        # previous point and y is the new step obtained as the solution of min_y |Ay - b|, with 
+        # previous point and y is the new step obtained as the solution of min_y |Ay - b|.
         inner_parameters = damp, inner_method, cg_maxiter, cg_factor, cg_tol, tol_jump, symm, factors_norm, fix_mode
         T1_approx, factors, x, y, grad, itn, residualnorm, error = \
-            compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error)
+            compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error, options)
 
         # Update gain ratio and damping parameter. 
         gain_ratio = update_gain_ratio(damp, old_error, error, Tsize, old_x, x, grad)
@@ -251,7 +252,7 @@ def dGN(T, factors, R, options):
     return best_factors, step_sizes, errors, improv, gradients, stop
 
 
-def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error):
+def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_parameters, it, old_error, options):
     """    
     This function uses the chosen inner method to compute the next step.
     """
@@ -265,10 +266,10 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     # Call the inner method.
     if inner_method == 'cg':
         cg_maxiter = 1 + (L-2) * int(cg_factor * randint(1 + it**0.4, 2 + it**0.9))
-        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol, options)
         
     elif inner_method == 'cg_static':
-        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol)
+        y, grad, JT_J_grad, itn, residualnorm = cg(Tl, factors, data, y, damp, cg_maxiter, cg_tol, options)
 
     elif inner_method == 'als':
         factors = alsq.als_iteration(Tl, factors, fix_mode)
@@ -312,7 +313,7 @@ def compute_step(Tsize, Tl, T1_approx, factors, orig_factors, data, x, y, inner_
     return T1_approx, factors, x, y, grad, itn, residualnorm, error
 
 
-def cg(Tl, factors, data, y, damp, maxiter, tol):
+def cg(Tl, factors, data, y, damp, maxiter, tol, options):
     """
     Conjugate gradient algorithm specialized to the tensor case.
     """
@@ -355,6 +356,16 @@ def cg(Tl, factors, data, y, damp, maxiter, tol):
     # CG iterations.
     y, itn, residualnorm = cg_iterations(factors, P1, P2, A, B, P_VT_W, result, result_tmp, M, P,
                                          Gamma, damp, z, residual_cg, residualnorm, y, tol, maxiter, dims, sum_dims)
+                                         
+    # Save condition numbers of intermediate matrices. Only for display = 4, since these are heavy computations.
+    if options.display == 4 and not options.refine:
+        H = hessian(factors, P1, P2, sum_dims)
+        Hd = H + damp * diag(Gamma)
+        Hp = M[:, None] * Hd * M[None, :]
+        cond_H = np.linalg.cond(H)
+        cond_Hd = np.linalg.cond(Hd)
+        cond_Hp = np.linalg.cond(Hp)
+        options.conditioning.append([cond_H, cond_Hd, cond_Hp, damp])
 
     return M * y, grad, JT_J_grad, itn + 1, residualnorm
 
@@ -688,8 +699,13 @@ def hessian(factors, P1, P2, sum_dims):
             tmp2 = zeros((R*dims[l], R*dims[ll]))
             tmp2 = compute_blocks(tmp2, fortran_factors[l], vec_factors[ll], tuple(dims), R, l, ll)  
             # Blocks H_{l, ll} and H_{ll, l}.
-            H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
-                mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])  
+            if tmp1.shape[0] == tmp1.shape[1]:
+                H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
+                    mlinalg.hadamard(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])  
+            else:
+                H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]] = \
+                    mlinalg.hadamard_rect(tmp1, tmp2, H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]])
+                    
             H[sum_dims[ll]:sum_dims[ll+1], sum_dims[l]:sum_dims[l+1]] = H[sum_dims[l]:sum_dims[l+1], sum_dims[ll]:sum_dims[ll+1]].T               
               
     return H

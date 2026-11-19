@@ -1,15 +1,32 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: TensorFox
-Version: 1.2.1
+Version: 1.2.2
 Summary: Tensor Fox is a high performance package of multilinear algebra and tensor routines, with focus on the Canonical Polyadic Decomposition (CPD), also called PARAFAC or CANDECOMP.
 Home-page: https://github.com/felipebottega/Tensor-Fox
 Author: Felipe Bottega Diniz
 Author-email: felipebottega@gmail.com
 License: GNU
 Keywords: Tensor Fox Canonical Polyadic Decomposition CPD PARAFAC CANDECOMP Multilinear Learning
-Platform: UNKNOWN
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: numpy>=1.21.0
+Requires-Dist: pandas>=1.2.3
+Requires-Dist: scipy>=1.6.2
+Requires-Dist: scikit-learn>=0.24.1
+Requires-Dist: matplotlib>=3.3.4
+Requires-Dist: numba>=0.53.1
+Requires-Dist: IPython>=7.31.1
+Requires-Dist: sparse_dot_mkl>=0.7
+Dynamic: author
+Dynamic: author-email
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: summary
 
 # Tensor Fox
 
@@ -41,11 +58,18 @@ The only pre-requisite is to have **Python 3** installed. After this you just ne
 
     pip install TensorFox
     
-The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more detail at the end of this text). This package is responsible for accelerating a few matrix multiplications. Tensor Fox still works without this package but it will use Scipy dot instead. I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
+The package `sparse_dot_mkl` won't work properly with `pip` (we explain in more detail at the end of this text). This package is responsible for accelerating sparse matrix multiplications. Tensor Fox still works without this package but it will use Scipy dot instead. I recommend installing [Miniconda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) and then create an env with the following:
     
     conda create --name tfx_env --channel defaults jupyter numpy pandas scipy scikit-learn matplotlib numba IPython sparse_dot_mkl  
+    conda install -c conda-forge sparse_dot_mkl
     
 After this you may install TensorFox and everything will be fine. The channel must be `defaults`, otherwise Numpy won't be linked against MKL (see https://numpy.org/install/), which is necessary to work with `sparse_dot_mkl`. Finally, note that `jupyter` is optional, only if you want to work with jupyter notebooks. 
+
+### Tensor Fox Standalone Environment (only for Windows)
+
+If you prefer not to install Tensor Fox via pip, [this release](https://github.com/felipebottega/Tensor-Fox/releases/) provides a portable standalone environment with Python and all required dependencies already included. Simply extract the archive and follow the instructions in this release to start using Tensor Fox.
+
+The standalone environment is intended to simplify setup and provide a reproducible execution environment. It contains the exact dependency versions used during development, helping ensure consistent behavior across compatible Windows systems.
 
 ### Creating a tensor 
 
@@ -187,7 +211,7 @@ In this section we summarize all the features Tensor Fox has to offer. As alread
 
 ### Sparse Dot MKL requirements
 
-This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl_rt.dylib` for OSX, or `mkl_rt.dll` for WIN). If the MKL library cannot be loaded an `ImportError` will be raised when the package is first imported. MKL is distributed with the full version of conda, and can be installed into Miniconda with `conda install -c intel mkl`. Alternatively, you may add need to add the path to MKL shared objects to `LD_LIBRARY_PATH` (e.g. `export LD_LIBRARY_PATH=/opt/intel/mkl/lib/intel64:$LD_LIBRARY_PATH`). There are some known bugs in MKL v2019 which may cause intermittent segfaults. Updating to MKL v2020 is highly recommended if you encounter any problems.
+This package requires the MKL runtime linking library `libmkl_rt.so` (or `libmkl_rt.dylib` for OSX, or `mkl_rt.dll` for WIN). If the MKL library cannot be loaded an `ImportError` will be raised when the package is first imported. MKL is distributed with the full version of conda, and can be installed into Miniconda with `conda install -c intel mkl`. Alternatively, you may need to add the path to MKL shared objects to `LD_LIBRARY_PATH` (e.g. `export LD_LIBRARY_PATH=/opt/intel/mkl/lib/intel64:$LD_LIBRARY_PATH`). There are some known bugs in MKL v2019 which may cause intermittent segfaults. Updating to MKL v2020 is highly recommended if you encounter any problems.
 
 ### Sparse Dot MKL environment variable
 
@@ -226,9 +250,8 @@ This project is licensed under the GNU GENERAL PUBLIC LICENSE - see the [LICENSE
  8) S. Rabanser, O. Shchur, and S. Günnemann, *Introduction to Tensor Decompositions and their Applications in Machine Learning*, arXiv:1711.10781v1 (2017). 
  9) A. H. Phan, P. Tichavsky, and A. Cichoki, *Low Complexity Damped Gauss-Newton Algorithm for CANDECOMP/PARAFAC*, SIAM Journal on Matrix Analysis and Applications, 34 (1), 126-147 (2013).
  10) L. De Lathauwer, B. De Moor, and J. Vandewalle, *A Multilinear Singular Value Decomposition*, SIAM J. Matrix Anal. Appl., 21 (2000), pp. 1253-1278.
- 11) Tensorlab - https://www.tensorlab.net/
- 12) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
- 13) Tensorly - https://github.com/tensorly/
- 14) TensorBox - https://github.com/phananhhuy/TensorBox
-
-
+ 11) F. Bottega Diniz, PhD Thesis, https://www.pgmat.im.ufrj.br/index.php/pt-br/teses-e-dissertacoes/teses/2019-1/281-tensor-decompositions-and-algorithms-with-applications-to-tensor-learning/file
+ 12) Tensorlab - https://www.tensorlab.net/
+ 13) Tensor Toolbox - http://www.sandia.gov/~tgkolda/TensorToolbox/
+ 14) Tensorly - https://github.com/tensorly/
+ 15) TensorBox - https://github.com/phananhhuy/TensorBox
